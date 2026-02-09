@@ -1,0 +1,193 @@
+
+import React, { useEffect, useState } from 'react';
+import { Routes, Route, Navigate } from 'react-router-dom';
+import { db } from './services/db';
+import { User, UserRole } from './types';
+import { Login } from './views/Login';
+import { Layout } from './components/Layout';
+import { AdminDashboard } from './views/Admin';
+import { FacultyDashboard } from './views/Faculty';
+import { StudentDashboard } from './views/Student';
+import { NotificationsPage } from './views/Notifications';
+import { Modal, Input, Button } from './components/UI';
+import { ProtectedRoute } from './components/ProtectedRoute';
+
+const App: React.FC = () => {
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  // Settings / Password Change State
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [passForm, setPassForm] = useState({ current: '', new: '', confirm: '' });
+  const [settingsLoading, setSettingsLoading] = useState(false);
+
+  useEffect(() => {
+    const checkUser = async () => {
+      try {
+        const u = await db.getCurrentUser();
+        setUser(u);
+      } catch (e) {
+        console.error("Auth check failed", e);
+      } finally {
+        setLoading(false);
+      }
+    };
+    checkUser();
+  }, []);
+
+  const handleLogin = (loggedInUser: User) => {
+    setUser(loggedInUser);
+  };
+
+  const handleLogout = async () => {
+    await db.logout();
+    setUser(null);
+  };
+
+  const handleChangePassword = async () => {
+    if (passForm.new !== passForm.confirm) {
+      alert("New passwords do not match.");
+      return;
+    }
+    if (passForm.new.length < 6) {
+      alert("Password must be at least 6 characters.");
+      return;
+    }
+    setSettingsLoading(true);
+    try {
+      await db.changePassword(passForm.current, passForm.new);
+      alert("Password changed successfully.");
+      setIsSettingsOpen(false);
+      setPassForm({ current: '', new: '', confirm: '' });
+    } catch (e: any) {
+      alert("Error: " + e.message);
+    } finally {
+      setSettingsLoading(false);
+    }
+  };
+
+  const getDashboardPath = (role: UserRole) => {
+    switch (role) {
+      case UserRole.ADMIN: return '/admin';
+      case UserRole.FACULTY: return '/faculty';
+      case UserRole.STUDENT: return '/student';
+      default: return '/login';
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-100">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+      </div>
+    );
+  }
+
+  // Helper to wrap dashboards with Layout
+  const DashboardLayout = ({ title, children }: { title: string, children: React.ReactNode }) => (
+    <Layout
+      user={user!}
+      onLogout={handleLogout}
+      onOpenSettings={() => setIsSettingsOpen(true)}
+      title={title}
+    >
+      {children}
+    </Layout>
+  );
+
+  return (
+    <>
+      <Routes>
+        <Route path="/login" element={
+          user ? <Navigate to={getDashboardPath(user.role)} replace /> : <Login onLogin={handleLogin} />
+        } />
+
+        <Route path="/admin/*" element={
+          <ProtectedRoute user={user} allowedRoles={[UserRole.ADMIN]}>
+            <DashboardLayout title="Administrator Portal">
+              <Routes>
+                <Route path="students/:branchId/:batchId/:studentId" element={<AdminDashboard />} />
+                <Route path="students/:branchId/:batchId" element={<AdminDashboard />} />
+                <Route path="students/:branchId" element={<AdminDashboard />} />
+                <Route path="students" element={<AdminDashboard />} />
+                <Route path="faculty/:subtab" element={<AdminDashboard />} />
+                <Route path="faculty" element={<Navigate to="/admin/faculty/subjects" replace />} />
+                <Route path="monitor" element={<AdminDashboard />} />
+                <Route path="notifications" element={<NotificationsPage user={user!} />} />
+                <Route path="*" element={<Navigate to="/admin/students" replace />} />
+              </Routes>
+            </DashboardLayout>
+          </ProtectedRoute>
+        } />
+
+        <Route path="/faculty/*" element={
+          <ProtectedRoute user={user} allowedRoles={[UserRole.FACULTY]}>
+            <DashboardLayout title="Faculty Dashboard">
+              <Routes>
+                <Route path="mark/:branchId/:subjectId" element={<FacultyDashboard user={user!} />} />
+                <Route path="mark/:branchId" element={<FacultyDashboard user={user!} />} />
+                <Route path="mark" element={<FacultyDashboard user={user!} />} />
+                <Route path="history/:branchId/:subjectId" element={<FacultyDashboard user={user!} />} />
+                <Route path="history/:branchId" element={<FacultyDashboard user={user!} />} />
+                <Route path="history" element={<FacultyDashboard user={user!} />} />
+                <Route path="notifications" element={<NotificationsPage user={user!} />} />
+                <Route path="*" element={<Navigate to="/faculty/mark" replace />} />
+              </Routes>
+            </DashboardLayout>
+          </ProtectedRoute>
+        } />
+
+        <Route path="/student/*" element={
+          <ProtectedRoute user={user} allowedRoles={[UserRole.STUDENT]}>
+            <DashboardLayout title="Student Portal">
+              <Routes>
+                <Route path="dashboard" element={<StudentDashboard user={user!} />} />
+                <Route path="notifications" element={<NotificationsPage user={user!} />} />
+                <Route path="*" element={<Navigate to="/student/dashboard" replace />} />
+              </Routes>
+            </DashboardLayout>
+          </ProtectedRoute>
+        } />
+
+        <Route path="/" element={<Navigate to={user ? getDashboardPath(user.role) : "/login"} replace />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+
+      {/* Global Settings Modal - Only render if not student and user is logged in */}
+      {user && user.role !== UserRole.STUDENT && (
+        <Modal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} title="Profile Settings">
+          <div className="space-y-4">
+            <h4 className="font-semibold text-slate-800 border-b border-slate-100 pb-2">Change Password</h4>
+            <Input
+              label="Current Password"
+              type="password"
+              value={passForm.current}
+              onChange={e => setPassForm({ ...passForm, current: e.target.value })}
+            />
+            <Input
+              label="New Password"
+              type="password"
+              value={passForm.new}
+              onChange={e => setPassForm({ ...passForm, new: e.target.value })}
+              placeholder="Min 6 characters"
+            />
+            <Input
+              label="Confirm New Password"
+              type="password"
+              value={passForm.confirm}
+              onChange={e => setPassForm({ ...passForm, confirm: e.target.value })}
+            />
+            <div className="flex justify-end gap-2 mt-4 pt-2 border-t border-slate-100">
+              <Button variant="secondary" onClick={() => setIsSettingsOpen(false)} disabled={settingsLoading}>Cancel</Button>
+              <Button onClick={handleChangePassword} disabled={!passForm.current || !passForm.new || settingsLoading}>
+                {settingsLoading ? 'Updating...' : 'Update Password'}
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+    </>
+  );
+};
+
+export default App;
