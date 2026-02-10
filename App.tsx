@@ -113,6 +113,7 @@ const App: React.FC = () => {
                 <Route path="faculty/:subtab" element={<AdminDashboard />} />
                 <Route path="faculty" element={<Navigate to="/admin/faculty/subjects" replace />} />
                 <Route path="monitor" element={<AdminDashboard />} />
+                <Route path="reports" element={<AdminDashboard />} />
                 <Route path="notifications" element={<NotificationsPage user={user!} />} />
                 <Route path="*" element={<Navigate to="/admin/students" replace />} />
               </Routes>
