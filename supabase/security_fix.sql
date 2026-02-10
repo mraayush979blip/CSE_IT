@@ -154,3 +154,16 @@ BEGIN
   WHERE id = target_user_id;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- 6. COORDINATORS TABLE
+CREATE TABLE IF NOT EXISTS public.coordinators (
+    id TEXT PRIMARY KEY,
+    faculty_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
+    branch_id TEXT REFERENCES public.branches(id) ON DELETE CASCADE,
+    UNIQUE(faculty_id, branch_id)
+);
+
+ALTER TABLE public.coordinators ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Coordinators visible to all" ON public.coordinators FOR SELECT USING (true);
+CREATE POLICY "Admin manage coordinators" ON public.coordinators FOR ALL USING (public.is_admin());

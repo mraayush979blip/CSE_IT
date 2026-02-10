@@ -31,6 +31,8 @@ export const StudentDashboard: React.FC<StudentProps> = ({ user }) => {
       loadData();
    }, [user.uid]);
 
+   const extraLectures = attendance.filter(a => a.subjectId === 'sub_extra' && a.isPresent).length;
+
    const calc = (sid: string) => {
       const rel = attendance.filter(a => a.subjectId === sid);
       const tot = rel.length;
@@ -47,6 +49,23 @@ export const StudentDashboard: React.FC<StudentProps> = ({ user }) => {
             <p className="opacity-80 font-mono text-sm">Enrollment: {user.studentData?.enrollmentId}</p>
          </div>
          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {extraLectures > 0 && (
+               <Card className="border-indigo-200 bg-indigo-50/30">
+                  <div className="flex justify-between items-start mb-4">
+                     <div>
+                        <h3 className="font-bold text-lg text-indigo-900">Extra Lectures</h3>
+                        <p className="text-xs text-indigo-500">Co-ordinator marked sessions</p>
+                     </div>
+                     <div className="h-12 w-12 bg-indigo-600 rounded-full flex items-center justify-center text-white shadow-lg">
+                        <CheckCircle2 className="h-6 w-6" />
+                     </div>
+                  </div>
+                  <div className="text-center border-t border-indigo-100 pt-3">
+                     <p className="text-xs text-indigo-500 uppercase font-semibold">Total Present Count</p>
+                     <p className="text-3xl font-black text-indigo-600">{extraLectures}</p>
+                  </div>
+               </Card>
+            )}
             {subjects.length > 0 ? subjects.map(s => {
                const { tot, pres, pct } = calc(s.id);
                const isLow = pct < 75;

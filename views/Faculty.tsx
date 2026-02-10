@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { db } from '../services/db';
 import { User, FacultyAssignment, AttendanceRecord, Batch } from '../types';
-import { Button, Card, Modal } from '../components/UI';
-import { Save, History, FileDown, Filter, ArrowLeft, CheckCircle2, ChevronDown, Check, X, CheckSquare, Square, XCircle, AlertCircle, AlertTriangle, Trash, Loader2, Calendar, RefreshCw } from 'lucide-react';
+import { Button, Card, Modal, Input, Select } from '../components/UI';
+import { Save, History, FileDown, Filter, ArrowLeft, CheckCircle2, ChevronDown, Check, X, CheckSquare, Square, XCircle, AlertCircle, AlertTriangle, Trash, Loader2, Calendar, RefreshCw, Layers } from 'lucide-react';
 import { useNavigate, useLocation, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { Skeleton, SkeletonRow, SkeletonCard } from '../components/Skeleton';
 
@@ -26,12 +26,218 @@ const ToggleSwitch: React.FC<{ checked: boolean; onChange: () => void; disabled?
    </button>
 );
 
+const CoordinatorView: React.FC<{ branchId: string; facultyUser: User; metaData: any }> = ({ branchId, facultyUser, metaData }) => {
+   const [students, setStudents] = useState<User[]>([]);
+   const [loading, setLoading] = useState(true);
+   const [attendanceDate, setAttendanceDate] = useState(new Date().toISOString().split('T')[0]);
+   const [selectedSessions, setSelectedSessions] = useState<number[]>([]);
+   const [status, setStatus] = useState<Record<string, boolean>>({});
+   const [isSaving, setIsSaving] = useState(false);
+   const [saveMessage, setSaveMessage] = useState('');
+   const [history, setHistory] = useState<AttendanceRecord[]>([]);
+   const [viewHistory, setViewHistory] = useState(false);
+
+   useEffect(() => {
+      const load = async () => {
+         setLoading(true);
+         try {
+            const [stu, att] = await Promise.all([
+               db.getStudents(branchId),
+               db.getAttendance(branchId, 'ALL', 'sub_extra')
+            ]);
+            setStudents(stu.sort((a, b) => (a.studentData?.rollNo || '').localeCompare(b.studentData?.rollNo || '', undefined, { numeric: true })));
+            setHistory(att);
+         } finally {
+            setLoading(false);
+         }
+      };
+      load();
+   }, [branchId]);
+
+   const toggleSession = (idx: number) => {
+      setSelectedSessions(prev => prev.includes(idx) ? prev.filter(i => i !== idx) : [...prev, idx]);
+   };
+
+   useEffect(() => {
+      if (selectedSessions.length === 1) {
+         const slot = selectedSessions[0];
+         const existing = history.filter(r => r.date === attendanceDate && r.lectureSlot === slot);
+         const newStatus: Record<string, boolean> = {};
+         existing.forEach(r => { if (r.isPresent) newStatus[r.studentId] = true; });
+         setStatus(newStatus);
+      }
+   }, [attendanceDate, selectedSessions, history]);
+
+   const toggleStudent = (uid: string) => {
+      setStatus(prev => ({ ...prev, [uid]: !prev[uid] }));
+   };
+
+   const handleSave = async () => {
+      if (selectedSessions.length === 0) { alert("Select at least one session."); return; }
+      setIsSaving(true);
+      try {
+         const records: AttendanceRecord[] = [];
+         const ts = Date.now();
+
+         // Identify existing records to delete for the selected date and sessions
+         const toDelete = history
+            .filter(r => r.date === attendanceDate && selectedSessions.includes(r.lectureSlot || 0))
+            .map(r => r.id);
+
+         if (toDelete.length > 0) {
+            await db.deleteAttendanceRecords(toDelete);
+         }
+
+         selectedSessions.forEach(slot => {
+            students.forEach(s => {
+               if (status[s.uid]) {
+                  records.push({
+                     id: `extra_${branchId}_${attendanceDate}_S${slot}_${s.uid}`,
+                     date: attendanceDate, studentId: s.uid, subjectId: 'sub_extra',
+                     branchId, batchId: s.studentData?.batchId || 'ALL',
+                     isPresent: true, markedBy: facultyUser.uid, timestamp: ts, lectureSlot: slot
+                  });
+               }
+            });
+         });
+
+         if (records.length > 0) {
+            await db.saveAttendance(records);
+         }
+
+         setSaveMessage("Saved!");
+         setHistory(await db.getAttendance(branchId, 'ALL', 'sub_extra'));
+         setTimeout(() => setSaveMessage(''), 3000);
+      } catch (e: any) { alert(e.message); } finally { setIsSaving(false); }
+   };
+
+   if (loading) return <div className="p-10 text-center"><Loader2 className="animate-spin h-10 w-10 mx-auto text-indigo-500" /></div>;
+
+   return (
+      <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+         <div className="flex justify-between items-center bg-indigo-900 text-white p-4 rounded-xl shadow-lg">
+            <div>
+               <h2 className="text-xl font-bold">Branch Co-ordinator Dashboard</h2>
+               <p className="text-indigo-200 text-xs">Managing: {metaData.branches[branchId] || branchId}</p>
+            </div>
+            <Button variant="secondary" size="sm" onClick={() => setViewHistory(!viewHistory)}>
+               {viewHistory ? <ArrowLeft className="h-4 w-4 mr-2" /> : <History className="h-4 w-4 mr-2" />}
+               {viewHistory ? 'Back to Marking' : 'View Extra History'}
+            </Button>
+         </div>
+
+         {!viewHistory ? (
+            <Card>
+               <div className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-lg border">
+                     <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Select Date</label>
+                        <Input type="date" value={attendanceDate} onChange={e => setAttendanceDate(e.target.value)} className="mb-0" />
+                     </div>
+                     <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Extra Sessions (Max 7)</label>
+                        <div className="flex gap-2">
+                           {[1, 2, 3, 4, 5, 6, 7].map(num => (
+                              <button key={num} onClick={() => toggleSession(num)} className={`w-10 h-10 rounded-full font-bold transition-all ${selectedSessions.includes(num) ? 'bg-indigo-600 text-white' : 'bg-white border text-slate-400 hover:border-indigo-300'}`}>
+                                 {num}
+                              </button>
+                           ))}
+                        </div>
+                     </div>
+                  </div>
+
+                  <div className="flex justify-between items-center border-b pb-4">
+                     <h3 className="font-bold text-slate-800 flex items-center">
+                        <CheckSquare className="h-5 w-5 mr-2 text-indigo-600" />
+                        Mark Present Students
+                     </h3>
+                     <div className="flex gap-2">
+                        <button onClick={() => setStatus({})} className="text-xs text-slate-500 hover:text-red-500 underline">Clear All</button>
+                     </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                     {students.map(s => (
+                        <div key={s.uid} onClick={() => toggleStudent(s.uid)} className={`p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between ${status[s.uid] ? 'bg-indigo-50 border-indigo-200 shadow-sm' : 'bg-white hover:bg-slate-50'}`}>
+                           <div className="min-w-0">
+                              <div className="text-[10px] font-bold text-slate-400 font-mono">{s.studentData?.enrollmentId}</div>
+                              <div className={`font-semibold text-sm truncate ${status[s.uid] ? 'text-indigo-900' : 'text-slate-700'}`}>{s.displayName}</div>
+                           </div>
+                           <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${status[s.uid] ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-200'}`}>
+                              {status[s.uid] && <Check className="h-4 w-4" />}
+                           </div>
+                        </div>
+                     ))}
+                  </div>
+
+                  <div className="flex justify-end pt-4 gap-4 items-center">
+                     {saveMessage && <span className="text-green-600 font-bold animate-bounce text-sm">{saveMessage}</span>}
+                     <Button onClick={handleSave} disabled={isSaving || selectedSessions.length === 0} className="px-10 h-12 text-md shadow-xl shadow-indigo-200">
+                        {isSaving ? 'Processing...' : 'Save Extra Attendance'}
+                     </Button>
+                  </div>
+               </div>
+            </Card>
+         ) : (
+            <Card>
+               <div className="space-y-4">
+                  <h3 className="font-bold text-slate-800">Extra Lecture History</h3>
+                  <div className="overflow-x-auto">
+                     <table className="w-full text-sm">
+                        <thead className="bg-slate-50">
+                           <tr className="text-left font-bold text-slate-500 uppercase text-[10px] tracking-wider">
+                              <th className="p-3">Date</th>
+                              <th className="p-3">Sessions</th>
+                              <th className="p-3">Present Count</th>
+                              <th className="p-3">Action</th>
+                           </tr>
+                        </thead>
+                        <tbody className="divide-y">
+                           {Array.from(new Set(history.map(r => r.date))).sort().reverse().map(date => {
+                              const dayRecs = history.filter(r => r.date === date);
+                              const slots = Array.from(new Set(dayRecs.map(r => r.lectureSlot))).sort();
+                              return (
+                                 <tr key={date} className="hover:bg-slate-50">
+                                    <td className="p-3 font-medium text-slate-900">{date}</td>
+                                    <td className="p-3">
+                                       <div className="flex gap-1">
+                                          {slots.map(s => <span key={s} className="px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-full text-[10px] font-bold">S{s}</span>)}
+                                       </div>
+                                    </td>
+                                    <td className="p-3 font-bold text-indigo-600">
+                                       {dayRecs.length} total entries
+                                    </td>
+                                    <td className="p-3 text-right">
+                                       <button onClick={async () => {
+                                          if (confirm(`Delete ALL ${dayRecs.length} extra lecture entries for ${date}?`)) {
+                                             await db.deleteAttendanceRecords(dayRecs.map(r => r.id));
+                                             setHistory(await db.getAttendance(branchId, 'ALL', 'sub_extra'));
+                                          }
+                                       }} className="text-red-500 hover:text-red-700">
+                                          <Trash className="h-4 w-4" />
+                                       </button>
+                                    </td>
+                                 </tr>
+                              );
+                           })}
+                           {history.length === 0 && <tr><td colSpan={4} className="p-10 text-center text-slate-400 italic">No history found.</td></tr>}
+                        </tbody>
+                     </table>
+                  </div>
+               </div>
+            </Card>
+         )}
+      </div>
+   );
+};
+
 export const FacultyDashboard: React.FC<FacultyProps> = ({ user }) => {
    const navigate = useNavigate();
    const location = useLocation();
    const params = useParams();
 
    const [assignments, setAssignments] = useState<FacultyAssignment[]>([]);
+   const [coordinatorBranchId, setCoordinatorBranchId] = useState<string | null>(null);
    const [metaData, setMetaData] = useState<{
       branches: Record<string, string>;
       batches: Record<string, string>;
@@ -43,7 +249,8 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user }) => {
    const [loadingStudents, setLoadingStudents] = useState(false);
 
    // Derived state from URL
-   const activeTab = location.pathname.includes('/history') ? 'HISTORY' : 'MARK';
+   const activeTab = location.pathname.includes('/history') ? 'HISTORY' :
+      location.pathname.includes('/coordinator') ? 'COORDINATOR' : 'MARK';
 
    // URL Masking: We use indices to keep URLs short in the browser
    const { branchId: urlBranchId, subjectId: urlID2 } = params;
@@ -85,7 +292,11 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user }) => {
       }
    };
 
-   const setActiveTab = (tab: 'MARK' | 'HISTORY') => {
+   const setActiveTab = (tab: 'MARK' | 'HISTORY' | 'COORDINATOR') => {
+      if (tab === 'COORDINATOR') {
+         navigate('/faculty/coordinator');
+         return;
+      }
       const idx = sortedAssignments.findIndex(a => a.branchId === selBranchId && a.subjectId === selSubjectId);
       const suffix = (idx !== -1) ? `/${idx}` : (selBranchId ? `/${selBranchId}` : '');
       navigate(`/faculty/${tab.toLowerCase()}${suffix}`);
@@ -140,8 +351,15 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user }) => {
    // 1. Initialize Data
    useEffect(() => {
       const init = async () => {
-         const myAssignments = await db.getAssignments(user.uid);
-         const [allBranches, allSubjects, allFaculty] = await Promise.all([db.getBranches(), db.getSubjects(), db.getFaculty()]);
+         const [myAssignments, coordinator] = await Promise.all([
+            db.getAssignments(user.uid),
+            db.getCoordinatorByFaculty(user.uid)
+         ]);
+         const [allBranches, allSubjects, allFaculty] = await Promise.all([
+            db.getBranches(),
+            db.getSubjects(),
+            db.getFaculty()
+         ]);
 
          const branchMap: Record<string, string> = {};
          allBranches.forEach(b => branchMap[b.id] = b.name);
@@ -151,7 +369,10 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user }) => {
          allFaculty.forEach(f => facultyMap[f.uid] = f.displayName);
 
          // Fetch Batches for involved branches
-         const branchIds = Array.from(new Set(myAssignments.map(a => a.branchId)));
+         const branchIds = Array.from(new Set([
+            ...myAssignments.map(a => a.branchId),
+            ...(coordinator ? [coordinator.branchId] : [])
+         ]));
          const batchMap: Record<string, string> = {};
          const allBatches: Batch[] = [];
 
@@ -162,6 +383,7 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user }) => {
 
          setMetaData({ branches: branchMap, batches: batchMap, subjects: subjectMap, faculty: facultyMap, rawBatches: allBatches });
          setAssignments(myAssignments);
+         if (coordinator) setCoordinatorBranchId(coordinator.branchId);
          setLoadingInit(false);
       };
       init();
@@ -745,6 +967,14 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user }) => {
                   >
                      <History className="w-4 h-4 mr-2" /> View History
                   </button>
+                  {coordinatorBranchId && (
+                     <button
+                        onClick={() => setActiveTab('COORDINATOR')}
+                        className={`px-6 py-3 font-medium text-sm transition-colors flex items-center whitespace-nowrap ${activeTab === 'COORDINATOR' ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
+                     >
+                        <Layers className="w-4 h-4 mr-2" /> Class Co-ordinator
+                     </button>
+                  )}
                </div>
 
                {activeTab === 'MARK' && (
@@ -1185,6 +1415,14 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user }) => {
                         </table >
                      </div >
                   </Card >
+               )}
+
+               {activeTab === 'COORDINATOR' && coordinatorBranchId && (
+                  <CoordinatorView
+                     branchId={coordinatorBranchId}
+                     facultyUser={user}
+                     metaData={metaData}
+                  />
                )}
 
 

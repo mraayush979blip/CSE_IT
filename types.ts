@@ -45,6 +45,12 @@ export interface FacultyAssignment {
   subjectId: string;
 }
 
+export interface CoordinatorAssignment {
+  id: string;
+  facultyId: string;
+  branchId: string;
+}
+
 export interface AttendanceRecord {
   id: string;
   date: string; // YYYY-MM-DD

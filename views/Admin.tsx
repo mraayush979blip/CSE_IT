@@ -350,12 +350,13 @@ const FacultyManagement: React.FC = () => {
   const { subtab } = useParams();
   const navigate = useNavigate();
 
-  const activeSubTab = (subtab as 'subjects' | 'faculty_list' | 'allocations') || 'subjects';
+  const activeSubTab = (subtab as 'subjects' | 'faculty_list' | 'allocations' | 'coordinators') || 'subjects';
   const setActiveSubTab = (tab: string) => navigate(`/admin/faculty/${tab}`);
 
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [faculty, setFaculty] = useState<User[]>([]);
   const [assignments, setAssignments] = useState<FacultyAssignment[]>([]);
+  const [coordinators, setCoordinators] = useState<CoordinatorAssignment[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [batches, setBatches] = useState<Batch[]>([]);
 
@@ -369,6 +370,7 @@ const FacultyManagement: React.FC = () => {
 
   const [confirmModalOpen, setConfirmModalOpen] = useState(false);
   const [pendingAssignment, setPendingAssignment] = useState<any>(null);
+  const [coordForm, setCoordForm] = useState({ facultyId: '', branchId: '' });
   const [resetModalOpen, setResetModalOpen] = useState(false);
   const [selectedFacultyForReset, setSelectedFacultyForReset] = useState<User | null>(null);
   const [newPasswordInput, setNewPasswordInput] = useState('');
@@ -383,16 +385,18 @@ const FacultyManagement: React.FC = () => {
   const loadData = async () => {
     setIsLoadingData(true);
     try {
-      const [subs, facs, assigns, brs] = await Promise.all([
+      const [subs, facs, assigns, brs, coords] = await Promise.all([
         db.getSubjects(),
         db.getFaculty(),
         db.getAssignments(),
-        db.getBranches()
+        db.getBranches(),
+        db.getCoordinators()
       ]);
       setSubjects(subs);
       setFaculty(facs);
       setAssignments(assigns);
       setBranches(brs);
+      setCoordinators(coords);
 
       // Pre-fetch all batches for context efficiently
       const involvedBranchIds = Array.from(new Set(assigns.map(a => a.branchId)));
@@ -523,6 +527,7 @@ const FacultyManagement: React.FC = () => {
         <button onClick={() => setActiveSubTab('subjects')} className={`px-4 py-2 text-sm font-medium rounded ${activeSubTab === 'subjects' ? 'bg-white text-indigo-600' : 'text-slate-600'}`}>Subjects</button>
         <button onClick={() => setActiveSubTab('faculty_list')} className={`px-4 py-2 text-sm font-medium rounded ${activeSubTab === 'faculty_list' ? 'bg-white text-indigo-600' : 'text-slate-600'}`}>Faculty</button>
         <button onClick={() => setActiveSubTab('allocations')} className={`px-4 py-2 text-sm font-medium rounded ${activeSubTab === 'allocations' ? 'bg-white text-indigo-600' : 'text-slate-600'}`}>Allocations</button>
+        <button onClick={() => setActiveSubTab('coordinators')} className={`px-4 py-2 text-sm font-medium rounded ${activeSubTab === 'coordinators' ? 'bg-white text-indigo-600' : 'text-slate-600'}`}>Coordinators</button>
       </div>
       {isLoadingData ? <div>Loading...</div> : (
         <>
@@ -567,6 +572,52 @@ const FacultyManagement: React.FC = () => {
                       <button onClick={() => handleDeleteAssignment(a.id)} className="text-red-500 hover:text-red-700"><Trash2 className="h-4 w-4" /></button>
                     </td></tr>)
                 })}</tbody></table>
+            </Card>
+          )}
+          {activeSubTab === 'coordinators' && (
+            <Card>
+              <div className="bg-indigo-50 p-4 rounded mb-4">
+                <h4 className="font-semibold text-indigo-900 mb-2">Assign Class Coordinator</h4>
+                <div className="flex gap-2 items-end">
+                  <Select label="Faculty" value={coordForm.facultyId} onChange={e => setCoordForm({ ...coordForm, facultyId: e.target.value })} className="mb-0 bg-white">
+                    <option value="">Select Faculty</option>
+                    {faculty.map(f => <option key={f.uid} value={f.uid}>{f.displayName}</option>)}
+                  </Select>
+                  <Select label="Branch" value={coordForm.branchId} onChange={e => setCoordForm({ ...coordForm, branchId: e.target.value })} className="mb-0 bg-white">
+                    <option value="">Select Branch</option>
+                    {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                  </Select>
+                  <Button onClick={async () => {
+                    if (coordForm.facultyId && coordForm.branchId) {
+                      await db.assignCoordinator(coordForm);
+                      setCoordForm({ facultyId: '', branchId: '' });
+                      await loadData();
+                    }
+                  }}>Assign</Button>
+                </div>
+              </div>
+              <table className="w-full text-sm text-left">
+                <thead className="bg-slate-50 border-b">
+                  <tr>
+                    <th className="p-2 text-slate-900">Faculty</th>
+                    <th className="p-2 text-slate-900">Branch</th>
+                    <th className="p-2 text-right text-slate-900">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {coordinators.map(c => (
+                    <tr key={c.id} className="border-b">
+                      <td className="p-2 text-slate-900">{faculty.find(f => f.uid === c.facultyId)?.displayName}</td>
+                      <td className="p-2 text-slate-900">{branches.find(b => b.id === c.branchId)?.name}</td>
+                      <td className="p-2 text-right">
+                        <button onClick={async () => { if (confirm("Remove?")) { await db.removeCoordinator(c.id); await loadData(); } }}>
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </Card>
           )}
         </>
@@ -831,15 +882,25 @@ const ReportManagement: React.FC = () => {
     const branchName = branches.find(b => b.id === selectedBranchId)?.name || 'Branch';
 
     if (exportFormat === 'COMPATIBLE') {
-      const csvRows = [['Student Name', 'Enrollment', 'Total Sessions', 'Present', 'Percentage (%)']];
+      const csvRows = [['Student Name', 'Enrollment', 'Total Sessions (Regular)', 'Present (Regular)', 'Extra Lectures', 'Percentage (%)']];
       const sortedStudents = [...students].sort((a, b) => (a.studentData?.rollNo || '').localeCompare(b.studentData?.rollNo || '', undefined, { numeric: true }));
 
       sortedStudents.forEach(s => {
         const myRecs = recordsToExport.filter(r => r.studentId === s.uid);
-        const total = myRecs.length;
-        const present = myRecs.filter(r => r.isPresent).length;
+        const regularRecs = myRecs.filter(r => r.subjectId !== 'sub_extra');
+        const extraCount = myRecs.filter(r => r.subjectId === 'sub_extra' && r.isPresent).length;
+
+        const total = regularRecs.length;
+        const present = regularRecs.filter(r => r.isPresent).length;
         const pct = total === 0 ? 0 : Math.round((present / total) * 100);
-        csvRows.push([`"${s.displayName}"`, `="${s.studentData?.enrollmentId || ''}"`, total.toString(), present.toString(), pct.toString()]);
+        csvRows.push([
+          `"${s.displayName}"`,
+          `="${s.studentData?.enrollmentId || ''}"`,
+          total.toString(),
+          present.toString(),
+          extraCount.toString(),
+          pct.toString()
+        ]);
       });
       downloadCSV(csvRows, `Attendance_Summary_${branchName}.csv`);
     } else {

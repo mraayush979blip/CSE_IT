@@ -16,7 +16,8 @@ export const SEED_BATCHES: Batch[] = [
 export const SEED_SUBJECTS: Subject[] = [
   { id: 'sub_math', name: 'Engineering Mathematics', code: 'M101' },
   { id: 'sub_ds', name: 'Data Structures', code: 'CS201' },
-  { id: 'sub_network', name: 'Computer Networks', code: 'CS304' }
+  { id: 'sub_network', name: 'Computer Networks', code: 'CS304' },
+  { id: 'sub_extra', name: 'Extra Lectures', code: 'EXTRA' }
 ];
 
 export const SEED_USERS: User[] = [

@@ -1,6 +1,6 @@
 
 import { supabase, authClient } from './supabase';
-import { User, Branch, Batch, Subject, FacultyAssignment, AttendanceRecord, UserRole, Notification } from "../types";
+import { User, Branch, Batch, Subject, FacultyAssignment, CoordinatorAssignment, AttendanceRecord, UserRole, Notification } from "../types";
 import { SEED_BRANCHES, SEED_BATCHES, SEED_SUBJECTS, SEED_USERS, SEED_ASSIGNMENTS } from "../constants";
 
 // --- Service Interface ---
@@ -37,6 +37,11 @@ interface IDataService {
   getAssignments: (facultyId?: string) => Promise<FacultyAssignment[]>;
   assignFaculty: (data: Omit<FacultyAssignment, 'id'>) => Promise<void>;
   removeAssignment: (id: string) => Promise<void>;
+
+  getCoordinators: () => Promise<CoordinatorAssignment[]>;
+  getCoordinatorByFaculty: (facultyId: string) => Promise<CoordinatorAssignment | null>;
+  assignCoordinator: (data: Omit<CoordinatorAssignment, 'id'>) => Promise<void>;
+  removeCoordinator: (id: string) => Promise<void>;
 
   // Attendance
   getAttendance: (branchId: string, batchId: string, subjectId: string, date?: string) => Promise<AttendanceRecord[]>;
@@ -427,6 +432,46 @@ class SupabaseService implements IDataService {
     if (error) throw error;
   }
 
+  async getCoordinators(): Promise<CoordinatorAssignment[]> {
+    const { data, error } = await supabase.from('coordinators').select('*');
+    if (error) throw error;
+    return data.map(c => ({
+      id: c.id,
+      facultyId: c.faculty_id,
+      branchId: c.branch_id
+    }));
+  }
+
+  async getCoordinatorByFaculty(facultyId: string): Promise<CoordinatorAssignment | null> {
+    const { data, error } = await supabase
+      .from('coordinators')
+      .select('*')
+      .eq('faculty_id', facultyId)
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) return null;
+    return {
+      id: data.id,
+      facultyId: data.faculty_id,
+      branchId: data.branch_id
+    };
+  }
+
+  async assignCoordinator(data: Omit<CoordinatorAssignment, 'id'>): Promise<void> {
+    const obj = {
+      id: `coord_${Date.now()}`,
+      faculty_id: data.facultyId,
+      branch_id: data.branchId
+    };
+    const { error } = await supabase.from('coordinators').upsert([obj]);
+    if (error) throw error;
+  }
+
+  async removeCoordinator(id: string): Promise<void> {
+    const { error } = await supabase.from('coordinators').delete().eq('id', id);
+    if (error) throw error;
+  }
+
   // --- Attendance ---
   async getAttendance(branchId: string, batchId: string, subjectId: string, date?: string): Promise<AttendanceRecord[]> {
     let q = supabase.from('attendance')
@@ -773,6 +818,27 @@ class MockService implements IDataService {
   async removeAssignment(id: string) {
     const all = this.load('ams_assignments', SEED_ASSIGNMENTS);
     this.save('ams_assignments', all.filter((x: any) => x.id !== id));
+  }
+
+  async getCoordinators(): Promise<CoordinatorAssignment[]> {
+    return this.load('ams_coordinators', []) as CoordinatorAssignment[];
+  }
+
+  async getCoordinatorByFaculty(facultyId: string): Promise<CoordinatorAssignment | null> {
+    const all = this.load('ams_coordinators', []) as CoordinatorAssignment[];
+    return all.find(c => c.facultyId === facultyId) || null;
+  }
+
+  async assignCoordinator(data: Omit<CoordinatorAssignment, 'id'>): Promise<void> {
+    const all = this.load('ams_coordinators', []) as any[];
+    const id = `coord_${Date.now()}`;
+    all.push({ ...data, id });
+    this.save('ams_coordinators', all);
+  }
+
+  async removeCoordinator(id: string): Promise<void> {
+    const all = this.load('ams_coordinators', []) as any[];
+    this.save('ams_coordinators', all.filter(c => c.id !== id));
   }
 
   async getAttendance(branchId: string, batchId: string, subjectId: string, date?: string) {
