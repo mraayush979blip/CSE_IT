@@ -406,7 +406,16 @@ const FacultyManagement: React.FC = () => {
     }
   };
   const handleAddFaculty = async (e: React.FormEvent) => { e.preventDefault(); try { await db.createFaculty({ displayName: newFac.name, email: newFac.email }, newFac.password); setNewFac({ name: '', email: '', password: '' }); setFaculty(await db.getFaculty()); alert("Faculty added."); } catch (e: any) { alert(e.message); } };
-  const handleDeleteFaculty = async (uid: string) => { if (confirm("Delete?")) { await db.deleteUser(uid); setFaculty(await db.getFaculty()); } };
+  const handleDeleteFaculty = async (uid: string) => {
+    if (confirm("Delete?")) {
+      try {
+        await db.deleteUser(uid);
+        setFaculty(await db.getFaculty());
+      } catch (err: any) {
+        alert("Error deleting faculty: " + err.message);
+      }
+    }
+  };
   const initiateResetPassword = (f: User) => { setSelectedFacultyForReset(f); setResetModalOpen(true); };
   const handleResetPassword = async () => { if (selectedFacultyForReset) { try { await db.resetFacultyPassword(selectedFacultyForReset.uid, newPasswordInput); alert("Done"); setResetModalOpen(false); setFaculty(await db.getFaculty()); } catch (e: any) { alert(e.message); } } };
 

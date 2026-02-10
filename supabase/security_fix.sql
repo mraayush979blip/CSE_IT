@@ -111,3 +111,16 @@ create policy "Admin can manage profiles" on public.profiles
 create policy "Users can insert own profile" on public.profiles
   for insert
   with check (auth.uid() = id);
+
+-- 4. FIX FOREIGN KEY CONSTRAINTS (Allow Deleting Faculty/Students)
+-- Update Attendance table to set marked_by to NULL if faculty is deleted
+ALTER TABLE IF EXISTS public.attendance 
+  DROP CONSTRAINT IF EXISTS attendance_marked_by_fkey,
+  ADD CONSTRAINT attendance_marked_by_fkey 
+    FOREIGN KEY (marked_by) REFERENCES public.profiles(id) ON DELETE SET NULL;
+
+-- Update Notifications table to set from_user_id to NULL if user is deleted
+ALTER TABLE IF EXISTS public.notifications
+  DROP CONSTRAINT IF EXISTS notifications_from_user_id_fkey,
+  ADD CONSTRAINT notifications_from_user_id_fkey
+    FOREIGN KEY (from_user_id) REFERENCES public.profiles(id) ON DELETE SET NULL;
