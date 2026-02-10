@@ -315,9 +315,15 @@ class SupabaseService implements IDataService {
   }
 
   async deleteUser(uid: string): Promise<void> {
-    // Standard client can't delete other users. 
-    // This would need a service role key or edge function.
-    // We'll just delete the profile for now.
+    try {
+      // Defensive cleanup: Manually clear references in case constraints are missing or restrictive
+      await supabase.from('assignments').delete().eq('faculty_id', uid);
+      await supabase.from('attendance').update({ marked_by: null }).eq('marked_by', uid);
+      await supabase.from('notifications').update({ from_user_id: null }).eq('from_user_id', uid);
+    } catch (e) {
+      console.warn("Manual cleanup encountered an issue, proceeding to profile deletion", e);
+    }
+
     const { error } = await supabase.from('profiles').delete().eq('id', uid);
     if (error) throw error;
   }
