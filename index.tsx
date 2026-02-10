@@ -18,3 +18,10 @@ root.render(
     </BrowserRouter>
   </React.StrictMode>
 );
+
+// Force reload on service worker update
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    window.location.reload();
+  });
+}
