@@ -10,9 +10,10 @@ export const AdminDashboard: React.FC = () => {
   const location = useLocation();
   const [seeding, setSeeding] = useState(false);
 
-  // Determine active tab from path (admin/students or admin/faculty or admin/monitor)
+  // Determine active tab from path (admin/students or admin/faculty or admin/monitor or admin/reports)
   const activeTab = location.pathname.includes('/admin/faculty') ? 'faculty' :
-    location.pathname.includes('/admin/monitor') ? 'monitor' : 'students';
+    location.pathname.includes('/admin/monitor') ? 'monitor' :
+      location.pathname.includes('/admin/reports') ? 'reports' : 'students';
 
   const handleSeed = async () => {
     if (!window.confirm("This will reset/overwrite initial data. Continue?")) return;
@@ -49,6 +50,12 @@ export const AdminDashboard: React.FC = () => {
           >
             Today's Attendance
           </button>
+          <button
+            onClick={() => navigate('/admin/reports')}
+            className={`px-4 py-2 font-medium text-sm transition-colors ${activeTab === 'reports' ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-slate-500 hover:text-slate-800'}`}
+          >
+            Report
+          </button>
         </div>
         <button onClick={handleSeed} disabled={seeding} className="mb-2 text-xs flex items-center px-3 py-1.5 bg-slate-200 text-slate-700 hover:bg-slate-300 rounded transition-colors">
           <Database className="h-3 w-3 mr-1.5" />
@@ -57,7 +64,8 @@ export const AdminDashboard: React.FC = () => {
       </div>
 
       {activeTab === 'students' ? <StudentManagement /> :
-        activeTab === 'faculty' ? <FacultyManagement /> : <AttendanceMonitor />}
+        activeTab === 'faculty' ? <FacultyManagement /> :
+          activeTab === 'monitor' ? <AttendanceMonitor /> : <ReportManagement />}
     </div>
   );
 };
@@ -680,6 +688,20 @@ function AttendanceMonitor() {
             <span className="text-xs font-bold text-slate-500 uppercase tracking-tighter">Date:</span>
             <input type="date" value={inspectDate} onChange={e => setInspectDate(e.target.value)} className="bg-transparent border-none text-sm font-semibold text-slate-900 focus:ring-0 appearance-none p-0 cursor-pointer" />
           </div>
+
+          {/* Quick Stats Summary */}
+          <div className="flex items-center gap-4 bg-indigo-50/50 px-4 py-2 rounded-lg border border-indigo-100">
+            <div className="flex flex-col">
+              <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest leading-none">Total Students</span>
+              <span className="text-sm font-black text-indigo-700">{filteredStats.length}</span>
+            </div>
+            <div className="h-6 w-px bg-indigo-200/50"></div>
+            <div className="flex flex-col">
+              <span className="text-[10px] font-bold text-green-500 uppercase tracking-widest leading-none">Completed</span>
+              <span className="text-sm font-black text-green-600">{filteredStats.filter(s => s.totalLectures > 0 && s.attendedLectures === s.totalLectures).length}</span>
+            </div>
+          </div>
+
           <Select value={branchFilter} onChange={e => setBranchFilter(e.target.value)} className="mb-0 text-xs font-bold bg-white">
             <option value="ALL">All Branches</option>
             {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
@@ -748,6 +770,270 @@ function AttendanceMonitor() {
               )}
             </tbody>
           </table>
+        </div>
+      </Card>
+    </div>
+  );
+};
+
+const ReportManagement: React.FC = () => {
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [selectedBranchId, setSelectedBranchId] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [students, setStudents] = useState<User[]>([]);
+  const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+
+  const [exportRange, setExportRange] = useState<'TILL_TODAY' | 'CUSTOM'>('TILL_TODAY');
+  const [exportFormat, setExportFormat] = useState<'DETAILED' | 'COMPATIBLE'>('DETAILED');
+  const [exportStartDate, setExportStartDate] = useState('');
+  const [exportEndDate, setExportEndDate] = useState(new Date().toISOString().split('T')[0]);
+  const [showFullPreview, setShowFullPreview] = useState(false);
+
+  useEffect(() => {
+    db.getBranches().then(setBranches);
+    db.getSubjects().then(setSubjects);
+  }, []);
+
+  const handleBranchSelect = async (branchId: string) => {
+    setSelectedBranchId(branchId);
+    if (!branchId) return;
+    setLoading(true);
+    try {
+      const [allStu, allAtt] = await Promise.all([
+        db.getStudentsByBranch(branchId),
+        db.getBranchAttendance(branchId)
+      ]);
+      setStudents(allStu);
+      setAttendance(allAtt);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const executeExport = () => {
+    if (!selectedBranchId) return;
+
+    const start = exportRange === 'CUSTOM' ? exportStartDate : '';
+    const end = exportEndDate;
+
+    const recordsToExport = attendance.filter(r => {
+      const inStart = !start || r.date >= start;
+      const inEnd = !end || r.date <= end;
+      return inStart && inEnd;
+    });
+
+    if (recordsToExport.length === 0) {
+      alert("No records found in the selected range.");
+      return;
+    }
+
+    const branchName = branches.find(b => b.id === selectedBranchId)?.name || 'Branch';
+
+    if (exportFormat === 'COMPATIBLE') {
+      const csvRows = [['Student Name', 'Enrollment', 'Total Sessions', 'Present', 'Percentage (%)']];
+      const sortedStudents = [...students].sort((a, b) => (a.studentData?.rollNo || '').localeCompare(b.studentData?.rollNo || '', undefined, { numeric: true }));
+
+      sortedStudents.forEach(s => {
+        const myRecs = recordsToExport.filter(r => r.studentId === s.uid);
+        const total = myRecs.length;
+        const present = myRecs.filter(r => r.isPresent).length;
+        const pct = total === 0 ? 0 : Math.round((present / total) * 100);
+        csvRows.push([`"${s.displayName}"`, `="${s.studentData?.enrollmentId || ''}"`, total.toString(), present.toString(), pct.toString()]);
+      });
+      downloadCSV(csvRows, `Attendance_Summary_${branchName}.csv`);
+    } else {
+      const slotsMap = new Map<string, { date: string, slot: number, subjectId: string }>();
+      recordsToExport.forEach(r => {
+        const slot = r.lectureSlot || 1;
+        const key = `${r.date}_L${slot}_${r.subjectId}`;
+        if (!slotsMap.has(key)) slotsMap.set(key, { date: r.date, slot, subjectId: r.subjectId });
+      });
+
+      const sortedSlots = Array.from(slotsMap.values()).sort((a, b) => {
+        if (a.date !== b.date) return a.date.localeCompare(b.date);
+        return a.slot - b.slot;
+      });
+
+      const headers = ['Student Name', 'Enrollment', 'Total Sessions', 'Present Count', 'Attendance %', ...sortedSlots.map(s => {
+        const subName = subjects.find(sub => sub.id === s.subjectId)?.name || 'Unknown';
+        return `${s.date} (L${s.slot} - ${subName})`;
+      })];
+      const csvRows = [headers];
+
+      const sortedStudents = [...students].sort((a, b) => (a.studentData?.rollNo || '').localeCompare(b.studentData?.rollNo || '', undefined, { numeric: true }));
+
+      sortedStudents.forEach(s => {
+        const myRecs = recordsToExport.filter(r => r.studentId === s.uid);
+        const total = myRecs.length;
+        const present = myRecs.filter(r => r.isPresent).length;
+        const pct = total === 0 ? 0 : Math.round((present / total) * 100);
+        const row = [`"${s.displayName}"`, `="${s.studentData?.enrollmentId || ''}"`, total.toString(), present.toString(), `${pct}%`];
+
+        sortedSlots.forEach(slotInfo => {
+          const rec = myRecs.find(r => r.date === slotInfo.date && (r.lectureSlot || 1) === slotInfo.slot && r.subjectId === slotInfo.subjectId);
+          row.push(rec ? (rec.isPresent ? 'P' : 'A') : '-');
+        });
+        csvRows.push(row);
+      });
+      downloadCSV(csvRows, `Attendance_Detailed_${branchName}.csv`);
+    }
+  };
+
+  const downloadCSV = (rows: string[][], filename: string) => {
+    const csvContent = "\uFEFF" + rows.map(e => e.join(",")).join("\n");
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const previewRecords = useMemo(() => {
+    const start = exportRange === 'CUSTOM' ? exportStartDate : '';
+    const end = exportEndDate;
+    return attendance.filter(r => {
+      const inStart = !start || r.date >= start;
+      const inEnd = !end || r.date <= end;
+      return inStart && inEnd;
+    });
+  }, [attendance, exportRange, exportStartDate, exportEndDate]);
+
+  const previewStats = useMemo(() => {
+    const sessions = new Set(previewRecords.map(r => `${r.date}_${r.lectureSlot}_${r.subjectId}`)).size;
+    return { sessions, totalRecords: previewRecords.length };
+  }, [previewRecords]);
+
+  return (
+    <div className="space-y-6 animate-in fade-in duration-500 pb-20">
+      <Card>
+        <div className="space-y-6">
+          <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-indigo-50 rounded-lg"><Layers className="h-5 w-5 text-indigo-600" /></div>
+              <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight">Attendance Reports</h3>
+            </div>
+            {selectedBranchId && (
+              <div className="flex gap-6">
+                <div className="text-right">
+                  <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Sessions</div>
+                  <div className="text-lg font-black text-indigo-600 leading-tight">{previewStats.sessions}</div>
+                </div>
+                <div className="text-right">
+                  <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Students</div>
+                  <div className="text-lg font-black text-indigo-600 leading-tight">{students.length}</div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {!showFullPreview ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              {/* Configuration Step 1: Branch */}
+              <div className="space-y-4">
+                <label className="text-xs font-black text-slate-400 uppercase tracking-widest">1. Select Branch</label>
+                <div className="grid grid-cols-1 gap-2">
+                  {branches.map(b => (
+                    <button
+                      key={b.id}
+                      onClick={() => handleBranchSelect(b.id)}
+                      className={`flex items-center justify-between p-4 rounded-xl border-2 transition-all ${selectedBranchId === b.id ? 'border-indigo-600 bg-indigo-50 shadow-lg shadow-indigo-100' : 'border-slate-100 bg-slate-50 hover:border-slate-200'}`}
+                    >
+                      <span className={`font-bold ${selectedBranchId === b.id ? 'text-indigo-900' : 'text-slate-700'}`}>{b.name}</span>
+                      {selectedBranchId === b.id && <CheckCircle2 className="h-5 w-5 text-indigo-600" />}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Configuration Step 2: Details */}
+              {selectedBranchId ? (
+                <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
+                  <div className="space-y-4">
+                    <label className="text-xs font-black text-slate-400 uppercase tracking-widest">2. Configure Logic</label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <button onClick={() => setExportRange('TILL_TODAY')} className={`p-4 rounded-xl border-2 text-center transition-all ${exportRange === 'TILL_TODAY' ? 'border-indigo-600 bg-indigo-50 text-indigo-700 font-bold' : 'border-slate-100 bg-white text-slate-500'}`}>Till Today</button>
+                      <button onClick={() => setExportRange('CUSTOM')} className={`p-4 rounded-xl border-2 text-center transition-all ${exportRange === 'CUSTOM' ? 'border-indigo-600 bg-indigo-50 text-indigo-700 font-bold' : 'border-slate-100 bg-white text-slate-500'}`}>Custom Range</button>
+                    </div>
+
+                    {exportRange === 'CUSTOM' && (
+                      <div className="grid grid-cols-2 gap-4 animate-in slide-in-from-top-2 duration-200">
+                        <Input type="date" value={exportStartDate} onChange={e => setExportStartDate(e.target.value)} label="Start Date" />
+                        <Input type="date" value={exportEndDate} onChange={e => setExportEndDate(e.target.value)} label="End Date" />
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="pt-6 border-t border-slate-100">
+                    <div className="flex gap-4">
+                      <Button onClick={() => setShowFullPreview(true)} variant="secondary" className="flex-1 py-4 font-black uppercase tracking-widest h-auto bg-slate-100 text-slate-700 border-2 border-slate-200 hover:bg-slate-200">
+                        <Eye className="h-5 w-5 mr-2" /> View Report
+                      </Button>
+                      <Button onClick={executeExport} className="flex-[2] py-4 bg-indigo-600 text-white font-black uppercase tracking-widest shadow-xl shadow-indigo-100 h-auto">
+                        {loading ? 'Processing...' : 'Export CSV'}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center p-12 text-slate-400 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200">
+                  <Layers className="h-12 w-12 opacity-20 mb-4" />
+                  <p className="text-sm font-medium">Please select a branch to continue</p>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-6 animate-in fade-in duration-300">
+              <div className="flex justify-between items-center">
+                <Button variant="secondary" onClick={() => setShowFullPreview(false)} className="px-3 py-1 bg-slate-100 text-slate-600 h-8 text-[10px] font-bold uppercase">
+                  <ArrowLeft className="h-3 w-3 mr-1.5" /> Back to Config
+                </Button>
+                <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                  Previewing {exportFormat} Report for {branches.find(b => b.id === selectedBranchId)?.name}
+                </div>
+              </div>
+
+              <div className="overflow-x-auto rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50/80 border-b border-slate-200">
+                      <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Student</th>
+                      <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Enrollment</th>
+                      <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Sessions</th>
+                      <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Present</th>
+                      <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right whitespace-nowrap">Percentage (%)</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 bg-white">
+                    {students.map(s => {
+                      const mine = previewRecords.filter(r => r.studentId === s.uid);
+                      const total = mine.length;
+                      const present = mine.filter(r => r.isPresent).length;
+                      const pct = total === 0 ? 0 : Math.round((present / total) * 100);
+                      return (
+                        <tr key={s.uid} className="hover:bg-indigo-50/30 transition-colors">
+                          <td className="p-4 font-bold text-slate-900">{s.displayName}</td>
+                          <td className="p-4 font-mono text-[10px] text-slate-500 uppercase">{s.studentData?.enrollmentId}</td>
+                          <td className="p-4 text-center text-sm font-bold text-slate-600">{total}</td>
+                          <td className="p-4 text-center text-sm font-bold text-slate-600">{present}</td>
+                          <td className="p-4 text-right">
+                            <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-black ${pct < 75 ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>
+                              {pct}%
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <Button onClick={executeExport} className="w-full py-4 bg-indigo-600 text-white font-black uppercase tracking-widest shadow-xl shadow-indigo-100 h-auto">
+                Download Full Report (CSV)
+              </Button>
+            </div>
+          )}
         </div>
       </Card>
     </div>

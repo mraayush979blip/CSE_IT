@@ -21,6 +21,7 @@ interface IDataService {
 
   // Users
   getStudents: (branchId: string, batchId?: string) => Promise<User[]>;
+  getStudentsByBranch: (branchId: string) => Promise<User[]>;
   createStudent: (data: Partial<User>) => Promise<void>;
   importStudents: (students: Partial<User>[]) => Promise<void>;
   deleteUser: (uid: string) => Promise<void>;
@@ -39,7 +40,7 @@ interface IDataService {
 
   // Attendance
   getAttendance: (branchId: string, batchId: string, subjectId: string, date?: string) => Promise<AttendanceRecord[]>;
-  getBranchAttendance: (branchId: string, date: string) => Promise<AttendanceRecord[]>;
+  getBranchAttendance: (branchId: string, date?: string) => Promise<AttendanceRecord[]>;
   getAllStudents: () => Promise<User[]>;
   getDateAttendance: (date: string) => Promise<AttendanceRecord[]>;
   getStudentAttendance: (studentId: string) => Promise<AttendanceRecord[]>;
@@ -256,6 +257,10 @@ class SupabaseService implements IDataService {
       .sort((a, b) => (a.studentData?.rollNo || '').localeCompare(b.studentData?.rollNo || '', undefined, { numeric: true }));
   }
 
+  async getStudentsByBranch(branchId: string): Promise<User[]> {
+    return this.getStudents(branchId);
+  }
+
   async getAllStudents(): Promise<User[]> {
     const { data, error } = await supabase.from('profiles').select('*').eq('role', UserRole.STUDENT);
     if (error) throw error;
@@ -453,11 +458,16 @@ class SupabaseService implements IDataService {
     }));
   }
 
-  async getBranchAttendance(branchId: string, date: string): Promise<AttendanceRecord[]> {
-    const { data, error } = await supabase.from('attendance')
+  async getBranchAttendance(branchId: string, date?: string): Promise<AttendanceRecord[]> {
+    let q = supabase.from('attendance')
       .select('*')
-      .eq('branch_id', branchId)
-      .eq('date', date);
+      .eq('branch_id', branchId);
+
+    if (date) {
+      q = q.eq('date', date);
+    }
+
+    const { data, error } = await q;
 
     if (error) throw error;
     return data.map(r => ({
@@ -776,9 +786,13 @@ class MockService implements IDataService {
     return filtered;
   }
 
-  async getBranchAttendance(branchId: string, date: string) {
+  async getStudentsByBranch(branchId: string) {
+    return this.getStudents(branchId);
+  }
+
+  async getBranchAttendance(branchId: string, date?: string) {
     const all = this.load('ams_attendance', []) as AttendanceRecord[];
-    return all.filter(a => a.branchId === branchId && a.date === date);
+    return all.filter(a => a.branchId === branchId && (!date || a.date === date));
   }
 
   async getDateAttendance(date: string) {
