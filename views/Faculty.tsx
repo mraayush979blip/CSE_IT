@@ -4,6 +4,7 @@ import { User, FacultyAssignment, AttendanceRecord, Batch } from '../types';
 import { Button, Card, Modal } from '../components/UI';
 import { Save, History, FileDown, Filter, ArrowLeft, CheckCircle2, ChevronDown, Check, X, CheckSquare, Square, XCircle, AlertCircle, AlertTriangle, Trash, Loader2, Calendar, RefreshCw } from 'lucide-react';
 import { useNavigate, useLocation, Routes, Route, Navigate, useParams } from 'react-router-dom';
+import { Skeleton, SkeletonRow, SkeletonCard } from '../components/Skeleton';
 
 interface FacultyProps { user: User; }
 
@@ -39,6 +40,7 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user }) => {
       rawBatches: Batch[];
    }>({ branches: {}, batches: {}, subjects: {}, faculty: {}, rawBatches: [] });
    const [loadingInit, setLoadingInit] = useState(true);
+   const [loadingStudents, setLoadingStudents] = useState(false);
 
    // Derived state from URL
    const activeTab = location.pathname.includes('/history') ? 'HISTORY' : 'MARK';
@@ -162,17 +164,22 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user }) => {
    useEffect(() => {
       if (selBranchId && selSubjectId) {
          const load = async () => {
-            // Fetch ALL students for the branch, we filter in UI based on selectedMarkingBatches
-            const data = await db.getStudents(selBranchId);
+            setLoadingStudents(true);
+            try {
+               // Fetch ALL students for the branch, we filter in UI based on selectedMarkingBatches
+               const data = await db.getStudents(selBranchId);
 
-            // Deduplicate
-            const unique = Array.from(new Map(data.map(s => [s.uid, s])).values());
-            // Sort numerically by Roll No
-            setAllBranchStudents(unique.sort((a, b) => (a.studentData?.rollNo || '').localeCompare(b.studentData?.rollNo || '', undefined, { numeric: true })));
+               // Deduplicate
+               const unique = Array.from(new Map(data.map(s => [s.uid, s])).values());
+               // Sort numerically by Roll No
+               setAllBranchStudents(unique.sort((a, b) => (a.studentData?.rollNo || '').localeCompare(b.studentData?.rollNo || '', undefined, { numeric: true })));
 
-            // Load Attendance
-            // For 'ALL' batches context, we fetch everything for this subject/branch
-            setAllClassRecords(await db.getAttendance(selBranchId, 'ALL', selSubjectId));
+               // Load Attendance
+               // For 'ALL' batches context, we fetch everything for this subject/branch
+               setAllClassRecords(await db.getAttendance(selBranchId, 'ALL', selSubjectId));
+            } finally {
+               setLoadingStudents(false);
+            }
          };
          load();
       }
@@ -573,7 +580,37 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user }) => {
       );
    }
 
-   if (loadingInit) return <div className="p-8 text-center">Loading Dashboard...</div>;
+   if (loadingInit) {
+      return (
+         <div className="space-y-6 pb-20 p-4">
+            {/* Skeleton Command Center */}
+            <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-200">
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                     <Skeleton width="20%" height={16} />
+                     <Skeleton width="100%" height={40} />
+                  </div>
+                  <div className="space-y-2">
+                     <Skeleton width="20%" height={16} />
+                     <Skeleton width="100%" height={40} />
+                  </div>
+               </div>
+            </div>
+
+            {/* Skeleton Tabs */}
+            <div className="flex gap-4 border-b border-slate-200 py-2">
+               <Skeleton width={120} height={40} />
+               <Skeleton width={120} height={40} />
+            </div>
+
+            {/* Skeleton Content */}
+            <div className="space-y-4">
+               <Skeleton width="100%" height={60} />
+               <Skeleton width="100%" height={200} />
+            </div>
+         </div>
+      );
+   }
 
    const showDashboard = selBranchId && selSubjectId;
 
@@ -710,9 +747,55 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user }) => {
                         </div>
                      </div>
 
-                     {/* Student List Table */}
-                     <div className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-x-auto no-scrollbar">
-                        <table className="w-full text-left border-collapse min-w-[500px]">
+                     {/* Mobile Student List (Cards) */}
+                     <div className="md:hidden space-y-3 pb-20">
+                        {loadingStudents ? (
+                           // Mobile Skeletons
+                           Array.from({ length: 5 }).map((_, i) => (
+                              <div key={i} className="bg-white p-4 rounded-lg shadow-sm border border-slate-200 space-y-3">
+                                 <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-3 w-full">
+                                       <Skeleton variant="circular" width={32} height={32} />
+                                       <div className="space-y-1 w-full max-w-[150px]">
+                                          <Skeleton width="80%" height={16} />
+                                          <Skeleton width="40%" height={12} />
+                                       </div>
+                                    </div>
+                                    <Skeleton width={48} height={24} className="rounded-full" />
+                                 </div>
+                              </div>
+                           ))
+                        ) : (
+                           <>
+                              {visibleStudents.map((s) => (
+                                 <div key={s.uid} className={`bg-white p-4 rounded-lg shadow-sm border border-slate-200 flex items-center justify-between ${!attendanceStatus[s.uid] ? 'bg-red-50/50 border-red-200' : ''}`}>
+                                    <div className="flex-1 min-w-0 mr-4">
+                                       <div className="flex items-center gap-2 mb-1">
+                                          <span className="inline-flex items-center justify-center bg-slate-100 text-slate-600 text-[10px] font-bold px-1.5 py-0.5 rounded">
+                                             {s.studentData?.rollNo || '#'}
+                                          </span>
+                                          <span className="text-xs text-slate-400 font-mono truncate">{s.studentData?.enrollmentId}</span>
+                                       </div>
+                                       <h4 className="font-semibold text-slate-900 truncate">{s.displayName}</h4>
+                                    </div>
+                                    <ToggleSwitch
+                                       checked={attendanceStatus[s.uid] ?? true}
+                                       onChange={() => handleMark(s.uid)}
+                                    />
+                                 </div>
+                              ))}
+                              {visibleStudents.length === 0 && (
+                                 <div className="p-8 text-center text-slate-400 bg-slate-50 rounded-lg border border-dashed border-slate-200">
+                                    No students found.
+                                 </div>
+                              )}
+                           </>
+                        )}
+                     </div>
+
+                     {/* Desktop Student List (Table) */}
+                     <div className="hidden md:block bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
+                        <table className="w-full text-left border-collapse">
                            <thead className="bg-slate-50 border-b border-slate-200">
                               <tr>
                                  <th className="py-3 px-4 text-xs font-bold text-slate-900 uppercase tracking-wider w-20">Roll</th>
@@ -721,32 +804,50 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user }) => {
                               </tr>
                            </thead>
                            <tbody className="divide-y divide-slate-100">
-                              {visibleStudents.map((s) => (
-                                 <tr key={s.uid} className={`hover:bg-slate-50 transition-colors ${!attendanceStatus[s.uid] ? 'bg-red-50/30' : ''}`}>
-                                    <td className="py-3 px-4 text-slate-900 font-mono text-sm">{s.studentData?.rollNo || '-'}</td>
-                                    <td className="py-3 px-4">
-                                       <div className="font-semibold text-slate-900 text-sm md:text-base">{s.displayName}</div>
-                                       <div className="text-[10px] md:text-xs text-slate-500 font-mono">{s.studentData?.enrollmentId}</div>
-                                    </td>
-                                    <td className="py-3 px-4 text-center">
-                                       <div className="flex justify-center">
-                                          <ToggleSwitch
-                                             checked={attendanceStatus[s.uid] ?? true}
-                                             onChange={() => handleMark(s.uid)}
-                                          />
-                                       </div>
-                                    </td>
-                                 </tr>
-                              ))}
-                              {visibleStudents.length === 0 && (
-                                 <tr><td colSpan={3} className="p-8 text-center text-slate-400">No students found in selected batches.</td></tr>
+                              {loadingStudents ? (
+                                 // Table Skeletons
+                                 Array.from({ length: 8 }).map((_, i) => (
+                                    <tr key={i}>
+                                       <td className="py-3 px-4"><Skeleton width={30} height={16} /></td>
+                                       <td className="py-3 px-4">
+                                          <div className="space-y-1">
+                                             <Skeleton width={120} height={16} />
+                                             <Skeleton width={80} height={12} />
+                                          </div>
+                                       </td>
+                                       <td className="py-3 px-4 flex justify-center"><Skeleton width={48} height={24} className="rounded-full" /></td>
+                                    </tr>
+                                 ))
+                              ) : (
+                                 <>
+                                    {visibleStudents.map((s) => (
+                                       <tr key={s.uid} className={`hover:bg-slate-50 transition-colors ${!attendanceStatus[s.uid] ? 'bg-red-50/30' : ''}`}>
+                                          <td className="py-3 px-4 text-slate-900 font-mono text-sm">{s.studentData?.rollNo || '-'}</td>
+                                          <td className="py-3 px-4">
+                                             <div className="font-semibold text-slate-900 text-sm">{s.displayName}</div>
+                                             <div className="text-xs text-slate-500 font-mono">{s.studentData?.enrollmentId}</div>
+                                          </td>
+                                          <td className="py-3 px-4 text-center">
+                                             <div className="flex justify-center">
+                                                <ToggleSwitch
+                                                   checked={attendanceStatus[s.uid] ?? true}
+                                                   onChange={() => handleMark(s.uid)}
+                                                />
+                                             </div>
+                                          </td>
+                                       </tr>
+                                    ))}
+                                    {visibleStudents.length === 0 && (
+                                       <tr><td colSpan={3} className="p-8 text-center text-slate-400">No students found in selected batches.</td></tr>
+                                    )}
+                                 </>
                               )}
                            </tbody>
                         </table>
                      </div>
 
                      {/* Sticky Footer */}
-                     <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-sm border-t border-indigo-100 p-3 sm:p-4 shadow-[0_-4px_20px_-5px_rgba(0,0,0,0.1)] z-40 flex justify-between items-center md:pl-8 md:pr-8">
+                     <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-indigo-100 p-3 shadow-[0_-4px_20px_-5px_rgba(0,0,0,0.1)] z-50 flex justify-between items-center md:pl-8 md:pr-8 safe-area-pb">
                         <div className="text-xs sm:text-sm font-medium text-slate-600">
                            <span className="hidden xs:inline text-slate-400 font-bold">Marking: </span><span className="text-indigo-600 font-bold">{visibleStudents.filter(s => attendanceStatus[s.uid]).length}</span><span className="text-slate-400 font-bold">/</span><span className="text-slate-900 font-bold">{visibleStudents.length}</span>
                         </div>
