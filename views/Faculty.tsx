@@ -844,6 +844,13 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user }) => {
    };
 
    // --- Render Helpers ---
+   const SelectionPrompt = () => (
+      <div className="text-center py-20 bg-white rounded-lg border border-dashed border-slate-300">
+         <Filter className="h-12 w-12 text-slate-300 mx-auto mb-3" />
+         <h3 className="text-lg font-medium text-slate-600">Select Branch & Subject</h3>
+         <p className="text-slate-400">Choose Branch and Subject to continue.</p>
+      </div>
+   );
 
    // Drill Down View
    if (viewHistoryStudent) {
@@ -945,39 +952,33 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user }) => {
             </div>
          </Card>
 
-         {!showDashboard ? (
-            <div className="text-center py-20 bg-white rounded-lg border border-dashed border-slate-300">
-               <Filter className="h-12 w-12 text-slate-300 mx-auto mb-3" />
-               <h3 className="text-lg font-medium text-slate-600">Select Branch & Subject</h3>
-               <p className="text-slate-400">Choose Branch and Subject to start marking attendance.</p>
+         <>
+            {/* 2. Tabs */}
+            <div className="flex border-b border-slate-200 overflow-x-auto no-scrollbar">
+               <button
+                  onClick={() => setActiveTab('MARK')}
+                  className={`px-6 py-3 font-medium text-sm transition-colors flex items-center whitespace-nowrap ${activeTab === 'MARK' ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
+               >
+                  <CheckCircle2 className="w-4 h-4 mr-2" /> Mark Attendance
+               </button>
+               <button
+                  onClick={() => setActiveTab('HISTORY')}
+                  className={`px-6 py-3 font-medium text-sm transition-colors flex items-center whitespace-nowrap ${activeTab === 'HISTORY' ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
+               >
+                  <History className="w-4 h-4 mr-2" /> View History
+               </button>
+               {coordinatorBranchId && (
+                  <button
+                     onClick={() => setActiveTab('COORDINATOR')}
+                     className={`px-6 py-3 font-medium text-sm transition-colors flex items-center whitespace-nowrap ${activeTab === 'COORDINATOR' ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
+                  >
+                     <Layers className="w-4 h-4 mr-2" /> Class Co-ordinator
+                  </button>
+               )}
             </div>
-         ) : (
-            <>
-               {/* 2. Tabs */}
-               <div className="flex border-b border-slate-200 overflow-x-auto no-scrollbar">
-                  <button
-                     onClick={() => setActiveTab('MARK')}
-                     className={`px-6 py-3 font-medium text-sm transition-colors flex items-center whitespace-nowrap ${activeTab === 'MARK' ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
-                  >
-                     <CheckCircle2 className="w-4 h-4 mr-2" /> Mark Attendance
-                  </button>
-                  <button
-                     onClick={() => setActiveTab('HISTORY')}
-                     className={`px-6 py-3 font-medium text-sm transition-colors flex items-center whitespace-nowrap ${activeTab === 'HISTORY' ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
-                  >
-                     <History className="w-4 h-4 mr-2" /> View History
-                  </button>
-                  {coordinatorBranchId && (
-                     <button
-                        onClick={() => setActiveTab('COORDINATOR')}
-                        className={`px-6 py-3 font-medium text-sm transition-colors flex items-center whitespace-nowrap ${activeTab === 'COORDINATOR' ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
-                     >
-                        <Layers className="w-4 h-4 mr-2" /> Class Co-ordinator
-                     </button>
-                  )}
-               </div>
 
-               {activeTab === 'MARK' && (
+            {activeTab === 'MARK' && (
+               !showDashboard ? <SelectionPrompt /> : (
                   <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
                      <div className={`flex flex-col md:flex-row md:items-end justify-between gap-4 mb-4 bg-white p-4 rounded-lg border shadow-sm ${isEditMode ? 'border-orange-300 bg-orange-50' : 'border-slate-200'}`}>
 
@@ -1167,9 +1168,11 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user }) => {
                         </div>
                      </div>
                   </div>
-               )}
+               )
+            )}
 
-               {activeTab === 'HISTORY' && (
+            {activeTab === 'HISTORY' && (
+               !showDashboard ? <SelectionPrompt /> : (
                   <Card>
                      <div className="flex flex-col sm:flex-row justify-between items-end sm:items-center mb-6 gap-4">
                         <h3 className="font-bold text-lg text-slate-800">Class Attendance Log</h3>
@@ -1415,214 +1418,214 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user }) => {
                         </table >
                      </div >
                   </Card >
-               )}
+               )
+            )}
 
-               {activeTab === 'COORDINATOR' && coordinatorBranchId && (
-                  <CoordinatorView
-                     branchId={coordinatorBranchId}
-                     facultyUser={user}
-                     metaData={metaData}
-                  />
-               )}
+            {activeTab === 'COORDINATOR' && coordinatorBranchId && (
+               <CoordinatorView
+                  branchId={coordinatorBranchId}
+                  facultyUser={user}
+                  metaData={metaData}
+               />
+            )}
 
 
-               {/* Confirmation / Conflict Modal */}
-               <Modal
-                  isOpen={showConfirmModal}
-                  onClose={() => setShowConfirmModal(false)}
-                  title={conflictDetails ? "⚠️ ATTENTION: CONFLICT" : (isEditMode ? "Confirm Update" : "Confirm Submission")}
-               >
-                  {conflictDetails ? (
-                     <div className="space-y-4 animate-in fade-in zoom-in duration-200">
-                        <div className="bg-red-50 border-l-4 border-red-600 p-5 rounded-r-md">
-                           <div className="flex items-start gap-4">
-                              <AlertTriangle className="h-8 w-8 text-red-600 flex-shrink-0" />
-                              <div>
-                                 <h4 className="font-extrabold text-red-900 text-base uppercase tracking-wide">Record Already Exists</h4>
-                                 <p className="text-red-900 text-sm mt-1">
-                                    Attendance for <span className="font-bold underline">Slot {conflictDetails.slot}</span> on <span className="font-bold">{conflictDetails.date}</span> was previously marked.
-                                 </p>
+            {/* Confirmation / Conflict Modal */}
+            <Modal
+               isOpen={showConfirmModal}
+               onClose={() => setShowConfirmModal(false)}
+               title={conflictDetails ? "⚠️ ATTENTION: CONFLICT" : (isEditMode ? "Confirm Update" : "Confirm Submission")}
+            >
+               {conflictDetails ? (
+                  <div className="space-y-4 animate-in fade-in zoom-in duration-200">
+                     <div className="bg-red-50 border-l-4 border-red-600 p-5 rounded-r-md">
+                        <div className="flex items-start gap-4">
+                           <AlertTriangle className="h-8 w-8 text-red-600 flex-shrink-0" />
+                           <div>
+                              <h4 className="font-extrabold text-red-900 text-base uppercase tracking-wide">Record Already Exists</h4>
+                              <p className="text-red-900 text-sm mt-1">
+                                 Attendance for <span className="font-bold underline">Slot {conflictDetails.slot}</span> on <span className="font-bold">{conflictDetails.date}</span> was previously marked.
+                              </p>
 
-                                 <div className="mt-4 bg-white p-4 rounded border border-red-200 shadow-sm">
-                                    <div className="text-xs text-slate-500 uppercase font-semibold mb-1">Previous Entry By</div>
-                                    <div className="font-bold text-lg text-slate-800">{conflictDetails.markedBy}</div>
-                                    <div className="text-sm font-medium text-indigo-700 mb-1">{conflictDetails.subjectName}</div>
-                                    <div className="text-xs text-slate-500 border-t border-slate-100 pt-2 mt-2">
-                                       Last Updated: {new Date(conflictDetails.timestamp).toLocaleString()}
-                                    </div>
-                                    <div className="flex gap-4 mt-3 text-sm font-medium text-slate-700 bg-slate-50 p-2 rounded">
-                                       <span className="flex items-center"><CheckCircle2 className="h-4 w-4 mr-1 text-green-600" /> {conflictDetails.presentCount} Present</span>
-                                       <span className="flex items-center"><XCircle className="h-4 w-4 mr-1 text-red-600" /> {conflictDetails.totalRecords - conflictDetails.presentCount} Absent</span>
-                                    </div>
+                              <div className="mt-4 bg-white p-4 rounded border border-red-200 shadow-sm">
+                                 <div className="text-xs text-slate-500 uppercase font-semibold mb-1">Previous Entry By</div>
+                                 <div className="font-bold text-lg text-slate-800">{conflictDetails.markedBy}</div>
+                                 <div className="text-sm font-medium text-indigo-700 mb-1">{conflictDetails.subjectName}</div>
+                                 <div className="text-xs text-slate-500 border-t border-slate-100 pt-2 mt-2">
+                                    Last Updated: {new Date(conflictDetails.timestamp).toLocaleString()}
+                                 </div>
+                                 <div className="flex gap-4 mt-3 text-sm font-medium text-slate-700 bg-slate-50 p-2 rounded">
+                                    <span className="flex items-center"><CheckCircle2 className="h-4 w-4 mr-1 text-green-600" /> {conflictDetails.presentCount} Present</span>
+                                    <span className="flex items-center"><XCircle className="h-4 w-4 mr-1 text-red-600" /> {conflictDetails.totalRecords - conflictDetails.presentCount} Absent</span>
                                  </div>
                               </div>
                            </div>
                         </div>
+                     </div>
 
-                        <div className="px-2">
-                           <p className="font-semibold text-slate-800 text-sm">Action Required:</p>
-                           <p className="text-sm text-slate-600 mt-1">
-                              {conflictDetails.markedBy === user.displayName
-                                 ? <>You are about to <span className="font-bold text-red-600">OVERWRITE</span> the existing attendance record with your current selection.</>
-                                 : <>This record belongs to another faculty member ({conflictDetails.markedBy}). You cannot overwrite it directly.</>
-                              }
-                           </p>
-                        </div >
-
-                        <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 mt-2">
-                           <Button variant="secondary" onClick={() => setShowConfirmModal(false)}>Cancel</Button>
-                           {conflictDetails.markedBy === user.displayName ? (
-                              <Button variant="danger" onClick={executeSave} disabled={isSaving}>YES, OVERWRITE</Button>
-                           ) : (
-                              <Button onClick={handleRequestOverwrite} disabled={isSaving} className="bg-indigo-600 text-white hover:bg-indigo-700">
-                                 Request Permission
-                              </Button>
-                           )}
-                        </div >
-                     </div >
-                  ) : (
-                     <div className="space-y-4">
-                        <div className="p-4 bg-slate-50 rounded-lg border border-slate-200 text-sm space-y-2">
-                           <div className="flex justify-between"><span className="text-slate-500">Subject:</span> <span className="font-semibold text-slate-900">{metaData.subjects[selSubjectId]?.name}</span></div>
-                           <div className="flex justify-between"><span className="text-slate-500">Date:</span> <span className="font-semibold text-slate-900">{attendanceDate}</span></div>
-                           <div className="flex justify-between"><span className="text-slate-500">Slots:</span> <span className="font-semibold text-slate-900">L{selectedSlots.join(', L')}</span></div>
-                           <div className="flex justify-between items-start"><span className="text-slate-500">Batches:</span> <div className="text-right font-semibold text-slate-900">{selectedMarkingBatches.map(b => metaData.batches[b]).join(', ')}</div></div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4 text-center">
-                           <div className="p-3 bg-green-50 text-green-800 rounded-lg border border-green-100">
-                              <div className="text-2xl font-bold">{visibleStudents.filter(s => attendanceStatus[s.uid]).length}</div>
-                              <div className="text-xs uppercase font-semibold opacity-70">Present</div>
-
-                           </div>
-                           <div className="p-3 bg-red-50 text-red-800 rounded-lg border border-red-100">
-                              <div className="text-2xl font-bold">{visibleStudents.filter(s => !attendanceStatus[s.uid]).length}</div>
-                              <div className="text-xs uppercase font-semibold opacity-70">Absent</div>
-                           </div>
-                        </div >
-
-                        <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-                           <Button variant="secondary" onClick={() => setShowConfirmModal(false)}>Cancel</Button>
-                           <Button onClick={executeSave} disabled={isSaving}>
-                              {isSaving ? 'Processing...' : 'Confirm & Save'}
-                           </Button>
-                        </div>
-
-
-                     </div >
-                  )}
-               </Modal >
-               {/* Delete Confirmation Modal */}
-               <Modal
-                  isOpen={showDeleteModal}
-                  onClose={() => setShowDeleteModal(false)}
-                  title="⚠️ Delete Attendance Record"
-               >
-                  <div className="space-y-4">
-                     <div className="bg-red-50 p-4 rounded-lg border border-red-200">
-                        <p className="text-red-800 text-sm font-medium">
-                           Are you sure you want to delete all attendance records for this date?
+                     <div className="px-2">
+                        <p className="font-semibold text-slate-800 text-sm">Action Required:</p>
+                        <p className="text-sm text-slate-600 mt-1">
+                           {conflictDetails.markedBy === user.displayName
+                              ? <>You are about to <span className="font-bold text-red-600">OVERWRITE</span> the existing attendance record with your current selection.</>
+                              : <>This record belongs to another faculty member ({conflictDetails.markedBy}). You cannot overwrite it directly.</>
+                           }
                         </p>
-                        <div className="mt-3 text-sm text-red-900 space-y-1">
-                           <p><strong>Subject:</strong> {metaData.subjects[selSubjectId]?.name}</p>
-                           <p><strong>Date:</strong> {historyFilterDate}</p>
-                           <p><strong>Records Found:</strong> {allClassRecords.filter(r => r.date === historyFilterDate).length}</p>
-                        </div>
-                     </div>
-                     <p className="text-xs text-slate-500">This action cannot be undone. All student statuses for this date will be removed.</p>
+                     </div >
 
-                     <div className="flex justify-end gap-3 pt-2">
-                        <Button variant="secondary" onClick={() => setShowDeleteModal(false)}>Cancel</Button>
-                        <Button variant="danger" onClick={confirmDelete} disabled={isDeleting} className="min-w-[120px] justify-center flex">
-                           {isDeleting ? <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Deleting...</> : 'Confirm Delete'}
+                     <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 mt-2">
+                        <Button variant="secondary" onClick={() => setShowConfirmModal(false)}>Cancel</Button>
+                        {conflictDetails.markedBy === user.displayName ? (
+                           <Button variant="danger" onClick={executeSave} disabled={isSaving}>YES, OVERWRITE</Button>
+                        ) : (
+                           <Button onClick={handleRequestOverwrite} disabled={isSaving} className="bg-indigo-600 text-white hover:bg-indigo-700">
+                              Request Permission
+                           </Button>
+                        )}
+                     </div >
+                  </div >
+               ) : (
+                  <div className="space-y-4">
+                     <div className="p-4 bg-slate-50 rounded-lg border border-slate-200 text-sm space-y-2">
+                        <div className="flex justify-between"><span className="text-slate-500">Subject:</span> <span className="font-semibold text-slate-900">{metaData.subjects[selSubjectId]?.name}</span></div>
+                        <div className="flex justify-between"><span className="text-slate-500">Date:</span> <span className="font-semibold text-slate-900">{attendanceDate}</span></div>
+                        <div className="flex justify-between"><span className="text-slate-500">Slots:</span> <span className="font-semibold text-slate-900">L{selectedSlots.join(', L')}</span></div>
+                        <div className="flex justify-between items-start"><span className="text-slate-500">Batches:</span> <div className="text-right font-semibold text-slate-900">{selectedMarkingBatches.map(b => metaData.batches[b]).join(', ')}</div></div>
+                     </div>
+
+                     <div className="grid grid-cols-2 gap-4 text-center">
+                        <div className="p-3 bg-green-50 text-green-800 rounded-lg border border-green-100">
+                           <div className="text-2xl font-bold">{visibleStudents.filter(s => attendanceStatus[s.uid]).length}</div>
+                           <div className="text-xs uppercase font-semibold opacity-70">Present</div>
+
+                        </div>
+                        <div className="p-3 bg-red-50 text-red-800 rounded-lg border border-red-100">
+                           <div className="text-2xl font-bold">{visibleStudents.filter(s => !attendanceStatus[s.uid]).length}</div>
+                           <div className="text-xs uppercase font-semibold opacity-70">Absent</div>
+                        </div>
+                     </div >
+
+                     <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+                        <Button variant="secondary" onClick={() => setShowConfirmModal(false)}>Cancel</Button>
+                        <Button onClick={executeSave} disabled={isSaving}>
+                           {isSaving ? 'Processing...' : 'Confirm & Save'}
                         </Button>
                      </div>
+
+
+                  </div >
+               )}
+            </Modal >
+            {/* Delete Confirmation Modal */}
+            <Modal
+               isOpen={showDeleteModal}
+               onClose={() => setShowDeleteModal(false)}
+               title="⚠️ Delete Attendance Record"
+            >
+               <div className="space-y-4">
+                  <div className="bg-red-50 p-4 rounded-lg border border-red-200">
+                     <p className="text-red-800 text-sm font-medium">
+                        Are you sure you want to delete all attendance records for this date?
+                     </p>
+                     <div className="mt-3 text-sm text-red-900 space-y-1">
+                        <p><strong>Subject:</strong> {metaData.subjects[selSubjectId]?.name}</p>
+                        <p><strong>Date:</strong> {historyFilterDate}</p>
+                        <p><strong>Records Found:</strong> {allClassRecords.filter(r => r.date === historyFilterDate).length}</p>
+                     </div>
                   </div>
-               </Modal>
+                  <p className="text-xs text-slate-500">This action cannot be undone. All student statuses for this date will be removed.</p>
 
-               {/* Export Modal */}
-               <Modal isOpen={showExportModal} onClose={() => setShowExportModal(false)} title="Export Attendance">
-                  <div className="space-y-6">
-                     {/* Date Range Selection */}
-                     <div className="space-y-3">
-                        <label className="text-xs font-black text-slate-400 uppercase tracking-widest">Select Date Range</label>
-                        <div className="grid grid-cols-2 gap-3">
-                           <button
-                              onClick={() => setExportRange('TILL_TODAY')}
-                              className={`p-3 rounded-xl border-2 text-left transition-all ${exportRange === 'TILL_TODAY' ? 'border-indigo-600 bg-indigo-50 text-indigo-700 font-bold' : 'border-slate-100 bg-slate-50 text-slate-600 hover:border-slate-200'}`}
-                           >
-                              <div className="text-sm">Till Today</div>
-                              <div className="text-[10px] opacity-70 font-normal">All records up to now</div>
-                           </button>
-                           <button
-                              onClick={() => setExportRange('CUSTOM')}
-                              className={`p-3 rounded-xl border-2 text-left transition-all ${exportRange === 'CUSTOM' ? 'border-indigo-600 bg-indigo-50 text-indigo-700 font-bold' : 'border-slate-100 bg-slate-50 text-slate-600 hover:border-slate-200'}`}
-                           >
-                              <div className="text-sm">Custom Range</div>
-                              <div className="text-[10px] opacity-70 font-normal">Specific date range</div>
-                           </button>
+                  <div className="flex justify-end gap-3 pt-2">
+                     <Button variant="secondary" onClick={() => setShowDeleteModal(false)}>Cancel</Button>
+                     <Button variant="danger" onClick={confirmDelete} disabled={isDeleting} className="min-w-[120px] justify-center flex">
+                        {isDeleting ? <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Deleting...</> : 'Confirm Delete'}
+                     </Button>
+                  </div>
+               </div>
+            </Modal>
+
+            {/* Export Modal */}
+            <Modal isOpen={showExportModal} onClose={() => setShowExportModal(false)} title="Export Attendance">
+               <div className="space-y-6">
+                  {/* Date Range Selection */}
+                  <div className="space-y-3">
+                     <label className="text-xs font-black text-slate-400 uppercase tracking-widest">Select Date Range</label>
+                     <div className="grid grid-cols-2 gap-3">
+                        <button
+                           onClick={() => setExportRange('TILL_TODAY')}
+                           className={`p-3 rounded-xl border-2 text-left transition-all ${exportRange === 'TILL_TODAY' ? 'border-indigo-600 bg-indigo-50 text-indigo-700 font-bold' : 'border-slate-100 bg-slate-50 text-slate-600 hover:border-slate-200'}`}
+                        >
+                           <div className="text-sm">Till Today</div>
+                           <div className="text-[10px] opacity-70 font-normal">All records up to now</div>
+                        </button>
+                        <button
+                           onClick={() => setExportRange('CUSTOM')}
+                           className={`p-3 rounded-xl border-2 text-left transition-all ${exportRange === 'CUSTOM' ? 'border-indigo-600 bg-indigo-50 text-indigo-700 font-bold' : 'border-slate-100 bg-slate-50 text-slate-600 hover:border-slate-200'}`}
+                        >
+                           <div className="text-sm">Custom Range</div>
+                           <div className="text-[10px] opacity-70 font-normal">Specific date range</div>
+                        </button>
+                     </div>
+
+                     {exportRange === 'CUSTOM' && (
+                        <div className="grid grid-cols-2 gap-3 pt-2 animate-in slide-in-from-top-2 duration-200">
+                           <div className="space-y-1">
+                              <label className="block text-[10px] font-bold text-slate-400 uppercase">Start Date</label>
+                              <input type="date" value={exportStartDate} onChange={e => setExportStartDate(e.target.value)} className="w-full p-2.5 text-xs border border-slate-200 rounded-lg bg-slate-50 text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none" />
+                           </div>
+                           <div className="space-y-1">
+                              <label className="block text-[10px] font-bold text-slate-400 uppercase">End Date</label>
+                              <input type="date" value={exportEndDate} onChange={e => setExportEndDate(e.target.value)} className="w-full p-2.5 text-xs border border-slate-200 rounded-lg bg-slate-50 text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none" />
+                           </div>
                         </div>
+                     )}
+                  </div>
 
-                        {exportRange === 'CUSTOM' && (
-                           <div className="grid grid-cols-2 gap-3 pt-2 animate-in slide-in-from-top-2 duration-200">
-                              <div className="space-y-1">
-                                 <label className="block text-[10px] font-bold text-slate-400 uppercase">Start Date</label>
-                                 <input type="date" value={exportStartDate} onChange={e => setExportStartDate(e.target.value)} className="w-full p-2.5 text-xs border border-slate-200 rounded-lg bg-slate-50 text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none" />
+                  {/* Format Selection */}
+                  <div className="space-y-3">
+                     <label className="text-xs font-black text-slate-400 uppercase tracking-widest">Select Export Format</label>
+                     <div className="space-y-3">
+                        <button
+                           onClick={() => setExportFormat('DETAILED')}
+                           className={`w-full p-4 rounded-xl border-2 text-left transition-all group ${exportFormat === 'DETAILED' ? 'border-indigo-600 bg-indigo-50' : 'border-slate-100 bg-slate-50 hover:border-slate-200'}`}
+                        >
+                           <div className="flex items-center gap-4">
+                              <div className={`p-3 rounded-xl ${exportFormat === 'DETAILED' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'bg-slate-200 text-slate-500'}`}>
+                                 <Calendar className="h-5 w-5" />
                               </div>
-                              <div className="space-y-1">
-                                 <label className="block text-[10px] font-bold text-slate-400 uppercase">End Date</label>
-                                 <input type="date" value={exportEndDate} onChange={e => setExportEndDate(e.target.value)} className="w-full p-2.5 text-xs border border-slate-200 rounded-lg bg-slate-50 text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none" />
+                              <div>
+                                 <div className={`font-black text-sm uppercase tracking-tight ${exportFormat === 'DETAILED' ? 'text-indigo-900' : 'text-slate-700'}`}>Detailed Attendance</div>
+                                 <p className="text-xs text-slate-500 mt-0.5">Physical Register style (Date columns, P/A markings)</p>
                               </div>
                            </div>
-                        )}
-                     </div>
+                        </button>
 
-                     {/* Format Selection */}
-                     <div className="space-y-3">
-                        <label className="text-xs font-black text-slate-400 uppercase tracking-widest">Select Export Format</label>
-                        <div className="space-y-3">
-                           <button
-                              onClick={() => setExportFormat('DETAILED')}
-                              className={`w-full p-4 rounded-xl border-2 text-left transition-all group ${exportFormat === 'DETAILED' ? 'border-indigo-600 bg-indigo-50' : 'border-slate-100 bg-slate-50 hover:border-slate-200'}`}
-                           >
-                              <div className="flex items-center gap-4">
-                                 <div className={`p-3 rounded-xl ${exportFormat === 'DETAILED' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'bg-slate-200 text-slate-500'}`}>
-                                    <Calendar className="h-5 w-5" />
-                                 </div>
-                                 <div>
-                                    <div className={`font-black text-sm uppercase tracking-tight ${exportFormat === 'DETAILED' ? 'text-indigo-900' : 'text-slate-700'}`}>Detailed Attendance</div>
-                                    <p className="text-xs text-slate-500 mt-0.5">Physical Register style (Date columns, P/A markings)</p>
-                                 </div>
+                        <button
+                           onClick={() => setExportFormat('COMPATIBLE')}
+                           className={`w-full p-4 rounded-xl border-2 text-left transition-all group ${exportFormat === 'COMPATIBLE' ? 'border-indigo-600 bg-indigo-50' : 'border-slate-100 bg-slate-50 hover:border-slate-200'}`}
+                        >
+                           <div className="flex items-center gap-4">
+                              <div className={`p-3 rounded-xl ${exportFormat === 'COMPATIBLE' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'bg-slate-200 text-slate-500'}`}>
+                                 <FileDown className="h-5 w-5" />
                               </div>
-                           </button>
-
-                           <button
-                              onClick={() => setExportFormat('COMPATIBLE')}
-                              className={`w-full p-4 rounded-xl border-2 text-left transition-all group ${exportFormat === 'COMPATIBLE' ? 'border-indigo-600 bg-indigo-50' : 'border-slate-100 bg-slate-50 hover:border-slate-200'}`}
-                           >
-                              <div className="flex items-center gap-4">
-                                 <div className={`p-3 rounded-xl ${exportFormat === 'COMPATIBLE' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'bg-slate-200 text-slate-500'}`}>
-                                    <FileDown className="h-5 w-5" />
-                                 </div>
-                                 <div>
-                                    <div className={`font-black text-sm uppercase tracking-tight ${exportFormat === 'COMPATIBLE' ? 'text-indigo-900' : 'text-slate-700'}`}>Compatible Attendance</div>
-                                    <p className="text-xs text-slate-500 mt-0.5">Summary view (Name, Enrollment, Total, %, etc.)</p>
-                                 </div>
+                              <div>
+                                 <div className={`font-black text-sm uppercase tracking-tight ${exportFormat === 'COMPATIBLE' ? 'text-indigo-900' : 'text-slate-700'}`}>Compatible Attendance</div>
+                                 <p className="text-xs text-slate-500 mt-0.5">Summary view (Name, Enrollment, Total, %, etc.)</p>
                               </div>
-                           </button>
-                        </div>
-                     </div>
-
-                     <div className="pt-6 flex gap-3 border-t border-slate-100">
-                        <Button variant="secondary" onClick={() => setShowExportModal(false)} className="flex-1 px-6">Cancel</Button>
-                        <Button onClick={executeExport} className="flex-[2] bg-indigo-600 text-white px-8 h-12 text-sm font-black uppercase tracking-widest shadow-xl shadow-indigo-100 hover:bg-indigo-700 active:scale-95 transition-all">
-                           <FileDown className="h-4 w-4 mr-2" /> Download Report
-                        </Button>
+                           </div>
+                        </button>
                      </div>
                   </div>
-               </Modal>
-            </>
-         )}
+
+                  <div className="pt-6 flex gap-3 border-t border-slate-100">
+                     <Button variant="secondary" onClick={() => setShowExportModal(false)} className="flex-1 px-6">Cancel</Button>
+                     <Button onClick={executeExport} className="flex-[2] bg-indigo-600 text-white px-8 h-12 text-sm font-black uppercase tracking-widest shadow-xl shadow-indigo-100 hover:bg-indigo-700 active:scale-95 transition-all">
+                        <FileDown className="h-4 w-4 mr-2" /> Download Report
+                     </Button>
+                  </div>
+               </div>
+            </Modal>
+         </>
       </div>
    );
 };

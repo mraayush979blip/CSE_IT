@@ -142,6 +142,7 @@ const App: React.FC = () => {
                 <Route path="history/:branchId/:subjectId" element={<FacultyDashboard user={user!} />} />
                 <Route path="history/:branchId" element={<FacultyDashboard user={user!} />} />
                 <Route path="history" element={<FacultyDashboard user={user!} />} />
+                <Route path="coordinator" element={<FacultyDashboard user={user!} />} />
                 <Route path="notifications" element={<NotificationsPage user={user!} />} />
                 <Route path="*" element={<Navigate to="/faculty/mark" replace />} />
               </Routes>
