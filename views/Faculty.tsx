@@ -130,6 +130,13 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user }) => {
    const [showDeleteModal, setShowDeleteModal] = useState(false);
    const [isDeleting, setIsDeleting] = useState(false);
 
+   // Export Flow State
+   const [showExportModal, setShowExportModal] = useState(false);
+   const [exportRange, setExportRange] = useState<'TILL_TODAY' | 'CUSTOM'>('TILL_TODAY');
+   const [exportFormat, setExportFormat] = useState<'DETAILED' | 'COMPATIBLE'>('DETAILED');
+   const [exportStartDate, setExportStartDate] = useState('');
+   const [exportEndDate, setExportEndDate] = useState(new Date().toISOString().split('T')[0]);
+
    // 1. Initialize Data
    useEffect(() => {
       const init = async () => {
@@ -476,42 +483,103 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user }) => {
    };
 
    const handleExportCSV = () => {
-      if (allClassRecords.length === 0) return;
-      // Filter records based on view (if date selected or range selected)
+      if (allClassRecords.length === 0) {
+         alert("No attendance records to export.");
+         return;
+      }
+      setShowExportModal(true);
+   };
+
+   const executeExport = () => {
       let recordsToExport = allClassRecords;
-      if (historyFilterDate) {
-         recordsToExport = allClassRecords.filter(r => r.date === historyFilterDate);
-      } else {
-         recordsToExport = allClassRecords.filter(r => {
-            const inStart = !historyStartDate || r.date >= historyStartDate;
-            const inEnd = !historyTillDate || r.date <= historyTillDate;
-            return inStart && inEnd;
-         });
+
+      const start = exportRange === 'CUSTOM' ? exportStartDate : '';
+      const end = exportEndDate; // User said 'till today', we always bound by today if custom or till today
+
+      recordsToExport = allClassRecords.filter(r => {
+         const inStart = !start || r.date >= start;
+         const inEnd = !end || r.date <= end;
+         return inStart && inEnd;
+      });
+
+      if (recordsToExport.length === 0) {
+         alert("No records found in the selected range.");
+         return;
       }
 
-      const sorted = [...recordsToExport].sort((a, b) => b.timestamp - a.timestamp);
+      if (exportFormat === 'COMPATIBLE') {
+         // FORMAT: Name, Enrollment, Total Sessions, Present, Percentage
+         const csvRows = [['Student Name', 'Enrollment', 'Total Sessions', 'Present', 'Percentage (%)']];
 
-      const csvRows = [
-         ['Date', 'Lecture Slot', 'Student Name', 'Enrollment', 'Batch', 'Status', 'Marked By'],
-         ...sorted.map(r => {
-            const stu = allBranchStudents.find(s => s.uid === r.studentId);
-            return [
-               `="${r.date}"`,
-               r.lectureSlot || 1,
-               `"${stu?.displayName || 'Unknown'}"`,
-               `"${stu?.studentData?.enrollmentId || ''}"`,
-               `"${metaData.batches[r.batchId] || r.batchId}"`,
-               r.isPresent ? 'Present' : 'Absent',
-               `"${user.displayName}"`
-            ];
-         })
-      ];
+         const sortedStudents = [...visibleStudents].sort((a, b) => (a.studentData?.rollNo || '').localeCompare(b.studentData?.rollNo || '', undefined, { numeric: true }));
 
-      const csvContent = "data:text/csv;charset=utf-8," + csvRows.map(e => e.join(",")).join("\n");
-      const encodedUri = encodeURI(csvContent);
+         sortedStudents.forEach(s => {
+            const myRecs = recordsToExport.filter(r => r.studentId === s.uid);
+            const total = myRecs.length;
+            const present = myRecs.filter(r => r.isPresent).length;
+            const pct = total === 0 ? 0 : Math.round((present / total) * 100);
+            csvRows.push([
+               `"${s.displayName}"`,
+               `="${s.studentData?.enrollmentId || ''}"`,
+               total.toString(),
+               present.toString(),
+               pct.toString()
+            ]);
+         });
+
+         downloadCSV(csvRows, `Attendance_Summary_${metaData.subjects[selSubjectId]?.name || 'Log'}.csv`);
+      } else {
+         // FORMAT: Detailed (Physical Register Style)
+         // 1. Identify all unique (date, slot) pairs and sort them
+         const slotsMap = new Map<string, { date: string, slot: number }>();
+         recordsToExport.forEach(r => {
+            const slot = r.lectureSlot || 1;
+            const key = `${r.date}_L${slot}`;
+            if (!slotsMap.has(key)) {
+               slotsMap.set(key, { date: r.date, slot });
+            }
+         });
+
+         const sortedSlots = Array.from(slotsMap.values()).sort((a, b) => {
+            if (a.date !== b.date) return a.date.localeCompare(b.date);
+            return a.slot - b.slot;
+         });
+
+         // 2. Build Headers
+         const headers = ['Student Name', 'Enrollment', ...sortedSlots.map(s => `${s.date} (L${s.slot})`)];
+         const csvRows = [headers];
+
+         // 3. Build Rows
+         const sortedStudents = [...visibleStudents].sort((a, b) => (a.studentData?.rollNo || '').localeCompare(b.studentData?.rollNo || '', undefined, { numeric: true }));
+
+         sortedStudents.forEach(s => {
+            const row = [`"${s.displayName}"`, `="${s.studentData?.enrollmentId || ''}"`];
+            const myRecs = recordsToExport.filter(r => r.studentId === s.uid);
+
+            sortedSlots.forEach(slotInfo => {
+               const rec = myRecs.find(r => r.date === slotInfo.date && (r.lectureSlot || 1) === slotInfo.slot);
+               if (rec) {
+                  row.push(rec.isPresent ? 'P' : 'A');
+               } else {
+                  row.push('-'); // No record for this specific student in this slot
+               }
+            });
+            csvRows.push(row);
+         });
+
+         downloadCSV(csvRows, `Attendance_Detailed_${metaData.subjects[selSubjectId]?.name || 'Log'}.csv`);
+      }
+      setShowExportModal(false);
+   };
+
+   const downloadCSV = (rows: string[][], filename: string) => {
+      const csvContent = "\uFEFF" + rows.map(e => e.join(",")).join("\n");
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const link = document.createElement("a");
-      link.setAttribute("href", encodedUri);
-      link.setAttribute("download", `Attendance_${metaData.subjects[selSubjectId]?.name || 'Log'}${historyFilterDate ? '_' + historyFilterDate : ''}.csv`);
+      const url = URL.createObjectURL(blob);
+      link.setAttribute("href", url);
+      link.setAttribute("download", filename);
+      link.style.visibility = 'hidden';
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -1219,6 +1287,88 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user }) => {
                         <Button variant="secondary" onClick={() => setShowDeleteModal(false)}>Cancel</Button>
                         <Button variant="danger" onClick={confirmDelete} disabled={isDeleting} className="min-w-[120px] justify-center flex">
                            {isDeleting ? <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Deleting...</> : 'Confirm Delete'}
+                        </Button>
+                     </div>
+                  </div>
+               </Modal>
+
+               {/* Export Modal */}
+               <Modal isOpen={showExportModal} onClose={() => setShowExportModal(false)} title="Export Attendance">
+                  <div className="space-y-6">
+                     {/* Date Range Selection */}
+                     <div className="space-y-3">
+                        <label className="text-xs font-black text-slate-400 uppercase tracking-widest">Select Date Range</label>
+                        <div className="grid grid-cols-2 gap-3">
+                           <button
+                              onClick={() => setExportRange('TILL_TODAY')}
+                              className={`p-3 rounded-xl border-2 text-left transition-all ${exportRange === 'TILL_TODAY' ? 'border-indigo-600 bg-indigo-50 text-indigo-700 font-bold' : 'border-slate-100 bg-slate-50 text-slate-600 hover:border-slate-200'}`}
+                           >
+                              <div className="text-sm">Till Today</div>
+                              <div className="text-[10px] opacity-70 font-normal">All records up to now</div>
+                           </button>
+                           <button
+                              onClick={() => setExportRange('CUSTOM')}
+                              className={`p-3 rounded-xl border-2 text-left transition-all ${exportRange === 'CUSTOM' ? 'border-indigo-600 bg-indigo-50 text-indigo-700 font-bold' : 'border-slate-100 bg-slate-50 text-slate-600 hover:border-slate-200'}`}
+                           >
+                              <div className="text-sm">Custom Range</div>
+                              <div className="text-[10px] opacity-70 font-normal">Specific date range</div>
+                           </button>
+                        </div>
+
+                        {exportRange === 'CUSTOM' && (
+                           <div className="grid grid-cols-2 gap-3 pt-2 animate-in slide-in-from-top-2 duration-200">
+                              <div className="space-y-1">
+                                 <label className="block text-[10px] font-bold text-slate-400 uppercase">Start Date</label>
+                                 <input type="date" value={exportStartDate} onChange={e => setExportStartDate(e.target.value)} className="w-full p-2.5 text-xs border border-slate-200 rounded-lg bg-slate-50 text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none" />
+                              </div>
+                              <div className="space-y-1">
+                                 <label className="block text-[10px] font-bold text-slate-400 uppercase">End Date</label>
+                                 <input type="date" value={exportEndDate} onChange={e => setExportEndDate(e.target.value)} className="w-full p-2.5 text-xs border border-slate-200 rounded-lg bg-slate-50 text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none" />
+                              </div>
+                           </div>
+                        )}
+                     </div>
+
+                     {/* Format Selection */}
+                     <div className="space-y-3">
+                        <label className="text-xs font-black text-slate-400 uppercase tracking-widest">Select Export Format</label>
+                        <div className="space-y-3">
+                           <button
+                              onClick={() => setExportFormat('DETAILED')}
+                              className={`w-full p-4 rounded-xl border-2 text-left transition-all group ${exportFormat === 'DETAILED' ? 'border-indigo-600 bg-indigo-50' : 'border-slate-100 bg-slate-50 hover:border-slate-200'}`}
+                           >
+                              <div className="flex items-center gap-4">
+                                 <div className={`p-3 rounded-xl ${exportFormat === 'DETAILED' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'bg-slate-200 text-slate-500'}`}>
+                                    <Calendar className="h-5 w-5" />
+                                 </div>
+                                 <div>
+                                    <div className={`font-black text-sm uppercase tracking-tight ${exportFormat === 'DETAILED' ? 'text-indigo-900' : 'text-slate-700'}`}>Detailed Attendance</div>
+                                    <p className="text-xs text-slate-500 mt-0.5">Physical Register style (Date columns, P/A markings)</p>
+                                 </div>
+                              </div>
+                           </button>
+
+                           <button
+                              onClick={() => setExportFormat('COMPATIBLE')}
+                              className={`w-full p-4 rounded-xl border-2 text-left transition-all group ${exportFormat === 'COMPATIBLE' ? 'border-indigo-600 bg-indigo-50' : 'border-slate-100 bg-slate-50 hover:border-slate-200'}`}
+                           >
+                              <div className="flex items-center gap-4">
+                                 <div className={`p-3 rounded-xl ${exportFormat === 'COMPATIBLE' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'bg-slate-200 text-slate-500'}`}>
+                                    <FileDown className="h-5 w-5" />
+                                 </div>
+                                 <div>
+                                    <div className={`font-black text-sm uppercase tracking-tight ${exportFormat === 'COMPATIBLE' ? 'text-indigo-900' : 'text-slate-700'}`}>Compatible Attendance</div>
+                                    <p className="text-xs text-slate-500 mt-0.5">Summary view (Name, Enrollment, Total, %, etc.)</p>
+                                 </div>
+                              </div>
+                           </button>
+                        </div>
+                     </div>
+
+                     <div className="pt-6 flex gap-3 border-t border-slate-100">
+                        <Button variant="outline" onClick={() => setShowExportModal(false)} className="flex-1 px-6">Cancel</Button>
+                        <Button onClick={executeExport} className="flex-[2] bg-indigo-600 text-white px-8 h-12 text-sm font-black uppercase tracking-widest shadow-xl shadow-indigo-100 hover:bg-indigo-700 active:scale-95 transition-all">
+                           <FileDown className="h-4 w-4 mr-2" /> Download Report
                         </Button>
                      </div>
                   </div>
