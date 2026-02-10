@@ -153,42 +153,52 @@ const StudentManagement: React.FC = () => {
   }, [branchId, batchId, studentId]);
 
   const loadInitialData = async () => {
-    const allBranches = await db.getBranches();
-    setBranches(allBranches);
+    try {
+      const allBranches = await db.getBranches();
+      setBranches(allBranches);
 
-    if (branchId) {
-      const branch = allBranches.find(b => b.id === branchId);
-      if (branch) {
-        setSelBranch(branch);
-        const bts = await db.getBatches(branchId);
-        setBatches(bts);
+      if (branchId) {
+        const branch = allBranches.find(b => b.id === branchId);
+        if (branch) {
+          setSelBranch(branch);
+          const bts = await db.getBatches(branchId);
+          setBatches(bts);
 
-        if (batchId) {
-          const batch = bts.find(b => b.id === batchId);
-          if (batch) {
-            setSelBatch(batch);
-            const stus = await db.getStudents(branchId, batchId);
-            setStudents(stus);
+          if (batchId) {
+            const batch = bts.find(b => b.id === batchId);
+            if (batch) {
+              setSelBatch(batch);
+              const stus = await db.getStudents(branchId, batchId);
+              setStudents(stus);
 
-            if (studentId) {
-              const stu = stus.find(s => s.uid === studentId);
-              if (stu) setViewStudent(stu);
-            } else {
-              setViewStudent(null);
+              if (studentId) {
+                const stu = stus.find(s => s.uid === studentId);
+                if (stu) setViewStudent(stu);
+              } else {
+                setViewStudent(null);
+              }
             }
+          } else {
+            setSelBatch(null);
+            setStudents([]);
           }
-        } else {
-          setSelBatch(null);
-          setStudents([]);
         }
+      } else {
+        setSelBranch(null);
+        setBatches([]);
       }
-    } else {
-      setSelBranch(null);
-      setBatches([]);
+    } catch (err: any) {
+      console.error("Failed to load student management data", err);
     }
   };
 
-  const loadBranches = async () => { setBranches(await db.getBranches()); };
+  const loadBranches = async () => {
+    try {
+      setBranches(await db.getBranches());
+    } catch (err: any) {
+      console.error("Load branches failed", err);
+    }
+  };
 
   const handleSelectBranch = (b: Branch) => { navigate(`/admin/students/${b.id}`); };
   const handleSelectBatch = (b: Batch) => { navigate(`/admin/students/${branchId}/${b.id}`); };
@@ -360,29 +370,50 @@ const FacultyManagement: React.FC = () => {
   const [classMap, setClassMap] = useState<Record<string, string>>({}); // Actually class context names
   const [batchMap, setBatchMap] = useState<Record<string, string>>({});
 
-  useEffect(() => { loadData(); }, []);
+  useEffect(() => { loadData(); }, [activeSubTab]);
 
   const loadData = async () => {
     setIsLoadingData(true);
-    setSubjects(await db.getSubjects());
-    setFaculty(await db.getFaculty());
-    setAssignments(await db.getAssignments());
-    setBranches(await db.getBranches());
+    try {
+      const [subs, facs, assigns, brs] = await Promise.all([
+        db.getSubjects(),
+        db.getFaculty(),
+        db.getAssignments(),
+        db.getBranches()
+      ]);
+      setSubjects(subs);
+      setFaculty(facs);
+      setAssignments(assigns);
+      setBranches(brs);
 
-    // Pre-fetch all batches for context
-    const allAssignments = await db.getAssignments();
-    const involvedBranchIds = Array.from(new Set(allAssignments.map(a => a.branchId)));
-    const bMap: Record<string, string> = {};
-    for (const bid of involvedBranchIds) {
-      const bts = await db.getBatches(bid);
-      bts.forEach(b => bMap[b.id] = b.name);
+      // Pre-fetch all batches for context efficiently
+      const involvedBranchIds = Array.from(new Set(assigns.map(a => a.branchId)));
+      const bMap: Record<string, string> = {};
+
+      const batchPromises = involvedBranchIds.map(bid => db.getBatches(bid));
+      const batchResults = await Promise.all(batchPromises);
+
+      batchResults.forEach(bts => {
+        bts.forEach(b => bMap[b.id] = b.name);
+      });
+
+      setBatchMap(bMap);
+    } catch (err: any) {
+      console.error("Failed to load faculty data", err);
+      // Don't show alert here to avoid spamming, but we ensure loading is false
+    } finally {
+      setIsLoadingData(false);
     }
-    setBatchMap(bMap);
-
-    setIsLoadingData(false);
   };
 
-  const loadBatches = async (branchId: string) => { setBatches(await db.getBatches(branchId)); };
+  const loadBatches = async (branchId: string) => {
+    if (!branchId) return;
+    try {
+      setBatches(await db.getBatches(branchId));
+    } catch (err: any) {
+      console.error("Load batches failed", err);
+    }
+  };
 
   const handleAddSubject = async () => {
     if (newSub.name) {
