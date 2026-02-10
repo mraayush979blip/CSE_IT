@@ -546,15 +546,25 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user }) => {
          });
 
          // 2. Build Headers
-         const headers = ['Student Name', 'Enrollment', ...sortedSlots.map(s => `${s.date} (L${s.slot})`)];
+         const headers = ['Student Name', 'Enrollment', 'Total Sessions', 'Present Count', 'Attendance %', ...sortedSlots.map(s => `${s.date} (L${s.slot})`)];
          const csvRows = [headers];
 
          // 3. Build Rows
          const sortedStudents = [...visibleStudents].sort((a, b) => (a.studentData?.rollNo || '').localeCompare(b.studentData?.rollNo || '', undefined, { numeric: true }));
 
          sortedStudents.forEach(s => {
-            const row = [`"${s.displayName}"`, `="${s.studentData?.enrollmentId || ''}"`];
             const myRecs = recordsToExport.filter(r => r.studentId === s.uid);
+            const total = myRecs.length;
+            const present = myRecs.filter(r => r.isPresent).length;
+            const pct = total === 0 ? 0 : Math.round((present / total) * 100);
+
+            const row = [
+               `"${s.displayName}"`,
+               `="${s.studentData?.enrollmentId || ''}"`,
+               total.toString(),
+               present.toString(),
+               `${pct}%`
+            ];
 
             sortedSlots.forEach(slotInfo => {
                const rec = myRecs.find(r => r.date === slotInfo.date && (r.lectureSlot || 1) === slotInfo.slot);
