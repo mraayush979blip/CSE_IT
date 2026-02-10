@@ -1614,7 +1614,7 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user }) => {
                      </div>
 
                      <div className="pt-6 flex gap-3 border-t border-slate-100">
-                        <Button variant="outline" onClick={() => setShowExportModal(false)} className="flex-1 px-6">Cancel</Button>
+                        <Button variant="secondary" onClick={() => setShowExportModal(false)} className="flex-1 px-6">Cancel</Button>
                         <Button onClick={executeExport} className="flex-[2] bg-indigo-600 text-white px-8 h-12 text-sm font-black uppercase tracking-widest shadow-xl shadow-indigo-100 hover:bg-indigo-700 active:scale-95 transition-all">
                            <FileDown className="h-4 w-4 mr-2" /> Download Report
                         </Button>
