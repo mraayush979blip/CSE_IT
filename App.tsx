@@ -22,6 +22,17 @@ const App: React.FC = () => {
   const [settingsLoading, setSettingsLoading] = useState(false);
 
   useEffect(() => {
+    const handleChunkError = (e: any) => {
+      const msg = e.message || '';
+      if (msg.toLowerCase().includes('chunkloaderror') || msg.toLowerCase().includes('loading chunk')) {
+        window.location.reload();
+      }
+    };
+    window.addEventListener('error', handleChunkError);
+    return () => window.removeEventListener('error', handleChunkError);
+  }, []);
+
+  useEffect(() => {
     const checkUser = async () => {
       try {
         const u = await db.getCurrentUser();
