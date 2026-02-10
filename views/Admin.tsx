@@ -562,7 +562,39 @@ const FacultyManagement: React.FC = () => {
           )}
         </>
       )}
-      <Modal isOpen={confirmModalOpen} onClose={() => setConfirmModalOpen(false)} title="Confirm"><div className="p-4"><p>{isEditingAssignment ? 'Update this assignment?' : 'Confirm Assignment?'}</p><div className="flex justify-end gap-2 mt-4"><Button onClick={confirmAssignment}>Yes</Button></div></div></Modal>
+      <Modal isOpen={confirmModalOpen} onClose={() => setConfirmModalOpen(false)} title="Confirm Assignment">
+        <div className="p-4">
+          <p className="text-slate-600 mb-4">{isEditingAssignment ? 'Please review the updated details:' : 'Please review the assignment details before confirming:'}</p>
+
+          {pendingAssignment && (
+            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3 mb-6">
+              <div className="flex justify-between items-center border-b border-slate-100 pb-2">
+                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Faculty</span>
+                <span className="text-sm font-bold text-slate-900">{faculty.find(f => f.uid === pendingAssignment.facultyId)?.displayName || 'Unknown'}</span>
+              </div>
+              <div className="flex justify-between items-center border-b border-slate-100 pb-2">
+                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Subject</span>
+                <span className="text-sm font-bold text-slate-900">{subjects.find(s => s.id === pendingAssignment.subjectId)?.name || 'Unknown'}</span>
+              </div>
+              <div className="flex justify-between items-center border-b border-slate-100 pb-2">
+                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Branch</span>
+                <span className="text-sm font-bold text-slate-900">{branches.find(b => b.id === pendingAssignment.branchId)?.name || 'Unknown'}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Batch</span>
+                <span className="text-sm font-bold text-indigo-600">
+                  {pendingAssignment.batchId === 'ALL' ? 'All Batches' : (batchMap[pendingAssignment.batchId] || pendingAssignment.batchId)}
+                </span>
+              </div>
+            </div>
+          )}
+
+          <div className="flex justify-end gap-3">
+            <Button variant="outline" onClick={() => setConfirmModalOpen(false)} className="px-6">Cancel</Button>
+            <Button onClick={confirmAssignment} className="px-8 bg-indigo-600 hover:bg-indigo-700">Confirm & Save</Button>
+          </div>
+        </div>
+      </Modal>
       <Modal isOpen={resetModalOpen} onClose={() => setResetModalOpen(false)} title="Reset Password"><div className="p-4"><Input label="New Password" value={newPasswordInput} onChange={e => setNewPasswordInput(e.target.value)} className="text-slate-900 bg-white" /><div className="flex justify-end gap-2 mt-4"><Button onClick={handleResetPassword}>Update</Button></div></div></Modal>
     </div>
   );
