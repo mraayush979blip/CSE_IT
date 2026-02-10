@@ -1,5 +1,5 @@
 
-import { supabase } from './supabase';
+import { supabase, authClient } from './supabase';
 import { User, Branch, Batch, Subject, FacultyAssignment, AttendanceRecord, UserRole, Notification } from "../types";
 import { SEED_BRANCHES, SEED_BATCHES, SEED_SUBJECTS, SEED_USERS, SEED_ASSIGNMENTS } from "../constants";
 
@@ -273,7 +273,7 @@ class SupabaseService implements IDataService {
     // Password set to Mobile No or Enrollment ID fallback
     const password = data.studentData?.mobileNo || enrollmentId;
 
-    const { data: authData, error } = await supabase.auth.signUp({
+    const { data: authData, error } = await authClient.auth.signUp({
       email: email,
       password: password,
       options: {
@@ -332,7 +332,7 @@ class SupabaseService implements IDataService {
     if (!data.email) throw new Error("Email is required");
     const pass = password || "password123";
 
-    const { data: authData, error } = await supabase.auth.signUp({
+    const { data: authData, error } = await authClient.auth.signUp({
       email: data.email,
       password: pass,
       options: {
