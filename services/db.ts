@@ -98,20 +98,45 @@ class SupabaseService implements IDataService {
       .eq('id', authData.user.id)
       .single();
 
+    const normalizedEmail = email.trim().toLowerCase();
+    const isBootstrapAdmin = normalizedEmail === 'hod@acropolis.in' || normalizedEmail === 'acro472007@acropolis.in';
+
     if (profError || !profile) {
       // Emergency fallback for bootstrap admin
-      if (email === 'hod@acropolis.in' || email === 'acro472007@acropolis.in') {
-        return {
+      if (isBootstrapAdmin) {
+        const adminData = {
           uid: authData.user.id,
-          email: email,
-          displayName: email === 'hod@acropolis.in' ? "Admin HOD" : "Admin",
+          email: normalizedEmail,
+          displayName: normalizedEmail === 'hod@acropolis.in' ? "Admin HOD" : "Admin",
           role: UserRole.ADMIN
         };
+
+        // Auto-create profile record so RLS and other lookups work correctly
+        try {
+          await supabase.from('profiles').insert([{
+            id: adminData.uid,
+            email: adminData.email,
+            display_name: adminData.displayName,
+            role: 'ADMIN'
+          }]);
+        } catch (e) {
+          console.error("Failed to auto-create admin profile", e);
+        }
+
+        return adminData;
       }
       throw new Error("Profile not found");
     }
 
-    return this.mapProfile(profile);
+    const mappedUser = this.mapProfile(profile);
+
+    // Safety check for bootstrap admin
+    if (isBootstrapAdmin && mappedUser.role !== UserRole.ADMIN) {
+      mappedUser.role = UserRole.ADMIN;
+      supabase.from('profiles').update({ role: 'ADMIN' }).eq('id', authData.user.id).then();
+    }
+
+    return mappedUser;
   }
 
   async logout(): Promise<void> {
@@ -122,6 +147,9 @@ class SupabaseService implements IDataService {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.user) return null;
 
+    const normalizedEmail = session.user.email?.toLowerCase();
+    const isBootstrapAdmin = normalizedEmail === 'hod@acropolis.in' || normalizedEmail === 'acro472007@acropolis.in';
+
     const { data: profile } = await supabase
       .from('profiles')
       .select('*')
@@ -129,19 +157,41 @@ class SupabaseService implements IDataService {
       .single();
 
     if (!profile) {
-      const email = session.user.email;
-      if (email === 'hod@acropolis.in' || email === 'acro472007@acropolis.in') {
-        return {
+      if (isBootstrapAdmin) {
+        const adminData = {
           uid: session.user.id,
-          email: email!,
-          displayName: email === 'hod@acropolis.in' ? "Admin HOD" : "Admin",
+          email: normalizedEmail!,
+          displayName: normalizedEmail === 'hod@acropolis.in' ? "Admin HOD" : "Admin",
           role: UserRole.ADMIN
         };
+
+        // Auto-create profile record if it's missing but they are a bootstrap admin
+        try {
+          await supabase.from('profiles').insert([{
+            id: adminData.uid,
+            email: adminData.email,
+            display_name: adminData.displayName,
+            role: 'ADMIN'
+          }]);
+        } catch (e) {
+          // Ignore error if it already exists or fails due to RLS
+        }
+
+        return adminData;
       }
       return null;
     }
 
-    return this.mapProfile(profile);
+    const mappedUser = this.mapProfile(profile);
+
+    // Safety check: If they are a bootstrap admin but the profile has the wrong role, override it.
+    if (isBootstrapAdmin && mappedUser.role !== UserRole.ADMIN) {
+      mappedUser.role = UserRole.ADMIN;
+      // Optionally update the DB fix the record
+      supabase.from('profiles').update({ role: 'ADMIN' }).eq('id', session.user.id).then();
+    }
+
+    return mappedUser;
   }
 
   async changePassword(currentPass: string, newPass: string): Promise<void> {

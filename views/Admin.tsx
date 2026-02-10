@@ -196,9 +196,19 @@ const StudentManagement: React.FC = () => {
 
   const handleAdd = async () => {
     if (!newItemName) return;
-    if (level === 'branches') { await db.addBranch(newItemName); loadBranches(); }
-    else if (level === 'batches' && branchId) { await db.addBatch(newItemName, branchId); setBatches(await db.getBatches(branchId)); }
-    setNewItemName('');
+    try {
+      if (level === 'branches') {
+        await db.addBranch(newItemName);
+        await loadBranches();
+      } else if (level === 'batches' && branchId) {
+        await db.addBatch(newItemName, branchId);
+        const bts = await db.getBatches(branchId);
+        setBatches(bts);
+      }
+      setNewItemName('');
+    } catch (err: any) {
+      alert("Error adding " + (level === 'branches' ? 'branch' : 'batch') + ": " + err.message);
+    }
   };
 
   const handleCSVUpload = async (file: File) => {
@@ -250,9 +260,22 @@ const StudentManagement: React.FC = () => {
 
   const handleDelete = async (id: string) => {
     if (!window.confirm("Delete?")) return;
-    if (level === 'branches') { await db.deleteBranch(id); loadBranches(); }
-    else if (level === 'batches' && branchId) { await db.deleteBatch(id); setBatches(await db.getBatches(branchId)); }
-    else if (level === 'students' && branchId && batchId) { await db.deleteUser(id); setStudents(await db.getStudents(branchId, batchId)); }
+    try {
+      if (level === 'branches') {
+        await db.deleteBranch(id);
+        await loadBranches();
+      } else if (level === 'batches' && branchId) {
+        await db.deleteBatch(id);
+        const bts = await db.getBatches(branchId);
+        setBatches(bts);
+      } else if (level === 'students' && branchId && batchId) {
+        await db.deleteUser(id);
+        const stus = await db.getStudents(branchId, batchId);
+        setStudents(stus);
+      }
+    } catch (err: any) {
+      alert("Error deleting: " + err.message);
+    }
   };
 
   if (level === 'detail' && viewStudent) return <AdminStudentDetail student={viewStudent} onBack={() => navigate(`/admin/students/${branchId}/${batchId}`)} />;
@@ -361,8 +384,27 @@ const FacultyManagement: React.FC = () => {
 
   const loadBatches = async (branchId: string) => { setBatches(await db.getBatches(branchId)); };
 
-  const handleAddSubject = async () => { if (newSub.name) { await db.addSubject(newSub.name, newSub.code); setNewSub({ name: '', code: '' }); setSubjects(await db.getSubjects()); } };
-  const handleDeleteSubject = async (id: string) => { if (confirm("Delete?")) { await db.deleteSubject(id); setSubjects(await db.getSubjects()); } };
+  const handleAddSubject = async () => {
+    if (newSub.name) {
+      try {
+        await db.addSubject(newSub.name, newSub.code);
+        setNewSub({ name: '', code: '' });
+        setSubjects(await db.getSubjects());
+      } catch (err: any) {
+        alert("Error adding subject: " + err.message);
+      }
+    }
+  };
+  const handleDeleteSubject = async (id: string) => {
+    if (confirm("Delete?")) {
+      try {
+        await db.deleteSubject(id);
+        setSubjects(await db.getSubjects());
+      } catch (err: any) {
+        alert("Error deleting subject: " + err.message);
+      }
+    }
+  };
   const handleAddFaculty = async (e: React.FormEvent) => { e.preventDefault(); try { await db.createFaculty({ displayName: newFac.name, email: newFac.email }, newFac.password); setNewFac({ name: '', email: '', password: '' }); setFaculty(await db.getFaculty()); alert("Faculty added."); } catch (e: any) { alert(e.message); } };
   const handleDeleteFaculty = async (uid: string) => { if (confirm("Delete?")) { await db.deleteUser(uid); setFaculty(await db.getFaculty()); } };
   const initiateResetPassword = (f: User) => { setSelectedFacultyForReset(f); setResetModalOpen(true); };

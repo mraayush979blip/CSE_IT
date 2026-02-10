@@ -9,6 +9,8 @@ begin
   return exists (
     select 1 from public.profiles
     where id = auth.uid() and role = 'ADMIN'
+  ) OR (
+    auth.jwt() ->> 'email' IN ('hod@acropolis.in', 'acro472007@acropolis.in')
   );
 end;
 $$ language plpgsql security definer;
@@ -24,12 +26,23 @@ begin
 end;
 $$ language plpgsql security definer;
 
--- 2. Drop existing insecure policies (cleanup)
+-- 2. Drop existing insecure or redundant policies (cleanup)
 drop policy if exists "Admin only write" on public.branches;
 drop policy if exists "Admin only write" on public.batches;
 drop policy if exists "Admin only write" on public.subjects;
 drop policy if exists "Admin can manage allocations" on public.assignments;
+drop policy if exists "Admin can manage assignments" on public.assignments;
 drop policy if exists "Faculty can insert attendance" on public.attendance;
+drop policy if exists "Faculty can see attendance" on public.attendance;
+drop policy if exists "Staff can view attendance" on public.attendance;
+drop policy if exists "Staff can manage attendance" on public.attendance;
+drop policy if exists "Staff can update attendance" on public.attendance;
+drop policy if exists "Staff can delete attendance" on public.attendance;
+drop policy if exists "Users can send notifications" on public.notifications;
+drop policy if exists "Users can insert notifications" on public.notifications;
+drop policy if exists "Admin can manage profiles" on public.profiles;
+drop policy if exists "Admin can insert profiles" on public.profiles;
+drop policy if exists "Users can insert own profile" on public.profiles;
 
 -- 3. Apply STRICT Policies
 
@@ -60,7 +73,6 @@ create policy "Admin can manage assignments" on public.assignments
 -- ATTENDANCE: 
 -- Read: Admin, Faculty (All), Student (Own)
 -- Write: Admin, Faculty
-drop policy if exists "Faculty can see attendance" on public.attendance;
 create policy "Staff can view attendance" on public.attendance
   for select
   using (public.is_admin() or public.is_faculty() or auth.uid() = student_id);
@@ -79,7 +91,6 @@ create policy "Staff can delete attendance" on public.attendance
 
 -- NOTIFICATIONS:
 -- Read/Write Own
-drop policy if exists "Users can insert notifications" on public.notifications;
 create policy "Users can send notifications" on public.notifications
   for insert
   with check (auth.uid() = from_user_id);
@@ -87,7 +98,6 @@ create policy "Users can send notifications" on public.notifications
 -- PROFILES:
 -- Read: Authenticated
 -- Write: Admin (Create/Delete), User (Update Own)
-drop policy if exists "Admin can insert profiles" on public.profiles;
 create policy "Admin can manage profiles" on public.profiles
   for all
   using (public.is_admin())
