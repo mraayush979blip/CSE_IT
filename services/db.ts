@@ -364,11 +364,13 @@ class SupabaseService implements IDataService {
   }
 
   async resetFacultyPassword(uid: string, newPass: string): Promise<void> {
-    // Updating another user's password requires admin privileges.
-    // For now we just update the profile field (which is cosmetic until they use recovery)
-    await supabase.from('profiles').update({ password: newPass }).eq('id', uid);
-    // In a real app, you'd send a reset link:
-    // supabase.auth.resetPasswordForEmail(email)
+    // Calling the secure RPC function to update auth.users and profiles table
+    const { error } = await supabase.rpc('admin_reset_password', {
+      target_user_id: uid,
+      new_password: newPass
+    });
+
+    if (error) throw error;
   }
 
   // --- Subjects & Assignments ---

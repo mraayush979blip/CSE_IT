@@ -130,3 +130,27 @@ BEGIN
     END LOOP;
     ALTER TABLE public.notifications ADD CONSTRAINT notifications_from_user_id_profiles_fkey FOREIGN KEY (from_user_id) REFERENCES public.profiles(id) ON DELETE SET NULL;
 END $$;
+
+-- 5. ADMIN PASSWORD RESET FUNCTION
+-- Allows an Admin to change any user's password directly in auth.users
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+CREATE OR REPLACE FUNCTION public.admin_reset_password(target_user_id uuid, new_password text)
+RETURNS void AS $$
+BEGIN
+  -- Security Check
+  IF NOT public.is_admin() THEN
+    RAISE EXCEPTION 'Unauthorized: Only administrators can reset passwords.';
+  END IF;
+
+  -- Update auth.users (Supabase Auth table)
+  UPDATE auth.users
+  SET encrypted_password = crypt(new_password, gen_salt('bf'))
+  WHERE id = target_user_id;
+
+  -- Update public.profiles (Application reference table)
+  UPDATE public.profiles
+  SET password = new_password
+  WHERE id = target_user_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
