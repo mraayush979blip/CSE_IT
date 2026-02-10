@@ -541,7 +541,7 @@ const FacultyManagement: React.FC = () => {
                   <Select label="Faculty" value={assignForm.facultyId} onChange={e => setAssignForm({ ...assignForm, facultyId: e.target.value })} className="mb-0 bg-white">{[<option key="def" value="">Select</option>, ...faculty.map(f => <option key={f.uid} value={f.uid}>{f.displayName}</option>)]}</Select>
                   <Select label="Branch" value={assignForm.branchId} onChange={e => { setAssignForm({ ...assignForm, branchId: e.target.value, batchId: '' }); loadBatches(e.target.value); }} className="mb-0 bg-white">{[<option key="def" value="">Select</option>, ...branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)]}</Select>
                   <Select label="Batch" value={assignForm.batchId} onChange={e => setAssignForm({ ...assignForm, batchId: e.target.value })} disabled={!assignForm.branchId} className="mb-0 bg-white">{[<option key="def" value="">All Batches (Default)</option>, ...batches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)]}</Select>
-                  <Select label="Subject" value={assignForm.subjectId} onChange={e => setAssignForm({ ...assignForm, subjectId: e.target.value })} className="mb-0 bg-white">{[<option key="def" value="">Select</option>, ...subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)]}</Select>
+                  <Select label="Subject" value={assignForm.subjectId} onChange={e => setAssignForm({ ...assignForm, subjectId: e.target.value })} className="mb-0 bg-white">{[<option key="def" value="">Select</option>, ...subjects.map(s => <option key={s.id} value={s.id}>{s.name} ({s.code})</option>)]}</Select>
                   <Button type="submit" className="col-span-5 md:col-span-1">{isEditingAssignment ? 'Update' : 'Assign'}</Button>
                 </form>
               </div>
@@ -549,8 +549,9 @@ const FacultyManagement: React.FC = () => {
                 <tbody>{assignments.map(a => {
                   const fac = faculty.find(f => f.uid === a.facultyId);
                   const sub = subjects.find(s => s.id === a.subjectId);
+                  const subDisplayName = sub ? `${sub.name} (${sub.code})` : 'Unknown Subject';
                   const br = branches.find(b => b.id === a.branchId)?.name;
-                  return (<tr key={a.id} className="border-b"><td className="p-2 text-slate-900">{fac?.displayName}</td><td className="p-2 text-slate-900">{sub?.name}</td><td className="p-2 text-xs text-slate-600">
+                  return (<tr key={a.id} className="border-b"><td className="p-2 text-slate-900">{fac?.displayName}</td><td className="p-2 text-slate-900">{subDisplayName}</td><td className="p-2 text-xs text-slate-600">
                     <div className="font-bold">{br}</div>
                     <div>{formatContext(a.batchId)}</div>
                   </td><td className="p-2 text-right flex justify-end gap-2">
@@ -574,7 +575,11 @@ const FacultyManagement: React.FC = () => {
               </div>
               <div className="flex justify-between items-center border-b border-slate-100 pb-2">
                 <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Subject</span>
-                <span className="text-sm font-bold text-slate-900">{subjects.find(s => s.id === pendingAssignment.subjectId)?.name || 'Unknown'}</span>
+                <span className="text-sm font-bold text-slate-900">
+                  {subjects.find(s => s.id === pendingAssignment.subjectId)
+                    ? `${subjects.find(s => s.id === pendingAssignment.subjectId)?.name} (${subjects.find(s => s.id === pendingAssignment.subjectId)?.code})`
+                    : 'Unknown'}
+                </span>
               </div>
               <div className="flex justify-between items-center border-b border-slate-100 pb-2">
                 <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Branch</span>
