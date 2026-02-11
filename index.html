@@ -17,17 +17,6 @@
       /* Slate 100 */
     }
   </style>
-  <script type="importmap">
-{
-  "imports": {
-    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.555.0",
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.1/",
-    "react/": "https://aistudiocdn.com/react@^19.2.1/",
-    "react": "https://aistudiocdn.com/react@^19.2.1",
-    "firebase/": "https://aistudiocdn.com/firebase@^12.6.0/"
-  }
-}
-</script>
 </head>
 
 <body>
@@ -35,35 +24,66 @@
 
   <!-- Fail-safe for White Screen / Chunk Errors -->
   <div id="mount-recovery"
-    style="display: none; position: fixed; inset: 0; background: white; z-index: 9999; display: flex; align-items: center; justify-center: center; padding: 20px; text-align: center;">
+    style="display: none; position: fixed; inset: 0; background: white; z-index: 9999; align-items: center; justify-content: center; padding: 20px; text-align: center;">
     <div style="font-family: sans-serif; max-width: 400px;">
       <h2 style="color: #1e293b; margin-bottom: 12px;">App Loading Issue</h2>
-      <p style="color: #64748b; font-size: 14px; margin-bottom: 24px;">The application is taking too long to load. This
-        might be due to a stale cache.</p>
+      <p style="color: #64748b; font-size: 14px; margin-bottom: 24px;">The application is taking longer than expected to
+        load. This might be due to a stale cache or slow connection.</p>
       <button onclick="forceAppUpdate()"
-        style="background: #4f46e5; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-weight: bold; cursor: pointer;">
+        style="background: #4f46e5; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-weight: bold; cursor: pointer; width: 100%; display: block; margin-bottom: 12px;">
         Force Update & Reload
+      </button>
+      <button onclick="document.getElementById('mount-recovery').style.display='none'"
+        style="background: transparent; color: #64748b; border: 1px solid #e2e8f0; padding: 8px 16px; border-radius: 8px; font-size: 12px; cursor: pointer;">
+        Wait a bit longer
       </button>
     </div>
   </div>
 
   <script>
-    // If root is still empty after 4 seconds, show recovery UI
-    setTimeout(() => {
+    // Fail-safe logic
+    (function () {
+      const checkDelay = 10000; // 10 seconds (more generous)
       const root = document.getElementById('root');
-      if (root && root.innerHTML === '') {
-        document.getElementById('mount-recovery').style.display = 'flex';
+      const recovery = document.getElementById('mount-recovery');
+
+      const timeoutId = setTimeout(() => {
+        if (root && root.innerHTML === '') {
+          recovery.style.display = 'flex';
+        }
+      }, checkDelay);
+
+      // Observer to hide recovery if app mounts
+      if (root) {
+        const observer = new MutationObserver(() => {
+          if (root.innerHTML !== '') {
+            recovery.style.display = 'none';
+            clearTimeout(timeoutId);
+            observer.disconnect();
+          }
+        });
+        observer.observe(root, { childList: true });
       }
-    }, 4000);
+    })();
 
     function forceAppUpdate() {
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.getRegistrations().then(registrations => {
-          for (let registration of registrations) registration.unregister();
-        });
-      }
-      sessionStorage.clear();
-      localStorage.clear();
+      try {
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.getRegistrations().then(registrations => {
+            for (let registration of registrations) registration.unregister();
+          });
+        }
+        sessionStorage.clear();
+        localStorage.clear();
+
+        // Clear caches if available
+        if ('caches' in window) {
+          caches.keys().then(names => {
+            for (let name of names) caches.delete(name);
+          });
+        }
+      } catch (e) { }
+
       window.location.href = window.location.origin + window.location.pathname + '?refresh=' + Date.now();
     }
   </script>
