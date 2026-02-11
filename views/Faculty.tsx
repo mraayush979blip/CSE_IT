@@ -1766,14 +1766,17 @@ const CoordinatorReport: React.FC<{ branchId: string; branchName: string; studen
    }, [attendance, exportRange, exportStartDate, exportEndDate]);
 
    const previewStats = useMemo(() => {
-      const sessions = new Set(previewRecords.map(r => `${r.date}_${r.lectureSlot}_${r.subjectId}`)).size;
-      return { sessions, totalRecords: previewRecords.length };
+      const regularRecs = previewRecords.filter(r => r.subjectId !== 'sub_extra');
+      const regularSessions = new Set(regularRecs.map(r => `${r.date}_${r.lectureSlot}_${r.subjectId}`)).size;
+      const totalRecords = previewRecords.length;
+      return { sessions: regularSessions, totalRecords };
    }, [previewRecords]);
 
    const filteredStudents = useMemo(() => {
       if (filterMode === 'FULL') return students;
       return students.filter(s => {
-         const present = previewRecords.filter(r => r.studentId === s.uid && r.isPresent).length;
+         const relevantRegular = previewRecords.filter(r => r.studentId === s.uid && r.subjectId !== 'sub_extra');
+         const present = relevantRegular.filter(r => r.isPresent).length;
          const pct = previewStats.sessions === 0 ? 0 : (present / previewStats.sessions) * 100;
          if (filterCondition === '<') return pct < filterValue;
          return pct > filterValue;
@@ -1781,18 +1784,23 @@ const CoordinatorReport: React.FC<{ branchId: string; branchName: string; studen
    }, [students, previewRecords, previewStats.sessions, filterMode, filterCondition, filterValue]);
 
    const executeExport = () => {
-      const csvRows = [["Enrollment ID", "Roll No", "Name", "Total Lectures", "Attended", "Percentage"]];
+      const csvRows = [["Enrollment ID", "Roll No", "Name", "Total Lectures", "Attended", "Extra Lectures", "Percentage"]];
       filteredStudents.forEach(s => {
-         const relevant = previewRecords.filter(r => r.studentId === s.uid);
+         const regularAtt = previewRecords.filter(r => r.studentId === s.uid && r.subjectId !== 'sub_extra');
+         const extraAtt = previewRecords.filter(r => r.studentId === s.uid && r.subjectId === 'sub_extra' && r.isPresent);
+
          const total = previewStats.sessions;
-         const present = relevant.filter(r => r.isPresent).length;
+         const present = regularAtt.filter(r => r.isPresent).length;
+         const extra = extraAtt.length;
          const pct = total === 0 ? 0 : Math.round((present / total) * 100);
+
          csvRows.push([
             s.studentData?.enrollmentId || '',
             s.studentData?.rollNo || '',
             s.displayName,
             total.toString(),
             present.toString(),
+            extra.toString(),
             `${pct}%`
          ]);
       });
@@ -1882,6 +1890,7 @@ const CoordinatorReport: React.FC<{ branchId: string; branchName: string; studen
                            <th className="p-3">Name</th>
                            <th className="p-3 text-center">Total</th>
                            <th className="p-3 text-center">Attended</th>
+                           <th className="p-3 text-center">Extra</th>
                            <th className="p-3 text-right">Percentage</th>
                         </tr>
                      </thead>
@@ -1894,9 +1903,18 @@ const CoordinatorReport: React.FC<{ branchId: string; branchName: string; studen
                                  <td className="p-3 font-mono">{s.studentData?.rollNo}</td>
                                  <td className="p-3 font-bold">{s.displayName}</td>
                                  <td className="p-3 text-center">{previewStats.sessions}</td>
-                                 <td className="p-3 text-center font-bold text-indigo-600">{present}</td>
+                                 <td className="p-3 text-center font-bold text-indigo-600">
+                                    {previewRecords.filter(r => r.studentId === s.uid && r.subjectId !== 'sub_extra' && r.isPresent).length}
+                                 </td>
+                                 <td className="p-3 text-center text-amber-600 font-bold">
+                                    {previewRecords.filter(r => r.studentId === s.uid && r.subjectId === 'sub_extra' && r.isPresent).length}
+                                 </td>
                                  <td className="p-3 text-right">
-                                    <span className={`px-2 py-1 rounded font-bold ${pct < 75 ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>{pct}%</span>
+                                    {(() => {
+                                       const present = previewRecords.filter(r => r.studentId === s.uid && r.subjectId !== 'sub_extra' && r.isPresent).length;
+                                       const pct = previewStats.sessions === 0 ? 0 : Math.round((present / previewStats.sessions) * 100);
+                                       return <span className={`px-2 py-1 rounded font-bold ${pct < 75 ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>{pct}%</span>;
+                                    })()}
                                  </td>
                               </tr>
                            );
