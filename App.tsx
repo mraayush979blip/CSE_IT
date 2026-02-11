@@ -25,7 +25,19 @@ const App: React.FC = () => {
     const handleChunkError = (e: any) => {
       const msg = e.message || '';
       if (msg.toLowerCase().includes('chunkloaderror') || msg.toLowerCase().includes('loading chunk')) {
-        window.location.reload();
+        const lastReload = localStorage.getItem('last_chunk_error_reload');
+        const now = Date.now();
+
+        // If we reloaded less than 10 seconds ago, don't loop, try a harder fix
+        if (lastReload && now - parseInt(lastReload) < 10000) {
+          console.error("Persistent chunk error. Attempting storage clear.");
+          sessionStorage.clear();
+          localStorage.removeItem('last_chunk_error_reload');
+        } else {
+          localStorage.setItem('last_chunk_error_reload', now.toString());
+          // Force a hard reload from server
+          window.location.href = window.location.origin + window.location.pathname + '?v=' + now;
+        }
       }
     };
     window.addEventListener('error', handleChunkError);

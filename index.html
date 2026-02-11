@@ -1,20 +1,22 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
-    <meta http-equiv="Pragma" content="no-cache" />
-    <meta http-equiv="Expires" content="0" />
-    <title>Acropolis Attendance Management System</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <style>
-      body {
-        font-family: 'Inter', sans-serif;
-        background-color: #f1f5f9; /* Slate 100 */
-      }
-    </style>
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+  <title>Acropolis Attendance Management System</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #f1f5f9;
+      /* Slate 100 */
+    }
+  </style>
   <script type="importmap">
 {
   "imports": {
@@ -27,8 +29,46 @@
 }
 </script>
 </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="./index.tsx"></script>
-  </body>
+
+<body>
+  <div id="root"></div>
+
+  <!-- Fail-safe for White Screen / Chunk Errors -->
+  <div id="mount-recovery"
+    style="display: none; position: fixed; inset: 0; background: white; z-index: 9999; display: flex; align-items: center; justify-center: center; padding: 20px; text-align: center;">
+    <div style="font-family: sans-serif; max-width: 400px;">
+      <h2 style="color: #1e293b; margin-bottom: 12px;">App Loading Issue</h2>
+      <p style="color: #64748b; font-size: 14px; margin-bottom: 24px;">The application is taking too long to load. This
+        might be due to a stale cache.</p>
+      <button onclick="forceAppUpdate()"
+        style="background: #4f46e5; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-weight: bold; cursor: pointer;">
+        Force Update & Reload
+      </button>
+    </div>
+  </div>
+
+  <script>
+    // If root is still empty after 4 seconds, show recovery UI
+    setTimeout(() => {
+      const root = document.getElementById('root');
+      if (root && root.innerHTML === '') {
+        document.getElementById('mount-recovery').style.display = 'flex';
+      }
+    }, 4000);
+
+    function forceAppUpdate() {
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(registrations => {
+          for (let registration of registrations) registration.unregister();
+        });
+      }
+      sessionStorage.clear();
+      localStorage.clear();
+      window.location.href = window.location.origin + window.location.pathname + '?refresh=' + Date.now();
+    }
+  </script>
+
+  <script type="module" src="./index.tsx"></script>
+</body>
+
 </html>
