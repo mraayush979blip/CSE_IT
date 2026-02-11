@@ -664,7 +664,7 @@ const FacultyManagement: React.FC = () => {
         <button onClick={() => setActiveSubTab('subjects')} className={`px-4 py-2 text-sm font-medium rounded ${activeSubTab === 'subjects' ? 'bg-white text-indigo-600' : 'text-slate-600'}`}>Subjects</button>
         <button onClick={() => setActiveSubTab('faculty_list')} className={`px-4 py-2 text-sm font-medium rounded ${activeSubTab === 'faculty_list' ? 'bg-white text-indigo-600' : 'text-slate-600'}`}>Faculty</button>
         <button onClick={() => setActiveSubTab('allocations')} className={`px-4 py-2 text-sm font-medium rounded ${activeSubTab === 'allocations' ? 'bg-white text-indigo-600' : 'text-slate-600'}`}>Allocations</button>
-        <button onClick={() => setActiveSubTab('coordinators')} className={`px-4 py-2 text-sm font-medium rounded ${activeSubTab === 'coordinators' ? 'bg-white text-indigo-600' : 'text-slate-600'}`}>Class Co-ordinator</button>
+        <button onClick={() => setActiveSubTab('coordinators')} className={`px-4 py-2 text-sm font-medium rounded ${activeSubTab === 'coordinators' ? 'bg-white text-indigo-600' : 'text-slate-600'}`}>Class Coordintor</button>
       </div>
       {isLoadingData ? <div>Loading...</div> : (
         <>
@@ -736,7 +736,7 @@ const FacultyManagement: React.FC = () => {
           {activeSubTab === 'coordinators' && (
             <Card>
               <div className="bg-indigo-50 p-4 rounded mb-4">
-                <h4 className="font-semibold text-indigo-900 mb-2">Assign Class Co-ordinator</h4>
+                <h4 className="font-semibold text-indigo-900 mb-2">Assign Class Coordintor</h4>
                 <div className="flex gap-2 items-end">
                   <Select label="Faculty" value={coordForm.facultyId} onChange={e => setCoordForm({ ...coordForm, facultyId: e.target.value })} className="mb-0 bg-white">
                     <option value="">Select Faculty</option>

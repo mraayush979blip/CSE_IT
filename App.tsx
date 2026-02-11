@@ -156,7 +156,7 @@ const App: React.FC = () => {
 
         <Route path="/coordinator/*" element={
           <ProtectedRoute user={user} allowedRoles={[UserRole.FACULTY]}>
-            <DashboardLayout title="Class Co-ordinator Dashboard">
+            <DashboardLayout title="Class Coordintor Dashboard">
               <Routes>
                 <Route path="*" element={<FacultyDashboard user={user!} forceCoordinatorView={true} />} />
               </Routes>

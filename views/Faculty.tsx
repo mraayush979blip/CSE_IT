@@ -121,7 +121,7 @@ const CoordinatorView: React.FC<{ branchId: string; facultyUser: User; metaData:
       <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
          <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-indigo-900 text-white p-4 rounded-xl shadow-lg gap-4">
             <div>
-               <h2 className="text-xl font-bold">Class Co-ordinator Dashboard</h2>
+               <h2 className="text-xl font-bold">Class Coordintor Dashboard</h2>
                <p className="text-indigo-200 text-xs">Managing: {metaData.branches[branchId] || branchId}</p>
             </div>
             <div className="flex bg-indigo-800/50 p-1 rounded-lg overflow-x-auto max-w-full">
@@ -142,7 +142,7 @@ const CoordinatorView: React.FC<{ branchId: string; facultyUser: User; metaData:
                         <Input type="date" value={attendanceDate} onChange={e => setAttendanceDate(e.target.value)} className="mb-0" />
                      </div>
                      <div>
-                        <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Extra Sessions (Max 7)</label>
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Extra Lectures (Max 7)</label>
                         <div className="flex gap-2">
                            {[1, 2, 3, 4, 5, 6, 7].map(num => (
                               <button key={num} onClick={() => toggleSession(num)} className={`w-10 h-10 rounded-full font-bold transition-all ${selectedSessions.includes(num) ? 'bg-indigo-600 text-white shadow-lg scale-110' : 'bg-white border text-slate-400 hover:border-indigo-300'}`}>
@@ -163,7 +163,7 @@ const CoordinatorView: React.FC<{ branchId: string; facultyUser: User; metaData:
                               setExtraReason(e.target.value);
                            }
                         }}
-                        placeholder="Explain why this extra session was held..."
+                        placeholder="Explain why this extra lecture was held..."
                         className="w-full p-3 text-sm border rounded-xl focus:ring-2 focus:ring-indigo-500 bg-white text-slate-700 min-h-[80px]"
                      />
                      <div className="text-right text-[10px] text-slate-400 mt-1">
@@ -216,7 +216,7 @@ const CoordinatorView: React.FC<{ branchId: string; facultyUser: User; metaData:
                            <thead className="bg-slate-50">
                               <tr className="text-left font-bold text-slate-500 uppercase text-[10px] tracking-wider">
                                  <th className="p-3">Date</th>
-                                 <th className="p-3">Sessions</th>
+                                 <th className="p-3">Lectures</th>
                                  <th className="p-3">Present Count</th>
                                  <th className="p-3">Reason</th>
                                  <th className="p-3">Action</th>
@@ -231,7 +231,7 @@ const CoordinatorView: React.FC<{ branchId: string; facultyUser: User; metaData:
                                        <td className="p-3 font-medium text-slate-900">{date}</td>
                                        <td className="p-3">
                                           <div className="flex gap-1">
-                                             {slots.map(s => <span key={s} className="px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-full text-[10px] font-bold">S{s}</span>)}
+                                             {slots.map(s => <span key={s} className="px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-full text-[10px] font-bold">L{s}</span>)}
                                           </div>
                                        </td>
                                        <td className="p-3 font-bold text-indigo-600">
@@ -1823,7 +1823,7 @@ const CoordinatorReport: React.FC<{ branchId: string; branchName: string; studen
                </div>
                <div className="flex gap-4">
                   <div className="text-right">
-                     <div className="text-[10px] font-black text-slate-400 uppercase">Sessions</div>
+                     <div className="text-[10px] font-black text-slate-400 uppercase">Total Lecture</div>
                      <div className="text-lg font-black text-indigo-600 leading-tight">{previewStats.sessions}</div>
                   </div>
                   <div className="text-right">

@@ -45,7 +45,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
         }
         const coord = await db.getCoordinatorByFaculty(user.uid);
         if (!coord) {
-          throw new Error("You are not assigned as a Class Co-ordinator.");
+          throw new Error("You are not assigned as a Class Coordintor.");
         }
         // We'll store a flag in sessionStorage to redirect to coordinator view
         sessionStorage.setItem('login_intent', 'COORDINATOR');
@@ -89,7 +89,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
               required
             >
               <option value="FACULTY">Login as Faculty</option>
-              <option value="COORDINATOR">Login as Class Co-ordinator</option>
+              <option value="COORDINATOR">Login as Class Coordintor</option>
               <option value="STUDENT">Login as Student</option>
             </Select>
           </div>
