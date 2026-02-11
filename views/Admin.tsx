@@ -107,7 +107,7 @@ const AdminStudentDetail: React.FC<{ student: User; onBack: () => void }> = ({ s
           <button onClick={onBack} className="p-2 hover:bg-slate-100 rounded-full text-slate-600 transition"><ArrowLeft className="h-5 w-5" /></button>
           <div>
             <h3 className="text-xl font-bold text-slate-900">{student.displayName}</h3>
-            <p className="text-sm text-slate-500 font-mono">{student.studentData?.enrollmentId} {student.studentData?.rollNo ? `| Roll: ${student.studentData.rollNo}` : ''}</p>
+            <p className="text-sm text-slate-500 font-mono">{student.studentData?.enrollmentId} {student.studentData?.rollNo ? `| S.No: ${student.studentData.rollNo}` : ''}</p>
           </div>
         </div>
       </div>
@@ -281,7 +281,7 @@ const StudentManagement: React.FC = () => {
           alert("Import process failed: " + err.message);
         }
       } else {
-        alert("No valid student data found in CSV. Expected columns: Enrollment, RollNo, Name, Mobile");
+        alert("No valid student data found in CSV. Expected columns: Enrollment, Serial No, Name, Mobile");
       }
       setLoading(false);
     };
@@ -360,12 +360,12 @@ const StudentManagement: React.FC = () => {
               <Input label="Name" required value={newStudent.name} onChange={e => setNewStudent({ ...newStudent, name: e.target.value })} className="mb-0 text-slate-900 bg-white" />
               <Input label="Mobile No" required value={newStudent.mobile} onChange={e => setNewStudent({ ...newStudent, mobile: e.target.value })} className="mb-0 text-slate-900 bg-white" placeholder="Used as password" />
               <Input label="Enrollment" required value={newStudent.enroll} onChange={e => setNewStudent({ ...newStudent, enroll: e.target.value })} className="mb-0 text-slate-900 bg-white" />
-              <Input label="Roll No" value={newStudent.rollNo} onChange={e => setNewStudent({ ...newStudent, rollNo: e.target.value })} className="mb-0 text-slate-900 bg-white" />
+              <Input label="Serial No" value={newStudent.rollNo} onChange={e => setNewStudent({ ...newStudent, rollNo: e.target.value })} className="mb-0 text-slate-900 bg-white" />
             </form>
             <div className="flex justify-end gap-2"><FileUploader onFileSelect={handleCSVUpload} label="Import CSV" /><Button onClick={handleAddStudent} disabled={loading}>{loading ? 'Adding...' : 'Add Student'}</Button></div>
           </div>
           <table className="w-full text-left text-sm">
-            <thead className="bg-slate-50 border-b"><tr><th className="p-2 text-slate-900">Enrollment</th><th className="p-2 text-slate-900">Roll No</th><th className="p-2 text-slate-900">Name</th><th className="p-2 text-slate-900">Mobile No</th><th className="p-2 text-right text-slate-900">Actions</th></tr></thead>
+            <thead className="bg-slate-50 border-b"><tr><th className="p-2 text-slate-900">Enrollment</th><th className="p-2 text-slate-900">Serial No</th><th className="p-2 text-slate-900">Name</th><th className="p-2 text-slate-900">Mobile No</th><th className="p-2 text-right text-slate-900">Actions</th></tr></thead>
             <tbody>{students.sort((a, b) => (a.studentData?.rollNo || '').localeCompare(b.studentData?.rollNo || '', undefined, { numeric: true })).map(s => (<tr key={s.uid} className="border-b group"><td className="p-2 font-mono text-slate-900">{s.studentData?.enrollmentId}</td><td className="p-2 font-mono text-slate-900">{s.studentData?.rollNo}</td><td className="p-2 text-slate-900">{s.displayName}</td><td className="p-2 text-slate-900 font-mono">{s.studentData?.mobileNo}</td><td className="p-2 text-right"><button onClick={() => handleSelectStudent(s)} className="text-indigo-500 mr-2 opacity-0 group-hover:opacity-100"><Eye className="h-4 w-4" /></button><button onClick={() => handleDelete(s.uid)} className="text-red-500 opacity-0 group-hover:opacity-100"><Trash2 className="h-4 w-4" /></button></td></tr>))}</tbody>
           </table>
         </div>
@@ -813,7 +813,7 @@ function AttendanceMonitor() {
                   <tr key={s.uid} className="hover:bg-slate-50/50 transition-colors group">
                     <td className="p-4">
                       <div className="font-bold text-slate-900">{s.displayName}</div>
-                      <div className="text-[10px] text-slate-500 font-mono tracking-tighter uppercase">{s.studentData?.enrollmentId} | Roll: {s.studentData?.rollNo}</div>
+                      <div className="text-[10px] text-slate-500 font-mono tracking-tighter uppercase">{s.studentData?.enrollmentId} | S.No: {s.studentData?.rollNo}</div>
                     </td>
                     <td className="p-4 hidden md:table-cell">
                       <span className="px-2 py-1 bg-indigo-50 text-indigo-700 text-[10px] font-black rounded uppercase">

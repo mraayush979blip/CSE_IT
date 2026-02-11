@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { db } from '../services/db';
 import { User } from '../types';
-import { Button, Card, Input, AcropolisLogo } from '../components/UI';
-import { Lock, Mail, Eye, EyeOff } from 'lucide-react';
+import { Button, Card, Input, AcropolisLogo, Select } from '../components/UI';
+import { Lock, Mail, Eye, EyeOff, Users } from 'lucide-react';
 
 interface LoginProps {
   onLogin: (user: User) => void;
@@ -15,27 +15,44 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
+  const [selectedRole, setSelectedRole] = useState<'ADMIN' | 'FACULTY' | 'COORDINATOR' | 'STUDENT'>('STUDENT');
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
     try {
       const user = await db.login(email, password);
+
+      // Verification logic for specific selections
+      if (selectedRole === 'ADMIN' && user.role !== 'ADMIN') {
+        throw new Error("You do not have Administrator privileges.");
+      }
+      if (selectedRole === 'STUDENT' && user.role !== 'STUDENT') {
+        throw new Error("This account is not a Student account.");
+      }
+      if (selectedRole === 'FACULTY' && user.role !== 'FACULTY') {
+        throw new Error("This account is not a Faculty account.");
+      }
+
+      if (selectedRole === 'COORDINATOR') {
+        if (user.role !== 'FACULTY') {
+          throw new Error("This account is not a Faculty/Coordinator account.");
+        }
+        const coord = await db.getCoordinatorByFaculty(user.uid);
+        if (!coord) {
+          throw new Error("You are not assigned as a Class Co-ordinator.");
+        }
+        // We'll store a flag in sessionStorage to redirect to coordinator view
+        sessionStorage.setItem('login_intent', 'COORDINATOR');
+      } else {
+        sessionStorage.removeItem('login_intent');
+      }
+
       onLogin(user);
     } catch (err: any) {
       console.error(err);
-      // Check for specific Firebase error codes safely
-      if (err.code === 'auth/invalid-api-key') {
-        setError("Config Error: Your API Key does not match your Firebase Project. Please check services/db.ts");
-      } else if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
-        setError("Invalid email or password. Check Firebase Console Authentication.");
-      } else if (err.code) {
-        // Any other firebase error
-        setError(err.message || "Login failed. Check console for details.");
-      } else {
-        // Fallback or Mock mode error
-        setError("Invalid email or password.");
-      }
+      setError(err.message || "Login failed. Please check your credentials.");
     } finally {
       setLoading(false);
     }
@@ -59,6 +76,21 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="relative">
+            <Users className="absolute left-3 top-3.5 h-4 w-4 text-slate-400 z-10" />
+            <Select
+              value={selectedRole}
+              onChange={(e: any) => setSelectedRole(e.target.value)}
+              className="pl-10"
+              required
+            >
+              <option value="STUDENT">Login as Student</option>
+              <option value="FACULTY">Login as Faculty</option>
+              <option value="COORDINATOR">Login as Class Co-ordinator</option>
+              <option value="ADMIN">Login as Admin</option>
+            </Select>
+          </div>
+
           <div className="relative">
             <Mail className="absolute left-3 top-3 h-5 w-5 text-slate-400" />
             <Input

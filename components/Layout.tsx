@@ -24,6 +24,8 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpen
   const notifRef = useRef<HTMLDivElement>(null);
 
   const getRolePath = () => {
+    const intent = sessionStorage.getItem('login_intent');
+    if (intent === 'COORDINATOR' && user.role === UserRole.FACULTY) return '/coordinator';
     if (user.role === UserRole.ADMIN) return '/admin';
     if (user.role === UserRole.FACULTY) return '/faculty';
     return '/student';

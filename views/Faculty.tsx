@@ -6,7 +6,7 @@ import { Save, History, FileDown, Filter, ArrowLeft, CheckCircle2, ChevronDown, 
 import { useNavigate, useLocation, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { Skeleton, SkeletonRow, SkeletonCard } from '../components/Skeleton';
 
-interface FacultyProps { user: User; }
+interface FacultyProps { user: User; forceCoordinatorView?: boolean; }
 
 // Modern Toggle Switch Component
 const ToggleSwitch: React.FC<{ checked: boolean; onChange: () => void; disabled?: boolean }> = ({ checked, onChange, disabled }) => (
@@ -231,7 +231,7 @@ const CoordinatorView: React.FC<{ branchId: string; facultyUser: User; metaData:
    );
 };
 
-export const FacultyDashboard: React.FC<FacultyProps> = ({ user }) => {
+export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinatorView = false }) => {
    const navigate = useNavigate();
    const location = useLocation();
    const params = useParams();
@@ -249,8 +249,9 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user }) => {
    const [loadingStudents, setLoadingStudents] = useState(false);
 
    // Derived state from URL
-   const activeTab = location.pathname.includes('/history') ? 'HISTORY' :
-      location.pathname.includes('/coordinator') ? 'CO-ORDINATOR' : 'MARK';
+   const activeTab = forceCoordinatorView ? 'CO-ORDINATOR' :
+      (location.pathname.includes('/history') ? 'HISTORY' :
+         location.pathname.includes('/coordinator') ? 'CO-ORDINATOR' : 'MARK');
 
    // URL Masking: We use indices to keep URLs short in the browser
    const { branchId: urlBranchId, subjectId: urlID2 } = params;
@@ -924,58 +925,62 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user }) => {
    return (
       <div className="space-y-6 pb-20">
          {/* 1. Command Center / Top Bar */}
-         <Card className="bg-indigo-900 text-white border-none shadow-lg">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-               <div>
-                  <label className="block text-xs text-indigo-200 mb-1 uppercase font-semibold">Class</label>
-                  <select
-                     value={selBranchId}
-                     onChange={e => { setSelection(e.target.value, ''); }}
-                     className="w-full bg-indigo-800 border-indigo-700 text-white rounded p-2 focus:ring-2 focus:ring-indigo-400 focus:outline-none"
-                  >
-                     <option value="">Select Class</option>
-                     {availableBranches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                  </select>
+         {!forceCoordinatorView && (
+            <Card className="bg-indigo-900 text-white border-none shadow-lg">
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                     <label className="block text-xs text-indigo-200 mb-1 uppercase font-semibold">Class</label>
+                     <select
+                        value={selBranchId}
+                        onChange={e => { setSelection(e.target.value, ''); }}
+                        className="w-full bg-indigo-800 border-indigo-700 text-white rounded p-2 focus:ring-2 focus:ring-indigo-400 focus:outline-none"
+                     >
+                        <option value="">Select Class</option>
+                        {availableBranches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                     </select>
+                  </div>
+                  <div>
+                     <label className="block text-xs text-indigo-200 mb-1 uppercase font-semibold">Subject</label>
+                     <select
+                        value={selSubjectId}
+                        onChange={e => setSelection(selBranchId, e.target.value)}
+                        disabled={!selBranchId}
+                        className="w-full bg-indigo-800 border-indigo-700 text-white rounded p-2 focus:ring-2 focus:ring-indigo-400 focus:outline-none disabled:opacity-50"
+                     >
+                        <option value="">Select Subject</option>
+                        {availableSubjects.map(s => <option key={s.id} value={s.id}>{s.name} ({s.code})</option>)}
+                     </select>
+                  </div>
                </div>
-               <div>
-                  <label className="block text-xs text-indigo-200 mb-1 uppercase font-semibold">Subject</label>
-                  <select
-                     value={selSubjectId}
-                     onChange={e => setSelection(selBranchId, e.target.value)}
-                     disabled={!selBranchId}
-                     className="w-full bg-indigo-800 border-indigo-700 text-white rounded p-2 focus:ring-2 focus:ring-indigo-400 focus:outline-none disabled:opacity-50"
-                  >
-                     <option value="">Select Subject</option>
-                     {availableSubjects.map(s => <option key={s.id} value={s.id}>{s.name} ({s.code})</option>)}
-                  </select>
-               </div>
-            </div>
-         </Card>
+            </Card>
+         )}
 
          <>
             {/* 2. Tabs */}
-            <div className="flex border-b border-slate-200 overflow-x-auto no-scrollbar">
-               <button
-                  onClick={() => setActiveTab('MARK')}
-                  className={`px-6 py-3 font-medium text-sm transition-colors flex items-center whitespace-nowrap ${activeTab === 'MARK' ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
-               >
-                  <CheckCircle2 className="w-4 h-4 mr-2" /> Mark Attendance
-               </button>
-               <button
-                  onClick={() => setActiveTab('HISTORY')}
-                  className={`px-6 py-3 font-medium text-sm transition-colors flex items-center whitespace-nowrap ${activeTab === 'HISTORY' ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
-               >
-                  <History className="w-4 h-4 mr-2" /> View History
-               </button>
-               {coordinatorBranchId && (
+            {!forceCoordinatorView && (
+               <div className="flex border-b border-slate-200 overflow-x-auto no-scrollbar">
                   <button
-                     onClick={() => setActiveTab('CO-ORDINATOR')}
-                     className={`px-6 py-3 font-medium text-sm transition-colors flex items-center whitespace-nowrap ${activeTab === 'CO-ORDINATOR' ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
+                     onClick={() => setActiveTab('MARK')}
+                     className={`px-6 py-3 font-medium text-sm transition-colors flex items-center whitespace-nowrap ${activeTab === 'MARK' ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
                   >
-                     <Layers className="w-4 h-4 mr-2" /> Class Co-ordinator
+                     <CheckCircle2 className="w-4 h-4 mr-2" /> Mark Attendance
                   </button>
-               )}
-            </div>
+                  <button
+                     onClick={() => setActiveTab('HISTORY')}
+                     className={`px-6 py-3 font-medium text-sm transition-colors flex items-center whitespace-nowrap ${activeTab === 'HISTORY' ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
+                  >
+                     <History className="w-4 h-4 mr-2" /> View History
+                  </button>
+                  {coordinatorBranchId && (
+                     <button
+                        onClick={() => setActiveTab('CO-ORDINATOR')}
+                        className={`px-6 py-3 font-medium text-sm transition-colors flex items-center whitespace-nowrap ${activeTab === 'CO-ORDINATOR' ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
+                     >
+                        <Layers className="w-4 h-4 mr-2" /> Class Co-ordinator
+                     </button>
+                  )}
+               </div>
+            )}
 
             {activeTab === 'MARK' && (
                !showDashboard ? <SelectionPrompt /> : (
@@ -1107,7 +1112,7 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user }) => {
                         <table className="w-full text-left border-collapse">
                            <thead className="bg-slate-50 border-b border-slate-200">
                               <tr>
-                                 <th className="py-3 px-4 text-xs font-bold text-slate-900 uppercase tracking-wider w-20">Roll</th>
+                                 <th className="py-3 px-4 text-xs font-bold text-slate-900 uppercase tracking-wider w-20">S.No</th>
                                  <th className="py-3 px-4 text-xs font-bold text-slate-900 uppercase tracking-wider">Student Details</th>
                                  <th className="py-3 px-4 text-xs font-bold text-slate-900 uppercase tracking-wider text-center w-32">Status</th>
                               </tr>
@@ -1320,7 +1325,7 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user }) => {
                         <table className="w-full text-sm text-left text-slate-900">
                            <thead className="bg-slate-50 border-b">
                               <tr>
-                                 <th className="p-3 text-slate-900 font-bold">Roll</th>
+                                 <th className="p-3 text-slate-900 font-bold">S.No</th>
                                  <th className="p-3 text-slate-900 font-bold">Name</th>
                                  {historyFilterDate ? (
                                     <>

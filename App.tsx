@@ -52,6 +52,7 @@ const App: React.FC = () => {
 
   const handleLogout = async () => {
     await db.logout();
+    sessionStorage.removeItem('login_intent');
     setUser(null);
   };
 
@@ -78,6 +79,9 @@ const App: React.FC = () => {
   };
 
   const getDashboardPath = (role: UserRole) => {
+    const intent = sessionStorage.getItem('login_intent');
+    if (intent === 'COORDINATOR' && role === UserRole.FACULTY) return '/coordinator';
+
     switch (role) {
       case UserRole.ADMIN: return '/admin';
       case UserRole.FACULTY: return '/faculty';
@@ -145,6 +149,16 @@ const App: React.FC = () => {
                 <Route path="coordinator" element={<FacultyDashboard user={user!} />} />
                 <Route path="notifications" element={<NotificationsPage user={user!} />} />
                 <Route path="*" element={<Navigate to="/faculty/mark" replace />} />
+              </Routes>
+            </DashboardLayout>
+          </ProtectedRoute>
+        } />
+
+        <Route path="/coordinator/*" element={
+          <ProtectedRoute user={user} allowedRoles={[UserRole.FACULTY]}>
+            <DashboardLayout title="Class Co-ordinator Dashboard">
+              <Routes>
+                <Route path="*" element={<FacultyDashboard user={user!} forceCoordinatorView={true} />} />
               </Routes>
             </DashboardLayout>
           </ProtectedRoute>
