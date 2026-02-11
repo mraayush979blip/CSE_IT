@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { db } from '../services/db';
 import { User, FacultyAssignment, AttendanceRecord, Batch } from '../types';
 import { Button, Card, Modal, Input, Select } from '../components/UI';
-import { Save, History, FileDown, Filter, ArrowLeft, CheckCircle2, ChevronDown, Check, X, CheckSquare, Square, XCircle, AlertCircle, AlertTriangle, Trash, Loader2, Calendar, RefreshCw, Layers } from 'lucide-react';
+import { Save, History, FileDown, Filter, ArrowLeft, CheckCircle2, ChevronDown, Check, X, CheckSquare, Square, XCircle, AlertCircle, AlertTriangle, Trash, Loader2, Calendar, RefreshCw, Layers, Eye, BookOpen } from 'lucide-react';
 import { useNavigate, useLocation, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { Skeleton, SkeletonRow, SkeletonCard } from '../components/Skeleton';
 
@@ -35,7 +35,8 @@ const CoordinatorView: React.FC<{ branchId: string; facultyUser: User; metaData:
    const [isSaving, setIsSaving] = useState(false);
    const [saveMessage, setSaveMessage] = useState('');
    const [history, setHistory] = useState<AttendanceRecord[]>([]);
-   const [viewHistory, setViewHistory] = useState(false);
+   const [activeTab, setActiveTab] = useState<'MARK' | 'HISTORY' | 'MONITOR' | 'REPORTS'>('MARK');
+
 
    useEffect(() => {
       const load = async () => {
@@ -111,22 +112,26 @@ const CoordinatorView: React.FC<{ branchId: string; facultyUser: User; metaData:
       } catch (e: any) { alert(e.message); } finally { setIsSaving(false); }
    };
 
+
    if (loading) return <div className="p-10 text-center"><Loader2 className="animate-spin h-10 w-10 mx-auto text-indigo-500" /></div>;
 
    return (
       <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
-         <div className="flex justify-between items-center bg-indigo-900 text-white p-4 rounded-xl shadow-lg">
+         <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-indigo-900 text-white p-4 rounded-xl shadow-lg gap-4">
             <div>
                <h2 className="text-xl font-bold">Class Co-ordinator Dashboard</h2>
                <p className="text-indigo-200 text-xs">Managing: {metaData.branches[branchId] || branchId}</p>
             </div>
-            <Button variant="secondary" size="sm" onClick={() => setViewHistory(!viewHistory)}>
-               {viewHistory ? <ArrowLeft className="h-4 w-4 mr-2" /> : <History className="h-4 w-4 mr-2" />}
-               {viewHistory ? 'Back to Marking' : 'View Extra History'}
-            </Button>
+            <div className="flex bg-indigo-800/50 p-1 rounded-lg overflow-x-auto max-w-full">
+               <button onClick={() => setActiveTab('MARK')} className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all whitespace-nowrap ${activeTab === 'MARK' ? 'bg-white text-indigo-900 shadow' : 'text-indigo-200 hover:text-white'}`}>MARK EXTRA</button>
+               <button onClick={() => setActiveTab('MONITOR')} className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all whitespace-nowrap ${activeTab === 'MONITOR' ? 'bg-white text-indigo-900 shadow' : 'text-indigo-200 hover:text-white'}`}>MONITOR</button>
+               <button onClick={() => setActiveTab('REPORTS')} className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all whitespace-nowrap ${activeTab === 'REPORTS' ? 'bg-white text-indigo-900 shadow' : 'text-indigo-200 hover:text-white'}`}>REPORTS</button>
+               <button onClick={() => setActiveTab('HISTORY')} className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all whitespace-nowrap ${activeTab === 'HISTORY' ? 'bg-white text-indigo-900 shadow' : 'text-indigo-200 hover:text-white'}`}>EXTRA HISTORY</button>
+            </div>
          </div>
 
-         {!viewHistory ? (
+         {activeTab === 'MARK' && (
+
             <Card>
                <div className="space-y-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-lg border">
@@ -178,7 +183,9 @@ const CoordinatorView: React.FC<{ branchId: string; facultyUser: User; metaData:
                   </div>
                </div>
             </Card>
-         ) : (
+         )}
+
+         {activeTab === 'HISTORY' && (
             <Card>
                <div className="space-y-4">
                   <h3 className="font-bold text-slate-800">Extra Lecture History</h3>
@@ -227,6 +234,9 @@ const CoordinatorView: React.FC<{ branchId: string; facultyUser: User; metaData:
                </div>
             </Card>
          )}
+
+         {activeTab === 'MONITOR' && <CoordinatorMarkingMonitor branchId={branchId} metaData={metaData} />}
+         {activeTab === 'REPORTS' && <CoordinatorReport branchId={branchId} branchName={metaData.branches[branchId] || branchId} students={students} />}
       </div>
    );
 };
@@ -1628,3 +1638,210 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
    );
 };
 
+
+const CoordinatorMarkingMonitor: React.FC<{ branchId: string; metaData: any }> = ({ branchId, metaData }) => {
+   const [assignments, setAssignments] = useState<FacultyAssignment[]>([]);
+   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
+   const [loading, setLoading] = useState(true);
+   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+
+   useEffect(() => {
+      const load = async () => {
+         setLoading(true);
+         try {
+            const [allAssigns, allAtt] = await Promise.all([
+               db.getAssignments(),
+               db.getDateAttendance(date)
+            ]);
+            // Filter assignments for this branch only
+            setAssignments(allAssigns.filter(a => a.branchId === branchId));
+            setAttendance(allAtt.filter(a => a.branchId === branchId));
+         } finally {
+            setLoading(false);
+         }
+      };
+      load();
+   }, [branchId, date]);
+
+   if (loading) return <div className="p-10 text-center"><Loader2 className="animate-spin h-10 w-10 mx-auto text-indigo-500" /></div>;
+
+   return (
+      <Card>
+         <div className="space-y-6">
+            <div className="flex justify-between items-center border-b pb-4">
+               <h3 className="font-bold text-slate-800">Faculty Marking Monitor</h3>
+               <Input type="date" value={date} onChange={e => setDate(e.target.value)} className="w-40 mb-0 text-slate-900 bg-white" />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+               {assignments.length > 0 ? assignments.map(a => {
+                  const marked = attendance.some(r => r.subjectId === a.subjectId && r.date === date);
+                  const sub = metaData.subjects[a.subjectId];
+                  return (
+                     <div key={a.id} className={`p-4 rounded-xl border flex items-center justify-between ${marked ? 'bg-green-50 border-green-100' : 'bg-red-50 border-red-100'}`}>
+                        <div className="min-w-0">
+                           <div className="text-xs font-bold text-slate-500 uppercase tracking-wider">{sub?.code}</div>
+                           <div className="font-bold text-slate-800 truncate">{sub?.name}</div>
+                           <div className="text-[10px] text-slate-400 font-medium">Faculty: {metaData.faculty[a.facultyId] || 'Unknown'}</div>
+                        </div>
+                        <div className="flex flex-col items-center">
+                           {marked ? (
+                              <div className="bg-green-100 text-green-700 p-2 rounded-full shadow-sm">
+                                 <CheckCircle2 className="h-5 w-5" />
+                              </div>
+                           ) : (
+                              <div className="bg-red-100 text-red-700 p-2 rounded-full shadow-sm animate-pulse">
+                                 <XCircle className="h-5 w-5" />
+                              </div>
+                           )}
+                           <span className={`text-[9px] font-black uppercase mt-1 ${marked ? 'text-green-600' : 'text-red-600'}`}>{marked ? 'Marked' : 'Pending'}</span>
+                        </div>
+                     </div>
+                  );
+               }) : <div className="col-span-2 text-center py-10 text-slate-400 italic">No faculty assignments found for this class.</div>}
+            </div>
+         </div>
+      </Card>
+   );
+};
+
+const CoordinatorReport: React.FC<{ branchId: string; branchName: string; students: User[] }> = ({ branchId, branchName, students }) => {
+   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
+   const [loading, setLoading] = useState(false);
+   const [exportRange, setExportRange] = useState<'TILL_TODAY' | 'CUSTOM'>('TILL_TODAY');
+   const [exportStartDate, setExportStartDate] = useState('');
+   const [exportEndDate, setExportEndDate] = useState(new Date().toISOString().split('T')[0]);
+   const [showFullPreview, setShowFullPreview] = useState(false);
+
+   useEffect(() => {
+      const load = async () => {
+         setLoading(true);
+         try {
+            setAttendance(await db.getBranchAttendance(branchId));
+         } finally { setLoading(false); }
+      };
+      load();
+   }, [branchId]);
+
+   const previewRecords = useMemo(() => {
+      const start = exportRange === 'CUSTOM' ? exportStartDate : '';
+      const end = exportEndDate;
+      return attendance.filter(r => {
+         const inStart = !start || r.date >= start;
+         const inEnd = !end || r.date <= end;
+         return inStart && inEnd;
+      });
+   }, [attendance, exportRange, exportStartDate, exportEndDate]);
+
+   const previewStats = useMemo(() => {
+      const sessions = new Set(previewRecords.map(r => `${r.date}_${r.lectureSlot}_${r.subjectId}`)).size;
+      return { sessions, totalRecords: previewRecords.length };
+   }, [previewRecords]);
+
+   const executeExport = () => {
+      const csvRows = [["Enrollment ID", "Roll No", "Name", "Total Lectures", "Attended", "Percentage"]];
+      students.forEach(s => {
+         const relevant = previewRecords.filter(r => r.studentId === s.uid);
+         const total = previewStats.sessions;
+         const present = relevant.filter(r => r.isPresent).length;
+         const pct = total === 0 ? 0 : Math.round((present / total) * 100);
+         csvRows.push([
+            s.studentData?.enrollmentId || '',
+            s.studentData?.rollNo || '',
+            s.displayName,
+            total.toString(),
+            present.toString(),
+            `${pct}%`
+         ]);
+      });
+
+      const csvContent = "\uFEFF" + csvRows.map(e => e.join(",")).join("\n");
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = `Report_${branchName}_${new Date().toLocaleDateString()}.csv`;
+      link.click();
+   };
+
+   return (
+      <Card>
+         <div className="space-y-6">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+               <div className="flex items-center gap-3">
+                  <div className="p-2 bg-indigo-50 rounded-lg"><Layers className="h-5 w-5 text-indigo-600" /></div>
+                  <h3 className="text-xl font-bold text-slate-800">Class Attendance Reports</h3>
+               </div>
+               <div className="flex gap-4">
+                  <div className="text-right">
+                     <div className="text-[10px] font-black text-slate-400 uppercase">Sessions</div>
+                     <div className="text-lg font-black text-indigo-600 leading-tight">{previewStats.sessions}</div>
+                  </div>
+                  <div className="text-right">
+                     <div className="text-[10px] font-black text-slate-400 uppercase">Students</div>
+                     <div className="text-lg font-black text-indigo-600 leading-tight">{students.length}</div>
+                  </div>
+               </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+               <div className="space-y-4">
+                  <label className="text-xs font-black text-slate-400 uppercase tracking-widest">Configure Logic</label>
+                  <div className="grid grid-cols-2 gap-3">
+                     <button onClick={() => setExportRange('TILL_TODAY')} className={`p-4 rounded-xl border-2 text-center transition-all ${exportRange === 'TILL_TODAY' ? 'border-indigo-600 bg-indigo-50 text-indigo-700 font-bold' : 'border-slate-100 bg-white text-slate-500'}`}>Cumulative</button>
+                     <button onClick={() => setExportRange('CUSTOM')} className={`p-4 rounded-xl border-2 text-center transition-all ${exportRange === 'CUSTOM' ? 'border-indigo-600 bg-indigo-50 text-indigo-700 font-bold' : 'border-slate-100 bg-white text-slate-500'}`}>Range</button>
+                  </div>
+                  {exportRange === 'CUSTOM' && (
+                     <div className="grid grid-cols-2 gap-4 animate-in slide-in-from-top-2 duration-200">
+                        <Input type="date" value={exportStartDate} onChange={e => setExportStartDate(e.target.value)} label="Start Date" className="text-slate-900 bg-white" />
+                        <Input type="date" value={exportEndDate} onChange={e => setExportEndDate(e.target.value)} label="End Date" className="text-slate-900 bg-white" />
+                     </div>
+                  )}
+               </div>
+
+               <div className="flex flex-col justify-end gap-3">
+                  <Button onClick={() => setShowFullPreview(!showFullPreview)} variant="secondary" className="w-full py-4 h-auto">
+                     {showFullPreview ? <ArrowLeft className="h-4 w-4 mr-2" /> : <Eye className="h-4 w-4 mr-2" />}
+                     {showFullPreview ? 'Hide Preview' : 'Preview Detailed'}
+                  </Button>
+                  <Button onClick={executeExport} className="w-full py-4 bg-indigo-600 text-white font-black h-auto">
+                     <FileDown className="h-4 w-4 mr-2" /> Download CSV
+                  </Button>
+               </div>
+            </div>
+
+            {showFullPreview && (
+               <div className="overflow-x-auto border rounded-xl animate-in fade-in slide-in-from-bottom-2 duration-300">
+                  <table className="w-full text-xs text-left">
+                     <thead className="bg-slate-50 border-b">
+                        <tr>
+                           <th className="p-3">Roll No</th>
+                           <th className="p-3">Name</th>
+                           <th className="p-3 text-center">Total</th>
+                           <th className="p-3 text-center">Attended</th>
+                           <th className="p-3 text-right">Percentage</th>
+                        </tr>
+                     </thead>
+                     <tbody className="divide-y">
+                        {students.map(s => {
+                           const present = previewRecords.filter(r => r.studentId === s.uid && r.isPresent).length;
+                           const pct = previewStats.sessions === 0 ? 0 : Math.round((present / previewStats.sessions) * 100);
+                           return (
+                              <tr key={s.uid} className="hover:bg-slate-50">
+                                 <td className="p-3 font-mono">{s.studentData?.rollNo}</td>
+                                 <td className="p-3 font-bold">{s.displayName}</td>
+                                 <td className="p-3 text-center">{previewStats.sessions}</td>
+                                 <td className="p-3 text-center font-bold text-indigo-600">{present}</td>
+                                 <td className="p-3 text-right">
+                                    <span className={`px-2 py-1 rounded font-bold ${pct < 75 ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>{pct}%</span>
+                                 </td>
+                              </tr>
+                           );
+                        })}
+                     </tbody>
+                  </table>
+               </div>
+            )}
+         </div>
+      </Card>
+   );
+};

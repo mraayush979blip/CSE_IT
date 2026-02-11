@@ -23,6 +23,7 @@ interface IDataService {
   getStudents: (branchId: string, batchId?: string) => Promise<User[]>;
   getStudentsByBranch: (branchId: string) => Promise<User[]>;
   createStudent: (data: Partial<User>) => Promise<void>;
+  updateStudent: (uid: string, data: Partial<User>) => Promise<void>;
   importStudents: (students: Partial<User>[]) => Promise<{ success: number; failed: number; errors: string[] }>;
   deleteUser: (uid: string) => Promise<void>;
 
@@ -33,6 +34,7 @@ interface IDataService {
 
   getFaculty: () => Promise<User[]>;
   createFaculty: (data: Partial<User>, password?: string) => Promise<void>;
+  updateFaculty: (uid: string, data: Partial<User>) => Promise<void>;
   resetFacultyPassword: (uid: string, newPass: string) => Promise<void>;
   getAssignments: (facultyId?: string) => Promise<FacultyAssignment[]>;
   assignFaculty: (data: Omit<FacultyAssignment, 'id'>) => Promise<void>;
@@ -78,6 +80,9 @@ class SupabaseService implements IDataService {
         enrollmentId: p.enrollment_id,
         rollNo: p.roll_no,
         mobileNo: p.mobile_no
+      } : undefined,
+      facultyData: p.role === UserRole.FACULTY ? {
+        serialNo: p.roll_no
       } : undefined
     };
   }
@@ -314,6 +319,16 @@ class SupabaseService implements IDataService {
     if (profError) throw profError;
   }
 
+  async updateStudent(uid: string, data: Partial<User>): Promise<void> {
+    const { error } = await supabase.from('profiles').update({
+      display_name: data.displayName,
+      enrollment_id: data.studentData?.enrollmentId,
+      roll_no: data.studentData?.rollNo,
+      mobile_no: data.studentData?.mobileNo
+    }).eq('id', uid);
+    if (error) throw error;
+  }
+
   async importStudents(students: Partial<User>[]): Promise<{ success: number; failed: number; errors: string[] }> {
     let success = 0;
     let failed = 0;
@@ -376,10 +391,20 @@ class SupabaseService implements IDataService {
       email: data.email,
       display_name: data.displayName,
       role: UserRole.FACULTY,
+      roll_no: data.facultyData?.serialNo,
       password: pass
     }]);
 
     if (profError) throw profError;
+  }
+
+  async updateFaculty(uid: string, data: Partial<User>): Promise<void> {
+    const { error } = await supabase.from('profiles').update({
+      display_name: data.displayName,
+      email: data.email,
+      roll_no: data.facultyData?.serialNo
+    }).eq('id', uid);
+    if (error) throw error;
   }
 
   async resetFacultyPassword(uid: string, newPass: string): Promise<void> {
@@ -756,6 +781,15 @@ class MockService implements IDataService {
     this.save('ams_users', users);
   }
 
+  async updateStudent(uid: string, data: Partial<User>) {
+    const users = this.load('ams_users', SEED_USERS) as User[];
+    const idx = users.findIndex(u => u.uid === uid);
+    if (idx >= 0) {
+      users[idx] = { ...users[idx], ...data, studentData: { ...users[idx].studentData, ...data.studentData } as any };
+      this.save('ams_users', users);
+    }
+  }
+
   async importStudents(students: Partial<User>[]): Promise<{ success: number; failed: number; errors: string[] }> {
     const users = this.load('ams_users', SEED_USERS) as User[];
     const existingEmails = new Set(users.map(u => u.email.toLowerCase()));
@@ -806,8 +840,21 @@ class MockService implements IDataService {
   async getFaculty() { return (this.load('ams_users', SEED_USERS) as User[]).filter(u => u.role === UserRole.FACULTY); }
   async createFaculty(data: Partial<User>, password?: string) {
     const users = this.load('ams_users', SEED_USERS);
-    users.push({ ...data, uid: `fac_${Date.now()}`, role: UserRole.FACULTY, password: password || 'password123' });
+    users.push({ ...data, uid: `fac_${Date.now()}`, role: UserRole.FACULTY, password: password || 'password123', facultyData: { ...data.facultyData } });
     this.save('ams_users', users);
+  }
+
+  async updateFaculty(uid: string, data: Partial<User>) {
+    const users = this.load('ams_users', SEED_USERS) as User[];
+    const idx = users.findIndex(u => u.uid === uid);
+    if (idx >= 0) {
+      users[idx] = {
+        ...users[idx],
+        ...data,
+        facultyData: { ...users[idx].facultyData, ...data.facultyData }
+      };
+      this.save('ams_users', users);
+    }
   }
   async resetFacultyPassword(uid: string, newPass: string) {
     const users = this.load('ams_users', SEED_USERS);

@@ -17,6 +17,9 @@ export interface User {
     rollNo?: string;
     mobileNo?: string;
   };
+  facultyData?: {
+    serialNo?: string;
+  };
 }
 
 export interface Branch {

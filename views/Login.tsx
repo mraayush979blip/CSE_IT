@@ -15,7 +15,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const [selectedRole, setSelectedRole] = useState<'FACULTY' | 'COORDINATOR' | 'STUDENT'>('STUDENT');
+  const [selectedRole, setSelectedRole] = useState<'FACULTY' | 'COORDINATOR' | 'STUDENT'>('FACULTY');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -88,9 +88,9 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
               className="pl-10"
               required
             >
-              <option value="STUDENT">Login as Student</option>
               <option value="FACULTY">Login as Faculty</option>
               <option value="COORDINATOR">Login as Class Co-ordinator</option>
+              <option value="STUDENT">Login as Student</option>
             </Select>
           </div>
 
@@ -98,7 +98,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
             <Mail className="absolute left-3 top-3 h-5 w-5 text-slate-400" />
             <Input
               type="text"
-              placeholder="Enrollment ID or Email"
+              placeholder="User ID"
               className="pl-10"
               required
               value={email}
