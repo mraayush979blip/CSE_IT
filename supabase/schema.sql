@@ -58,7 +58,8 @@ create table if not exists public.attendance (
     is_present boolean not null,
     marked_by uuid references public.profiles(id),
     timestamp bigint not null,
-    lecture_slot integer
+    lecture_slot integer,
+    reason text
 );
 
 -- Notifications Table
