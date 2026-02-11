@@ -36,6 +36,7 @@ const CoordinatorView: React.FC<{ branchId: string; facultyUser: User; metaData:
    const [saveMessage, setSaveMessage] = useState('');
    const [history, setHistory] = useState<AttendanceRecord[]>([]);
    const [activeTab, setActiveTab] = useState<'MARK' | 'HISTORY' | 'MONITOR' | 'REPORTS'>('MARK');
+   const [extraReason, setExtraReason] = useState('');
 
 
    useEffect(() => {
@@ -74,7 +75,7 @@ const CoordinatorView: React.FC<{ branchId: string; facultyUser: User; metaData:
    };
 
    const handleSave = async () => {
-      if (selectedSessions.length === 0) { alert("Select at least one session."); return; }
+      if (selectedSessions.length === 0) { alert("Please select at least one session."); return; }
       setIsSaving(true);
       try {
          const records: AttendanceRecord[] = [];
@@ -96,7 +97,8 @@ const CoordinatorView: React.FC<{ branchId: string; facultyUser: User; metaData:
                      id: `extra_${branchId}_${attendanceDate}_S${slot}_${s.uid}`,
                      date: attendanceDate, studentId: s.uid, subjectId: 'sub_extra',
                      branchId, batchId: s.studentData?.batchId || 'ALL',
-                     isPresent: true, markedBy: facultyUser.uid, timestamp: ts, lectureSlot: slot
+                     isPresent: true, markedBy: facultyUser.uid, timestamp: ts, lectureSlot: slot,
+                     reason: extraReason
                   });
                }
             });
@@ -143,11 +145,29 @@ const CoordinatorView: React.FC<{ branchId: string; facultyUser: User; metaData:
                         <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Extra Sessions (Max 7)</label>
                         <div className="flex gap-2">
                            {[1, 2, 3, 4, 5, 6, 7].map(num => (
-                              <button key={num} onClick={() => toggleSession(num)} className={`w-10 h-10 rounded-full font-bold transition-all ${selectedSessions.includes(num) ? 'bg-indigo-600 text-white' : 'bg-white border text-slate-400 hover:border-indigo-300'}`}>
+                              <button key={num} onClick={() => toggleSession(num)} className={`w-10 h-10 rounded-full font-bold transition-all ${selectedSessions.includes(num) ? 'bg-indigo-600 text-white shadow-lg scale-110' : 'bg-white border text-slate-400 hover:border-indigo-300'}`}>
                                  {num}
                               </button>
                            ))}
                         </div>
+                     </div>
+                  </div>
+
+                  <div className="bg-slate-50 p-4 rounded-lg border">
+                     <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Reason for Extra Attendance (max 50 words)</label>
+                     <textarea
+                        value={extraReason}
+                        onChange={e => {
+                           const words = e.target.value.trim().split(/\s+/).filter(Boolean);
+                           if (words.length <= 50) {
+                              setExtraReason(e.target.value);
+                           }
+                        }}
+                        placeholder="Explain why this extra session was held..."
+                        className="w-full p-3 text-sm border rounded-xl focus:ring-2 focus:ring-indigo-500 bg-white text-slate-700 min-h-[80px]"
+                     />
+                     <div className="text-right text-[10px] text-slate-400 mt-1">
+                        {extraReason.trim().split(/\s+/).filter(Boolean).length}/50 words
                      </div>
                   </div>
 
@@ -183,61 +203,70 @@ const CoordinatorView: React.FC<{ branchId: string; facultyUser: User; metaData:
                   </div>
                </div>
             </Card>
-         )}
+         )
+         }
 
-         {activeTab === 'HISTORY' && (
-            <Card>
-               <div className="space-y-4">
-                  <h3 className="font-bold text-slate-800">Extra Lecture History</h3>
-                  <div className="overflow-x-auto">
-                     <table className="w-full text-sm">
-                        <thead className="bg-slate-50">
-                           <tr className="text-left font-bold text-slate-500 uppercase text-[10px] tracking-wider">
-                              <th className="p-3">Date</th>
-                              <th className="p-3">Sessions</th>
-                              <th className="p-3">Present Count</th>
-                              <th className="p-3">Action</th>
-                           </tr>
-                        </thead>
-                        <tbody className="divide-y">
-                           {Array.from(new Set(history.map(r => r.date))).sort().reverse().map(date => {
-                              const dayRecs = history.filter(r => r.date === date);
-                              const slots = Array.from(new Set(dayRecs.map(r => r.lectureSlot))).sort();
-                              return (
-                                 <tr key={date} className="hover:bg-slate-50">
-                                    <td className="p-3 font-medium text-slate-900">{date}</td>
-                                    <td className="p-3">
-                                       <div className="flex gap-1">
-                                          {slots.map(s => <span key={s} className="px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-full text-[10px] font-bold">S{s}</span>)}
-                                       </div>
-                                    </td>
-                                    <td className="p-3 font-bold text-indigo-600">
-                                       {dayRecs.length} total entries
-                                    </td>
-                                    <td className="p-3 text-right">
-                                       <button onClick={async () => {
-                                          if (confirm(`Delete ALL ${dayRecs.length} extra lecture entries for ${date}?`)) {
-                                             await db.deleteAttendanceRecords(dayRecs.map(r => r.id));
-                                             setHistory(await db.getAttendance(branchId, 'ALL', 'sub_extra'));
-                                          }
-                                       }} className="text-red-500 hover:text-red-700">
-                                          <Trash className="h-4 w-4" />
-                                       </button>
-                                    </td>
-                                 </tr>
-                              );
-                           })}
-                           {history.length === 0 && <tr><td colSpan={4} className="p-10 text-center text-slate-400 italic">No history found.</td></tr>}
-                        </tbody>
-                     </table>
+         {
+            activeTab === 'HISTORY' && (
+               <Card>
+                  <div className="space-y-4">
+                     <h3 className="font-bold text-slate-800">Extra Lecture History</h3>
+                     <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                           <thead className="bg-slate-50">
+                              <tr className="text-left font-bold text-slate-500 uppercase text-[10px] tracking-wider">
+                                 <th className="p-3">Date</th>
+                                 <th className="p-3">Sessions</th>
+                                 <th className="p-3">Present Count</th>
+                                 <th className="p-3">Reason</th>
+                                 <th className="p-3">Action</th>
+                              </tr>
+                           </thead>
+                           <tbody className="divide-y">
+                              {Array.from(new Set(history.map(r => r.date))).sort().reverse().map(date => {
+                                 const dayRecs = history.filter(r => r.date === date);
+                                 const slots = Array.from(new Set(dayRecs.map(r => r.lectureSlot))).sort();
+                                 return (
+                                    <tr key={date} className="hover:bg-slate-50 group">
+                                       <td className="p-3 font-medium text-slate-900">{date}</td>
+                                       <td className="p-3">
+                                          <div className="flex gap-1">
+                                             {slots.map(s => <span key={s} className="px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-full text-[10px] font-bold">S{s}</span>)}
+                                          </div>
+                                       </td>
+                                       <td className="p-3 font-bold text-indigo-600">
+                                          {dayRecs.length} total entries
+                                       </td>
+                                       <td className="p-3">
+                                          <div className="text-[10px] text-slate-500 max-w-[200px] truncate group-hover:whitespace-normal group-hover:overflow-visible" title={dayRecs[0]?.reason || ''}>
+                                             {dayRecs[0]?.reason || <span className="italic text-slate-300">No reason provided</span>}
+                                          </div>
+                                       </td>
+                                       <td className="p-3 text-right">
+                                          <button onClick={async () => {
+                                             if (confirm(`Delete ALL ${dayRecs.length} extra lecture entries for ${date}?`)) {
+                                                await db.deleteAttendanceRecords(dayRecs.map(r => r.id));
+                                                setHistory(await db.getAttendance(branchId, 'ALL', 'sub_extra'));
+                                             }
+                                          }} className="text-red-500 hover:text-red-700">
+                                             <Trash className="h-4 w-4" />
+                                          </button>
+                                       </td>
+                                    </tr>
+                                 );
+                              })}
+                              {history.length === 0 && <tr><td colSpan={4} className="p-10 text-center text-slate-400 italic">No history found.</td></tr>}
+                           </tbody>
+                        </table>
+                     </div>
                   </div>
-               </div>
-            </Card>
-         )}
+               </Card>
+            )
+         }
 
          {activeTab === 'MONITOR' && <CoordinatorMarkingMonitor branchId={branchId} metaData={metaData} />}
          {activeTab === 'REPORTS' && <CoordinatorReport branchId={branchId} branchName={metaData.branches[branchId] || branchId} students={students} />}
-      </div>
+      </div >
    );
 };
 

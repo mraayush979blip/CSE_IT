@@ -65,6 +65,7 @@ export interface AttendanceRecord {
   markedBy: string; // Faculty UID
   timestamp: number;
   lectureSlot?: number; // 1 to 7
+  reason?: string;
 }
 
 export interface Notification {

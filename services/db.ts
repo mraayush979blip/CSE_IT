@@ -533,7 +533,8 @@ class SupabaseService implements IDataService {
       isPresent: r.is_present,
       markedBy: r.marked_by,
       timestamp: Number(r.timestamp),
-      lectureSlot: r.lecture_slot
+      lectureSlot: r.lecture_slot,
+      reason: r.reason
     }));
   }
 
@@ -559,7 +560,8 @@ class SupabaseService implements IDataService {
       isPresent: r.is_present,
       markedBy: r.marked_by,
       timestamp: Number(r.timestamp),
-      lectureSlot: r.lecture_slot
+      lectureSlot: r.lecture_slot,
+      reason: r.reason
     }));
   }
 
@@ -579,7 +581,8 @@ class SupabaseService implements IDataService {
       isPresent: r.is_present,
       markedBy: r.marked_by,
       timestamp: Number(r.timestamp),
-      lectureSlot: r.lecture_slot
+      lectureSlot: r.lecture_slot,
+      reason: r.reason
     }));
   }
 
@@ -599,7 +602,8 @@ class SupabaseService implements IDataService {
       isPresent: r.is_present,
       markedBy: r.marked_by,
       timestamp: Number(r.timestamp),
-      lectureSlot: r.lecture_slot
+      lectureSlot: r.lecture_slot,
+      reason: r.reason
     }));
   }
 
@@ -614,7 +618,8 @@ class SupabaseService implements IDataService {
       is_present: r.isPresent,
       marked_by: r.markedBy,
       timestamp: r.timestamp,
-      lecture_slot: r.lectureSlot
+      lecture_slot: r.lectureSlot,
+      reason: r.reason
     }));
     const { error } = await supabase.from('attendance').upsert(rows);
     if (error) throw error;
