@@ -297,7 +297,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpen
                         className="w-full flex items-center px-4 py-2 text-sm text-slate-700 hover:bg-indigo-50 rounded-md transition-colors"
                       >
                         <Settings className="h-4 w-4 mr-3" />
-                        Settings
+                        Change Password
                       </button>
                     )}
                     <button

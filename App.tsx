@@ -182,7 +182,7 @@ const App: React.FC = () => {
 
       {/* Global Settings Modal - Only render if not student and user is logged in */}
       {user && user.role !== UserRole.STUDENT && (
-        <Modal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} title="Profile Settings">
+        <Modal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} title="Change Password">
           <div className="space-y-4">
             <h4 className="font-semibold text-slate-800 border-b border-slate-100 pb-2">Change Password</h4>
             <Input

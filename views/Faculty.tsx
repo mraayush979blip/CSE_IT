@@ -971,14 +971,7 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                   >
                      <History className="w-4 h-4 mr-2" /> View History
                   </button>
-                  {coordinatorBranchId && (
-                     <button
-                        onClick={() => setActiveTab('CO-ORDINATOR')}
-                        className={`px-6 py-3 font-medium text-sm transition-colors flex items-center whitespace-nowrap ${activeTab === 'CO-ORDINATOR' ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
-                     >
-                        <Layers className="w-4 h-4 mr-2" /> Class Co-ordinator
-                     </button>
-                  )}
+
                </div>
             )}
 

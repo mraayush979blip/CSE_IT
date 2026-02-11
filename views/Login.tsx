@@ -15,7 +15,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const [selectedRole, setSelectedRole] = useState<'ADMIN' | 'FACULTY' | 'COORDINATOR' | 'STUDENT'>('STUDENT');
+  const [selectedRole, setSelectedRole] = useState<'FACULTY' | 'COORDINATOR' | 'STUDENT'>('STUDENT');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -24,10 +24,14 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
     try {
       const user = await db.login(email, password);
 
-      // Verification logic for specific selections
-      if (selectedRole === 'ADMIN' && user.role !== 'ADMIN') {
-        throw new Error("You do not have Administrator privileges.");
+      // 0. Automatic Admin Logic: If user is admin, ignore selection and log in as admin
+      if (user.role === 'ADMIN') {
+        sessionStorage.removeItem('login_intent');
+        onLogin(user);
+        return;
       }
+
+      // Verification logic for specific selections
       if (selectedRole === 'STUDENT' && user.role !== 'STUDENT') {
         throw new Error("This account is not a Student account.");
       }
@@ -87,7 +91,6 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
               <option value="STUDENT">Login as Student</option>
               <option value="FACULTY">Login as Faculty</option>
               <option value="COORDINATOR">Login as Class Co-ordinator</option>
-              <option value="ADMIN">Login as Admin</option>
             </Select>
           </div>
 
