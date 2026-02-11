@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { db } from '../services/db';
-import { Branch, Batch, User, Subject, FacultyAssignment, AttendanceRecord } from '../types';
+import { Branch, Batch, User, Subject, FacultyAssignment, AttendanceRecord, CoordinatorAssignment } from '../types';
 import { Card, Button, Input, Select, Modal, FileUploader } from '../components/UI';
 import { Plus, Trash2, ChevronRight, Users, BookOpen, Database, Key, ArrowLeft, CheckCircle2, XCircle, Trash, Eye, Layers, Edit2, Calendar, Smartphone, Filter, AlertCircle, AlertTriangle } from 'lucide-react';
 import { useNavigate, useLocation, Routes, Route, Navigate, useParams } from 'react-router-dom';
@@ -42,7 +42,7 @@ export const AdminDashboard: React.FC = () => {
             onClick={() => navigate('/admin/faculty')}
             className={`px-4 py-2 font-medium text-sm transition-colors ${activeTab === 'faculty' ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-slate-500 hover:text-slate-800'}`}
           >
-            Manage Faculty & Subjects
+            Manage Faculty & Classes
           </button>
           <button
             onClick={() => navigate('/admin/monitor')}
@@ -235,25 +235,53 @@ const StudentManagement: React.FC = () => {
     const reader = new FileReader();
     reader.onload = async (e) => {
       const text = e.target?.result as string;
-      const lines = text.split('\n');
+      // Handle both \n and \r\n line endings
+      const lines = text.split(/\r?\n/);
       const newStudents: Partial<User>[] = [];
-      const startIndex = lines[0].toLowerCase().includes('enrollment') ? 1 : 0;
+
+      // Determine if header exists (first line contains 'enrollment' or 'name')
+      const firstLineLower = lines[0].toLowerCase();
+      const startIndex = (firstLineLower.includes('enrollment') || firstLineLower.includes('name')) ? 1 : 0;
+
       for (let i = startIndex; i < lines.length; i++) {
         const line = lines[i].trim();
         if (!line) continue;
-        const parts = line.split(',').map(s => s.trim());
+
+        // Split by comma but handle potential trailing commas or simple quotes
+        const parts = line.split(',').map(s => s.trim().replace(/^"(.*)"$/, '$1'));
         let enroll, roll, name, mobile;
-        if (parts.length >= 4) { [enroll, roll, name, mobile] = parts; }
-        else if (parts.length === 3) { [enroll, name, mobile] = parts; roll = ''; }
-        if (enroll && name && mobile) {
+
+        if (parts.length >= 4) {
+          [enroll, roll, name, mobile] = parts;
+        } else if (parts.length === 3) {
+          [enroll, name, mobile] = parts; roll = '';
+        } else {
+          continue;
+        }
+
+        if (enroll && name) {
           newStudents.push({
             displayName: name,
-            studentData: { branchId, batchId, enrollmentId: enroll, rollNo: roll, mobileNo: mobile }
+            studentData: { branchId, batchId, enrollmentId: enroll, rollNo: roll || '', mobileNo: mobile || '' }
           });
         }
       }
+
       if (newStudents.length > 0) {
-        try { await db.importStudents(newStudents); alert(`Imported ${newStudents.length} students.`); setStudents(await db.getStudents(branchId, batchId)); } catch (err: any) { alert("Import failed: " + err.message); }
+        try {
+          const result = await db.importStudents(newStudents);
+          let message = `Import Complete:\n- Success: ${result.success}\n- Failed: ${result.failed}`;
+          if (result.errors.length > 0) {
+            message += `\n\nErrors:\n${result.errors.slice(0, 5).join('\n')}`;
+            if (result.errors.length > 5) message += `\n...and ${result.errors.length - 5} more errors.`;
+          }
+          alert(message);
+          setStudents(await db.getStudents(branchId, batchId));
+        } catch (err: any) {
+          alert("Import process failed: " + err.message);
+        }
+      } else {
+        alert("No valid student data found in CSV. Expected columns: Enrollment, RollNo, Name, Mobile");
       }
       setLoading(false);
     };
@@ -305,7 +333,7 @@ const StudentManagement: React.FC = () => {
   return (
     <Card>
       <div className="flex items-center text-sm mb-6 text-slate-500 flex-wrap">
-        <span className={`cursor-pointer hover:text-indigo-600 ${level === 'branches' ? 'font-bold text-indigo-600' : ''}`} onClick={() => navigate('/admin/students')}>Branches</span>
+        <span className={`cursor-pointer hover:text-indigo-600 ${level === 'branches' ? 'font-bold text-indigo-600' : ''}`} onClick={() => navigate('/admin/students')}>Classes</span>
         {selBranch && <><ChevronRight className="h-4 w-4 mx-2" /><span className={`cursor-pointer hover:text-indigo-600 ${level === 'batches' ? 'font-bold text-indigo-600' : ''}`} onClick={() => navigate(`/admin/students/${branchId}`)}>{selBranch.name}</span></>}
         {selBatch && <><ChevronRight className="h-4 w-4 mx-2" /><span className="font-bold text-indigo-600">{selBatch.name}</span></>}
       </div>
@@ -313,7 +341,7 @@ const StudentManagement: React.FC = () => {
       {level !== 'students' ? (
         <div className="space-y-4">
           <div className="flex gap-2">
-            <Input placeholder={`New ${level === 'branches' ? 'Branch' : 'Batch'} Name`} value={newItemName} onChange={(e) => setNewItemName(e.target.value)} className="flex-grow text-slate-900 bg-white" />
+            <Input placeholder={`New ${level === 'branches' ? 'Class' : 'Batch'} Name`} value={newItemName} onChange={(e) => setNewItemName(e.target.value)} className="flex-grow text-slate-900 bg-white" />
             <Button onClick={handleAdd}><Plus className="h-4 w-4 mr-1 inline" /> Add</Button>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -527,7 +555,7 @@ const FacultyManagement: React.FC = () => {
         <button onClick={() => setActiveSubTab('subjects')} className={`px-4 py-2 text-sm font-medium rounded ${activeSubTab === 'subjects' ? 'bg-white text-indigo-600' : 'text-slate-600'}`}>Subjects</button>
         <button onClick={() => setActiveSubTab('faculty_list')} className={`px-4 py-2 text-sm font-medium rounded ${activeSubTab === 'faculty_list' ? 'bg-white text-indigo-600' : 'text-slate-600'}`}>Faculty</button>
         <button onClick={() => setActiveSubTab('allocations')} className={`px-4 py-2 text-sm font-medium rounded ${activeSubTab === 'allocations' ? 'bg-white text-indigo-600' : 'text-slate-600'}`}>Allocations</button>
-        <button onClick={() => setActiveSubTab('coordinators')} className={`px-4 py-2 text-sm font-medium rounded ${activeSubTab === 'coordinators' ? 'bg-white text-indigo-600' : 'text-slate-600'}`}>Coordinators</button>
+        <button onClick={() => setActiveSubTab('coordinators')} className={`px-4 py-2 text-sm font-medium rounded ${activeSubTab === 'coordinators' ? 'bg-white text-indigo-600' : 'text-slate-600'}`}>Class Co-ordinator</button>
       </div>
       {isLoadingData ? <div>Loading...</div> : (
         <>
@@ -552,7 +580,7 @@ const FacultyManagement: React.FC = () => {
                 </div>
                 <form onSubmit={handleAssign} className="grid grid-cols-5 gap-2 items-end">
                   <Select label="Faculty" value={assignForm.facultyId} onChange={e => setAssignForm({ ...assignForm, facultyId: e.target.value })} className="mb-0 bg-white">{[<option key="def" value="">Select</option>, ...faculty.map(f => <option key={f.uid} value={f.uid}>{f.displayName}</option>)]}</Select>
-                  <Select label="Branch" value={assignForm.branchId} onChange={e => { setAssignForm({ ...assignForm, branchId: e.target.value, batchId: '' }); loadBatches(e.target.value); }} className="mb-0 bg-white">{[<option key="def" value="">Select</option>, ...branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)]}</Select>
+                  <Select label="Class" value={assignForm.branchId} onChange={e => { setAssignForm({ ...assignForm, branchId: e.target.value, batchId: '' }); loadBatches(e.target.value); }} className="mb-0 bg-white">{[<option key="def" value="">Select</option>, ...branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)]}</Select>
                   <Select label="Batch" value={assignForm.batchId} onChange={e => setAssignForm({ ...assignForm, batchId: e.target.value })} disabled={!assignForm.branchId} className="mb-0 bg-white">{[<option key="def" value="">All Batches (Default)</option>, ...batches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)]}</Select>
                   <Select label="Subject" value={assignForm.subjectId} onChange={e => setAssignForm({ ...assignForm, subjectId: e.target.value })} className="mb-0 bg-white">{[<option key="def" value="">Select</option>, ...subjects.map(s => <option key={s.id} value={s.id}>{s.name} ({s.code})</option>)]}</Select>
                   <Button type="submit" className="col-span-5 md:col-span-1">{isEditingAssignment ? 'Update' : 'Assign'}</Button>
@@ -577,14 +605,14 @@ const FacultyManagement: React.FC = () => {
           {activeSubTab === 'coordinators' && (
             <Card>
               <div className="bg-indigo-50 p-4 rounded mb-4">
-                <h4 className="font-semibold text-indigo-900 mb-2">Assign Class Coordinator</h4>
+                <h4 className="font-semibold text-indigo-900 mb-2">Assign Class Co-ordinator</h4>
                 <div className="flex gap-2 items-end">
                   <Select label="Faculty" value={coordForm.facultyId} onChange={e => setCoordForm({ ...coordForm, facultyId: e.target.value })} className="mb-0 bg-white">
                     <option value="">Select Faculty</option>
                     {faculty.map(f => <option key={f.uid} value={f.uid}>{f.displayName}</option>)}
                   </Select>
-                  <Select label="Branch" value={coordForm.branchId} onChange={e => setCoordForm({ ...coordForm, branchId: e.target.value })} className="mb-0 bg-white">
-                    <option value="">Select Branch</option>
+                  <Select label="Class" value={coordForm.branchId} onChange={e => setCoordForm({ ...coordForm, branchId: e.target.value })} className="mb-0 bg-white">
+                    <option value="">Select Class</option>
                     {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
                   </Select>
                   <Button onClick={async () => {
@@ -600,7 +628,7 @@ const FacultyManagement: React.FC = () => {
                 <thead className="bg-slate-50 border-b">
                   <tr>
                     <th className="p-2 text-slate-900">Faculty</th>
-                    <th className="p-2 text-slate-900">Branch</th>
+                    <th className="p-2 text-slate-900">Class</th>
                     <th className="p-2 text-right text-slate-900">Action</th>
                   </tr>
                 </thead>
@@ -641,7 +669,7 @@ const FacultyManagement: React.FC = () => {
                 </span>
               </div>
               <div className="flex justify-between items-center border-b border-slate-100 pb-2">
-                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Branch</span>
+                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Class</span>
                 <span className="text-sm font-bold text-slate-900">{branches.find(b => b.id === pendingAssignment.branchId)?.name || 'Unknown'}</span>
               </div>
               <div className="flex justify-between items-center">
@@ -654,7 +682,7 @@ const FacultyManagement: React.FC = () => {
           )}
 
           <div className="flex justify-end gap-3">
-            <Button variant="outline" onClick={() => setConfirmModalOpen(false)} className="px-6">Cancel</Button>
+            <Button variant="secondary" onClick={() => setConfirmModalOpen(false)} className="px-6">Cancel</Button>
             <Button onClick={confirmAssignment} className="px-8 bg-indigo-600 hover:bg-indigo-700">Confirm & Save</Button>
           </div>
         </div>
@@ -754,7 +782,7 @@ function AttendanceMonitor() {
           </div>
 
           <Select value={branchFilter} onChange={e => setBranchFilter(e.target.value)} className="mb-0 text-xs font-bold bg-white">
-            <option value="ALL">All Branches</option>
+            <option value="ALL">All Classes</option>
             {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
           </Select>
           <button onClick={() => setShowIncompleteOnly(!showIncompleteOnly)} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold transition-all border ${showIncompleteOnly ? 'bg-amber-50 border-amber-200 text-amber-700' : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'}`}>
@@ -769,7 +797,7 @@ function AttendanceMonitor() {
             <thead>
               <tr className="bg-slate-50/80 border-b border-slate-200">
                 <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Student Information</th>
-                <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest hidden md:table-cell">Branch</th>
+                <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest hidden md:table-cell">Class</th>
                 <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest hidden sm:table-cell">Mobile</th>
                 <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Engagement</th>
                 <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Status</th>
@@ -994,7 +1022,7 @@ const ReportManagement: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               {/* Configuration Step 1: Branch */}
               <div className="space-y-4">
-                <label className="text-xs font-black text-slate-400 uppercase tracking-widest">1. Select Branch</label>
+                <label className="text-xs font-black text-slate-400 uppercase tracking-widest">1. Select Class</label>
                 <div className="grid grid-cols-1 gap-2">
                   {branches.map(b => (
                     <button
@@ -1041,7 +1069,7 @@ const ReportManagement: React.FC = () => {
               ) : (
                 <div className="flex flex-col items-center justify-center p-12 text-slate-400 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200">
                   <Layers className="h-12 w-12 opacity-20 mb-4" />
-                  <p className="text-sm font-medium">Please select a branch to continue</p>
+                  <p className="text-sm font-medium">Please select a class to continue</p>
                 </div>
               )}
             </div>

@@ -117,7 +117,7 @@ const CoordinatorView: React.FC<{ branchId: string; facultyUser: User; metaData:
       <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
          <div className="flex justify-between items-center bg-indigo-900 text-white p-4 rounded-xl shadow-lg">
             <div>
-               <h2 className="text-xl font-bold">Branch Co-ordinator Dashboard</h2>
+               <h2 className="text-xl font-bold">Class Co-ordinator Dashboard</h2>
                <p className="text-indigo-200 text-xs">Managing: {metaData.branches[branchId] || branchId}</p>
             </div>
             <Button variant="secondary" size="sm" onClick={() => setViewHistory(!viewHistory)}>
@@ -250,7 +250,7 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user }) => {
 
    // Derived state from URL
    const activeTab = location.pathname.includes('/history') ? 'HISTORY' :
-      location.pathname.includes('/coordinator') ? 'COORDINATOR' : 'MARK';
+      location.pathname.includes('/coordinator') ? 'CO-ORDINATOR' : 'MARK';
 
    // URL Masking: We use indices to keep URLs short in the browser
    const { branchId: urlBranchId, subjectId: urlID2 } = params;
@@ -292,8 +292,8 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user }) => {
       }
    };
 
-   const setActiveTab = (tab: 'MARK' | 'HISTORY' | 'COORDINATOR') => {
-      if (tab === 'COORDINATOR') {
+   const setActiveTab = (tab: 'MARK' | 'HISTORY' | 'CO-ORDINATOR') => {
+      if (tab === 'CO-ORDINATOR') {
          navigate('/faculty/coordinator');
          return;
       }
@@ -847,8 +847,8 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user }) => {
    const SelectionPrompt = () => (
       <div className="text-center py-20 bg-white rounded-lg border border-dashed border-slate-300">
          <Filter className="h-12 w-12 text-slate-300 mx-auto mb-3" />
-         <h3 className="text-lg font-medium text-slate-600">Select Branch & Subject</h3>
-         <p className="text-slate-400">Choose Branch and Subject to continue.</p>
+         <h3 className="text-lg font-medium text-slate-600">Select Class & Subject</h3>
+         <p className="text-slate-400">Choose Class and Subject to continue.</p>
       </div>
    );
 
@@ -927,13 +927,13 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user }) => {
          <Card className="bg-indigo-900 text-white border-none shadow-lg">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                <div>
-                  <label className="block text-xs text-indigo-200 mb-1 uppercase font-semibold">Branch</label>
+                  <label className="block text-xs text-indigo-200 mb-1 uppercase font-semibold">Class</label>
                   <select
                      value={selBranchId}
                      onChange={e => { setSelection(e.target.value, ''); }}
                      className="w-full bg-indigo-800 border-indigo-700 text-white rounded p-2 focus:ring-2 focus:ring-indigo-400 focus:outline-none"
                   >
-                     <option value="">Select Branch</option>
+                     <option value="">Select Class</option>
                      {availableBranches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
                   </select>
                </div>
@@ -969,8 +969,8 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user }) => {
                </button>
                {coordinatorBranchId && (
                   <button
-                     onClick={() => setActiveTab('COORDINATOR')}
-                     className={`px-6 py-3 font-medium text-sm transition-colors flex items-center whitespace-nowrap ${activeTab === 'COORDINATOR' ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
+                     onClick={() => setActiveTab('CO-ORDINATOR')}
+                     className={`px-6 py-3 font-medium text-sm transition-colors flex items-center whitespace-nowrap ${activeTab === 'CO-ORDINATOR' ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
                   >
                      <Layers className="w-4 h-4 mr-2" /> Class Co-ordinator
                   </button>
@@ -1421,7 +1421,7 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user }) => {
                )
             )}
 
-            {activeTab === 'COORDINATOR' && coordinatorBranchId && (
+            {activeTab === 'CO-ORDINATOR' && coordinatorBranchId && (
                <CoordinatorView
                   branchId={coordinatorBranchId}
                   facultyUser={user}

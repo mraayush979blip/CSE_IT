@@ -23,7 +23,7 @@ interface IDataService {
   getStudents: (branchId: string, batchId?: string) => Promise<User[]>;
   getStudentsByBranch: (branchId: string) => Promise<User[]>;
   createStudent: (data: Partial<User>) => Promise<void>;
-  importStudents: (students: Partial<User>[]) => Promise<void>;
+  importStudents: (students: Partial<User>[]) => Promise<{ success: number; failed: number; errors: string[] }>;
   deleteUser: (uid: string) => Promise<void>;
 
   getSubjects: () => Promise<Subject[]>;
@@ -314,14 +314,23 @@ class SupabaseService implements IDataService {
     if (profError) throw profError;
   }
 
-  async importStudents(students: Partial<User>[]): Promise<void> {
+  async importStudents(students: Partial<User>[]): Promise<{ success: number; failed: number; errors: string[] }> {
+    let success = 0;
+    let failed = 0;
+    const errors: string[] = [];
+
     for (const s of students) {
       try {
         await this.createStudent(s);
-      } catch (e) {
-        console.error(`Import failed for ${s.email}`, e);
+        success++;
+      } catch (e: any) {
+        failed++;
+        const msg = e.message || "Unknown error";
+        errors.push(`${s.displayName} (${s.studentData?.enrollmentId}): ${msg}`);
+        console.error(`Import failed for ${s.displayName}`, e);
       }
     }
+    return { success, failed, errors };
   }
 
   async deleteUser(uid: string): Promise<void> {
@@ -747,23 +756,30 @@ class MockService implements IDataService {
     this.save('ams_users', users);
   }
 
-  async importStudents(students: Partial<User>[]) {
+  async importStudents(students: Partial<User>[]): Promise<{ success: number; failed: number; errors: string[] }> {
     const users = this.load('ams_users', SEED_USERS) as User[];
     const existingEmails = new Set(users.map(u => u.email.toLowerCase()));
     const existingEnrollments = new Set(users.map(u => u.studentData?.enrollmentId?.toLowerCase()).filter(Boolean));
-    let addedCount = 0;
+    let success = 0;
+    let failed = 0;
+    const errors: string[] = [];
+
     students.forEach((s, i) => {
       const email = s.email?.toLowerCase();
       const enroll = s.studentData?.enrollmentId?.toLowerCase();
+
       if (email && !existingEmails.has(email) && (!enroll || !existingEnrollments.has(enroll))) {
         users.push({ ...s, uid: `stu_${Date.now()}_${i}`, role: UserRole.STUDENT, password: enroll || 'password123' } as User);
         existingEmails.add(email);
         if (enroll) existingEnrollments.add(enroll);
-        addedCount++;
+        success++;
+      } else {
+        failed++;
+        errors.push(`Duplicate: ${s.displayName} (${enroll})`);
       }
     });
     this.save('ams_users', users);
-    if (addedCount === 0 && students.length > 0) throw new Error("All students were duplicates and skipped.");
+    return { success, failed, errors };
   }
 
   async deleteUser(uid: string) {
