@@ -1784,8 +1784,17 @@ const CoordinatorReport: React.FC<{ branchId: string; branchName: string; studen
    }, [students, previewRecords, previewStats.sessions, filterMode, filterCondition, filterValue]);
 
    const executeExport = () => {
-      const csvRows = [["Enrollment ID", "Roll No", "Name", "Total Lectures", "Attended", "Extra Lectures", "Percentage"]];
-      filteredStudents.forEach(s => {
+      const headerInfo = [
+         ["ACROPOLIS INSTITUTE OF RESEARCH AND TECHNOLOGY"],
+         [`Attendance Report: ${branchName}`],
+         [`Type: ${exportRange === 'TILL_TODAY' ? 'Till Date' : 'Custom Range'}`],
+         [`Period: ${exportRange === 'TILL_TODAY' ? 'Full Session' : `${exportStartDate} to ${exportEndDate}`}`],
+         [`Generated: ${new Date().toLocaleString()}`],
+         [], // Spacer
+         ["Serial No", "Name", "Enrollment ID", "Total Lectures", "Attended", "Extra Lectures", "Percentage"]
+      ];
+
+      const dataRows = filteredStudents.map(s => {
          const regularAtt = previewRecords.filter(r => r.studentId === s.uid && r.subjectId !== 'sub_extra');
          const extraAtt = previewRecords.filter(r => r.studentId === s.uid && r.subjectId === 'sub_extra' && r.isPresent);
 
@@ -1794,18 +1803,19 @@ const CoordinatorReport: React.FC<{ branchId: string; branchName: string; studen
          const extra = extraAtt.length;
          const pct = total === 0 ? 0 : Math.round((present / total) * 100);
 
-         csvRows.push([
-            s.studentData?.enrollmentId || '',
+         return [
             s.studentData?.rollNo || '',
             s.displayName,
+            s.studentData?.enrollmentId || '',
             total.toString(),
             present.toString(),
             extra.toString(),
             `${pct}%`
-         ]);
+         ];
       });
 
-      const csvContent = "\uFEFF" + csvRows.map(e => e.join(",")).join("\n");
+      const csvRows = [...headerInfo, ...dataRows];
+      const csvContent = "\uFEFF" + csvRows.map(row => row.map(cell => `"${cell.toString().replace(/"/g, '""')}"`).join(",")).join("\n");
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const link = document.createElement("a");
       link.href = URL.createObjectURL(blob);
