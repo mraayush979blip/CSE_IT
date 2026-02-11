@@ -1741,6 +1741,9 @@ const CoordinatorReport: React.FC<{ branchId: string; branchName: string; studen
    const [exportStartDate, setExportStartDate] = useState('');
    const [exportEndDate, setExportEndDate] = useState(new Date().toISOString().split('T')[0]);
    const [showFullPreview, setShowFullPreview] = useState(false);
+   const [filterMode, setFilterMode] = useState<'FULL' | 'FILTERED'>('FULL');
+   const [filterCondition, setFilterCondition] = useState<'<' | '>'>('<');
+   const [filterValue, setFilterValue] = useState(75);
 
    useEffect(() => {
       const load = async () => {
@@ -1767,9 +1770,19 @@ const CoordinatorReport: React.FC<{ branchId: string; branchName: string; studen
       return { sessions, totalRecords: previewRecords.length };
    }, [previewRecords]);
 
+   const filteredStudents = useMemo(() => {
+      if (filterMode === 'FULL') return students;
+      return students.filter(s => {
+         const present = previewRecords.filter(r => r.studentId === s.uid && r.isPresent).length;
+         const pct = previewStats.sessions === 0 ? 0 : (present / previewStats.sessions) * 100;
+         if (filterCondition === '<') return pct < filterValue;
+         return pct > filterValue;
+      });
+   }, [students, previewRecords, previewStats.sessions, filterMode, filterCondition, filterValue]);
+
    const executeExport = () => {
       const csvRows = [["Enrollment ID", "Roll No", "Name", "Total Lectures", "Attended", "Percentage"]];
-      students.forEach(s => {
+      filteredStudents.forEach(s => {
          const relevant = previewRecords.filter(r => r.studentId === s.uid);
          const total = previewStats.sessions;
          const present = relevant.filter(r => r.isPresent).length;
@@ -1807,7 +1820,7 @@ const CoordinatorReport: React.FC<{ branchId: string; branchName: string; studen
                   </div>
                   <div className="text-right">
                      <div className="text-[10px] font-black text-slate-400 uppercase">Students</div>
-                     <div className="text-lg font-black text-indigo-600 leading-tight">{students.length}</div>
+                     <div className="text-lg font-black text-indigo-600 leading-tight">{filteredStudents.length}</div>
                   </div>
                </div>
             </div>
@@ -1816,7 +1829,7 @@ const CoordinatorReport: React.FC<{ branchId: string; branchName: string; studen
                <div className="space-y-4">
                   <label className="text-xs font-black text-slate-400 uppercase tracking-widest">Configure Logic</label>
                   <div className="grid grid-cols-2 gap-3">
-                     <button onClick={() => setExportRange('TILL_TODAY')} className={`p-4 rounded-xl border-2 text-center transition-all ${exportRange === 'TILL_TODAY' ? 'border-indigo-600 bg-indigo-50 text-indigo-700 font-bold' : 'border-slate-100 bg-white text-slate-500'}`}>Cumulative</button>
+                     <button onClick={() => setExportRange('TILL_TODAY')} className={`p-4 rounded-xl border-2 text-center transition-all ${exportRange === 'TILL_TODAY' ? 'border-indigo-600 bg-indigo-50 text-indigo-700 font-bold' : 'border-slate-100 bg-white text-slate-500'}`}>Till Date</button>
                      <button onClick={() => setExportRange('CUSTOM')} className={`p-4 rounded-xl border-2 text-center transition-all ${exportRange === 'CUSTOM' ? 'border-indigo-600 bg-indigo-50 text-indigo-700 font-bold' : 'border-slate-100 bg-white text-slate-500'}`}>Range</button>
                   </div>
                   {exportRange === 'CUSTOM' && (
@@ -1825,6 +1838,28 @@ const CoordinatorReport: React.FC<{ branchId: string; branchName: string; studen
                         <Input type="date" value={exportEndDate} onChange={e => setExportEndDate(e.target.value)} label="End Date" className="text-slate-900 bg-white" />
                      </div>
                   )}
+
+                  <div className="space-y-4 pt-2 border-t border-slate-50">
+                     <div className="space-y-2">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Attendance Scope</label>
+                        <div className="grid grid-cols-2 gap-2">
+                           <button onClick={() => setFilterMode('FULL')} className={`p-2 text-xs rounded-lg border font-bold transition-all ${filterMode === 'FULL' ? 'bg-indigo-600 text-white border-indigo-600 shadow-md' : 'bg-white text-slate-600 border-slate-200'}`}>Full Attendance</button>
+                           <button onClick={() => setFilterMode('FILTERED')} className={`p-2 text-xs rounded-lg border font-bold transition-all ${filterMode === 'FILTERED' ? 'bg-indigo-600 text-white border-indigo-600 shadow-md' : 'bg-white text-slate-600 border-slate-200'}`}>Filtered</button>
+                        </div>
+                     </div>
+                     {filterMode === 'FILTERED' && (
+                        <div className="grid grid-cols-2 gap-3 animate-in slide-in-from-top-1 duration-200">
+                           <select value={filterCondition} onChange={e => setFilterCondition(e.target.value as any)} className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 font-bold shadow-sm focus:ring-2 focus:ring-indigo-500">
+                              <option value="<">Less Than</option>
+                              <option value=">">Greater Than</option>
+                           </select>
+                           <div className="relative">
+                              <input type="number" value={filterValue} onChange={e => setFilterValue(Number(e.target.value))} className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 font-bold shadow-sm focus:ring-2 focus:ring-indigo-500" />
+                              <span className="absolute right-3 top-2.5 text-xs text-slate-400 font-bold">%</span>
+                           </div>
+                        </div>
+                     )}
+                  </div>
                </div>
 
                <div className="flex flex-col justify-end gap-3">
@@ -1851,7 +1886,7 @@ const CoordinatorReport: React.FC<{ branchId: string; branchName: string; studen
                         </tr>
                      </thead>
                      <tbody className="divide-y">
-                        {students.map(s => {
+                        {filteredStudents.map(s => {
                            const present = previewRecords.filter(r => r.studentId === s.uid && r.isPresent).length;
                            const pct = previewStats.sessions === 0 ? 0 : Math.round((present / previewStats.sessions) * 100);
                            return (
