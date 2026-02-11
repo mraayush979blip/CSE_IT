@@ -1835,7 +1835,7 @@ const CoordinatorReport: React.FC<{ branchId: string; branchName: string; studen
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                <div className="space-y-4">
-                  <label className="text-xs font-black text-slate-400 uppercase tracking-widest">Configure Logic</label>
+                  <label className="text-xs font-black text-slate-400 uppercase tracking-widest">Custom Filter</label>
                   <div className="grid grid-cols-2 gap-3">
                      <button onClick={() => setExportRange('TILL_TODAY')} className={`p-4 rounded-xl border-2 text-center transition-all ${exportRange === 'TILL_TODAY' ? 'border-indigo-600 bg-indigo-50 text-indigo-700 font-bold' : 'border-slate-100 bg-white text-slate-500'}`}>Till Date</button>
                      <button onClick={() => setExportRange('CUSTOM')} className={`p-4 rounded-xl border-2 text-center transition-all ${exportRange === 'CUSTOM' ? 'border-indigo-600 bg-indigo-50 text-indigo-700 font-bold' : 'border-slate-100 bg-white text-slate-500'}`}>Range</button>
