@@ -177,22 +177,78 @@ const CoordinatorView: React.FC<{ branchId: string; facultyUser: User; metaData:
                         Mark Present Students
                      </h3>
                      <div className="flex gap-2">
-                        <button onClick={() => setStatus({})} className="text-xs text-slate-500 hover:text-red-500 underline">Clear All</button>
+                        <button onClick={() => {
+                           const newStatus: Record<string, boolean> = {};
+                           students.forEach(s => newStatus[s.uid] = true);
+                           setStatus(newStatus);
+                        }} className="text-xs px-3 py-1.5 bg-green-50 text-green-700 hover:bg-green-100 rounded border border-green-200">All Present</button>
+                        <button onClick={() => {
+                           const newStatus: Record<string, boolean> = {};
+                           students.forEach(s => newStatus[s.uid] = false);
+                           setStatus(newStatus);
+                        }} className="text-xs px-3 py-1.5 bg-red-50 text-red-700 hover:bg-red-100 rounded border border-red-200">All Absent</button>
                      </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                     {students.map(s => (
-                        <div key={s.uid} onClick={() => toggleStudent(s.uid)} className={`p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between ${status[s.uid] ? 'bg-indigo-50 border-indigo-200 shadow-sm' : 'bg-white hover:bg-slate-50'}`}>
-                           <div className="min-w-0">
-                              <div className="text-[10px] font-bold text-slate-400 font-mono">{s.studentData?.enrollmentId}</div>
-                              <div className={`font-semibold text-sm truncate ${status[s.uid] ? 'text-indigo-900' : 'text-slate-700'}`}>{s.displayName}</div>
+                  {/* Mobile Student List (Cards) */}
+                  <div className="md:hidden space-y-3 pb-20">
+                     {students.map((s) => (
+                        <div key={s.uid} className={`bg-white p-4 rounded-lg shadow-sm border border-slate-200 flex items-center justify-between ${!status[s.uid] ? 'bg-red-50/50 border-red-200' : ''}`}>
+                           <div className="flex-1 min-w-0 mr-4">
+                              <div className="flex items-center gap-2 mb-1">
+                                 <span className="inline-flex items-center justify-center bg-slate-100 text-slate-600 text-[10px] font-bold px-1.5 py-0.5 rounded">
+                                    {s.studentData?.rollNo || '#'}
+                                 </span>
+                                 <span className="text-xs text-slate-400 font-mono truncate">{s.studentData?.enrollmentId}</span>
+                              </div>
+                              <h4 className="font-semibold text-slate-900 truncate">{s.displayName}</h4>
                            </div>
-                           <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${status[s.uid] ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-200'}`}>
-                              {status[s.uid] && <Check className="h-4 w-4" />}
-                           </div>
+                           <ToggleSwitch
+                              checked={status[s.uid] ?? true}
+                              onChange={() => toggleStudent(s.uid)}
+                           />
                         </div>
                      ))}
+                     {students.length === 0 && (
+                        <div className="p-8 text-center text-slate-400 bg-slate-50 rounded-lg border border-dashed border-slate-200">
+                           No students found.
+                        </div>
+                     )}
+                  </div>
+
+                  {/* Desktop Student List (Table) */}
+                  <div className="hidden md:block bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
+                     <table className="w-full text-left border-collapse">
+                        <thead className="bg-slate-50 border-b border-slate-200">
+                           <tr>
+                              <th className="py-3 px-4 text-xs font-bold text-slate-900 uppercase tracking-wider w-20">S.No</th>
+                              <th className="py-3 px-4 text-xs font-bold text-slate-900 uppercase tracking-wider">Student Details</th>
+                              <th className="py-3 px-4 text-xs font-bold text-slate-900 uppercase tracking-wider text-center w-32">Status</th>
+                           </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                           {students.map((s) => (
+                              <tr key={s.uid} className={`hover:bg-slate-50 transition-colors ${!status[s.uid] ? 'bg-red-50/30' : ''}`}>
+                                 <td className="py-3 px-4 text-slate-900 font-mono text-sm">{s.studentData?.rollNo || '-'}</td>
+                                 <td className="py-3 px-4">
+                                    <div className="font-semibold text-slate-900 text-sm">{s.displayName}</div>
+                                    <div className="text-xs text-slate-500 font-mono">{s.studentData?.enrollmentId}</div>
+                                 </td>
+                                 <td className="py-3 px-4 text-center">
+                                    <div className="flex justify-center">
+                                       <ToggleSwitch
+                                          checked={status[s.uid] ?? true}
+                                          onChange={() => toggleStudent(s.uid)}
+                                       />
+                                    </div>
+                                 </td>
+                              </tr>
+                           ))}
+                           {students.length === 0 && (
+                              <tr><td colSpan={3} className="p-8 text-center text-slate-400">No students found.</td></tr>
+                           )}
+                        </tbody>
+                     </table>
                   </div>
 
                   <div className="flex justify-end pt-4 gap-4 items-center">
