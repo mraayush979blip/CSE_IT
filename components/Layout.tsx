@@ -14,6 +14,17 @@ interface LayoutProps {
 }
 
 const InstallAppModal: React.FC<{ isOpen: boolean; onClose: () => void; onInstall: () => void; canInstall: boolean }> = ({ isOpen, onClose, onInstall, canInstall }) => {
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone;
+
+  const handleMainAction = () => {
+    if (isStandalone) {
+      alert("Acropolis AMS is already installed and running as an app!");
+      onClose();
+      return;
+    }
+    onInstall();
+  };
+
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Install Acropolis AMS">
       <div className="space-y-6">
@@ -23,70 +34,61 @@ const InstallAppModal: React.FC<{ isOpen: boolean; onClose: () => void; onInstal
           </div>
         </div>
 
-        <div className="text-center">
+        <div className="text-center px-2">
           <p className="text-slate-600 text-sm leading-relaxed">
-            Experience the full power of <span className="font-bold text-indigo-600">Acropolis AMS</span> by installing it as a native application on your device.
+            {isStandalone
+              ? "You are already using the installed version of Acropolis AMS! Enjoy the lightning-fast experience."
+              : "Experience the full power of Acropolis AMS by installing it as a native application on your device."}
           </p>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="flex items-start space-x-3 p-3 bg-slate-50 rounded-lg border border-slate-100">
-            <Smartphone className="h-5 w-5 text-indigo-500 mt-0.5" />
-            <div>
-              <h4 className="text-xs font-bold text-slate-800">Home Screen Access</h4>
-              <p className="text-[10px] text-slate-500">Launch directly from your home screen like any other app.</p>
+        {!isStandalone && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="flex items-start space-x-3 p-2.5 bg-slate-50 rounded-lg border border-slate-100">
+              <Smartphone className="h-4 w-4 text-indigo-500 mt-0.5" />
+              <div>
+                <h4 className="text-[11px] font-bold text-slate-800 uppercase">Direct Access</h4>
+                <p className="text-[10px] text-slate-500">Launch directly from your home screen.</p>
+              </div>
             </div>
-          </div>
-          <div className="flex items-start space-x-3 p-3 bg-slate-50 rounded-lg border border-slate-100">
-            <Zap className="h-5 w-5 text-amber-500 mt-0.5" />
-            <div>
-              <h4 className="text-xs font-bold text-slate-800">Lightning Fast</h4>
-              <p className="text-[10px] text-slate-500">Instant loading and smooth performance optimized for your device.</p>
+            <div className="flex items-start space-x-3 p-2.5 bg-slate-50 rounded-lg border border-slate-100">
+              <Zap className="h-4 w-4 text-amber-500 mt-0.5" />
+              <div>
+                <h4 className="text-[11px] font-bold text-slate-800 uppercase">Fast & Offline</h4>
+                <p className="text-[10px] text-slate-500">Works perfectly even with slow internet.</p>
+              </div>
             </div>
-          </div>
-          <div className="flex items-start space-x-3 p-3 bg-slate-50 rounded-lg border border-slate-100">
-            <ShieldCheck className="h-5 w-5 text-emerald-500 mt-0.5" />
-            <div>
-              <h4 className="text-xs font-bold text-slate-800">Offline Reliable</h4>
-              <p className="text-[10px] text-slate-500">Access your attendance records even without an active connection.</p>
-            </div>
-          </div>
-          <div className="flex items-start space-x-3 p-3 bg-slate-50 rounded-lg border border-slate-100">
-            <Download className="h-5 w-5 text-blue-500 mt-0.5" />
-            <div>
-              <h4 className="text-xs font-bold text-slate-800">Auto Updates</h4>
-              <p className="text-[10px] text-slate-500">Always stay up-to-date with the latest features automatically.</p>
-            </div>
-          </div>
-        </div>
-
-        {canInstall ? (
-          <div className="flex flex-col gap-3">
-            <Button onClick={onInstall} className="w-full flex items-center justify-center gap-2 py-3">
-              <Download className="h-5 w-5" />
-              Install App Now
-            </Button>
-            <button onClick={onClose} className="text-slate-400 text-xs hover:text-slate-600 transition">
-              Maybe later
-            </button>
-          </div>
-        ) : (
-          <div className="bg-indigo-50 p-5 rounded-xl border border-indigo-100 space-y-3">
-            <h4 className="text-sm font-bold text-indigo-900 flex items-center gap-2">
-              <AlertCircle className="h-4 w-4" /> How to Install Manually
-            </h4>
-            <div className="space-y-2 text-xs text-indigo-700 leading-relaxed">
-              <p><span className="font-bold">1.</span> Ensure you are <span className="underline">not</span> in Incognito mode.</p>
-              <p><span className="font-bold">2. Android/Chrome:</span> Tap the three dots (⋮) and select <span className="font-bold">"Add to Home Screen"</span> or <span className="font-bold">"Install App"</span>.</p>
-              <p><span className="font-bold">3. iPhone/Safari:</span> Tap the <span className="font-bold">Share</span> icon (box with arrow) and then <span className="font-bold">"Add to Home Screen"</span>.</p>
-            </div>
-            <Button onClick={onClose} className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 mt-2">I Understand</Button>
           </div>
         )}
 
-        <div className="pt-4 border-t border-slate-100 flex items-center justify-center gap-2">
-          <p className="text-[10px] text-slate-400 font-medium uppercase tracking-widest text-center">
-            Developed with <Heart className="h-2.5 w-2.5 inline text-red-500 fill-red-500 mb-0.5" /> by <span className="text-slate-600 font-bold">Aayush Sharma</span>
+        {!canInstall && !isStandalone && (
+          <div className="bg-amber-50 p-4 rounded-xl border border-amber-100 space-y-2">
+            <h4 className="text-xs font-bold text-amber-900 flex items-center gap-2">
+              <AlertCircle className="h-3.5 w-3.5" /> Manual Installation Guide
+            </h4>
+            <div className="space-y-1.5 text-[10px] text-amber-800 leading-tight">
+              <p><span className="font-bold">Android:</span> Tap Settings (⋮) → <span className="font-bold">"Install App"</span></p>
+              <p><span className="font-bold">iPhone:</span> Tap Share → <span className="font-bold">"Add to Home Screen"</span></p>
+            </div>
+          </div>
+        )}
+
+        <div className="flex flex-col gap-3">
+          <Button
+            onClick={handleMainAction}
+            className={`w-full flex items-center justify-center gap-2 py-3 shadow-lg transition-transform active:scale-95 ${isStandalone ? 'bg-emerald-600 hover:bg-emerald-700' : ''}`}
+          >
+            {isStandalone ? <Check className="h-5 w-5" /> : <Download className="h-5 w-5" />}
+            {isStandalone ? "Already Installed" : "Install Application Now"}
+          </Button>
+          <button onClick={onClose} className="text-slate-400 text-xs hover:text-slate-600 transition font-medium">
+            {isStandalone ? "Close" : "Maybe later"}
+          </button>
+        </div>
+
+        <div className="pt-4 border-t border-slate-100">
+          <p className="text-[10px] text-slate-400 font-medium uppercase tracking-widest text-center flex items-center justify-center gap-1">
+            Developed with <Heart className="h-2.5 w-2.5 text-red-500 fill-red-500" /> by <span className="text-slate-600 font-bold">Aayush Sharma</span>
           </p>
         </div>
       </div>
