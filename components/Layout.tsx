@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, User as UserIcon, Menu, X, ChevronDown, Settings, Bell, Check, ExternalLink, Trash2, Smartphone, Download, Zap, ShieldCheck, Heart, Sparkles } from 'lucide-react';
+import { LogOut, User as UserIcon, Menu, X, ChevronDown, Settings, Bell, Check, ExternalLink, Trash2, Smartphone, Download, Zap, ShieldCheck, Heart, Sparkles, AlertCircle } from 'lucide-react';
 import { User, UserRole, Notification } from '../types';
 import { db } from '../services/db';
 import { AcropolisLogo, Modal, Button } from './UI';
@@ -13,7 +13,7 @@ interface LayoutProps {
   title: string;
 }
 
-const InstallAppModal: React.FC<{ isOpen: boolean; onClose: () => void; onInstall: () => void }> = ({ isOpen, onClose, onInstall }) => {
+const InstallAppModal: React.FC<{ isOpen: boolean; onClose: () => void; onInstall: () => void; canInstall: boolean }> = ({ isOpen, onClose, onInstall, canInstall }) => {
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Install Acropolis AMS">
       <div className="space-y-6">
@@ -60,15 +60,29 @@ const InstallAppModal: React.FC<{ isOpen: boolean; onClose: () => void; onInstal
           </div>
         </div>
 
-        <div className="flex flex-col gap-3">
-          <Button onClick={onInstall} className="w-full flex items-center justify-center gap-2 py-3">
-            <Download className="h-5 w-5" />
-            Install App Now
-          </Button>
-          <button onClick={onClose} className="text-slate-400 text-xs hover:text-slate-600 transition">
-            Maybe later
-          </button>
-        </div>
+        {canInstall ? (
+          <div className="flex flex-col gap-3">
+            <Button onClick={onInstall} className="w-full flex items-center justify-center gap-2 py-3">
+              <Download className="h-5 w-5" />
+              Install App Now
+            </Button>
+            <button onClick={onClose} className="text-slate-400 text-xs hover:text-slate-600 transition">
+              Maybe later
+            </button>
+          </div>
+        ) : (
+          <div className="bg-indigo-50 p-5 rounded-xl border border-indigo-100 space-y-3">
+            <h4 className="text-sm font-bold text-indigo-900 flex items-center gap-2">
+              <AlertCircle className="h-4 w-4" /> How to Install Manually
+            </h4>
+            <div className="space-y-2 text-xs text-indigo-700 leading-relaxed">
+              <p><span className="font-bold">1.</span> Ensure you are <span className="underline">not</span> in Incognito mode.</p>
+              <p><span className="font-bold">2. Android/Chrome:</span> Tap the three dots (⋮) and select <span className="font-bold">"Add to Home Screen"</span> or <span className="font-bold">"Install App"</span>.</p>
+              <p><span className="font-bold">3. iPhone/Safari:</span> Tap the <span className="font-bold">Share</span> icon (box with arrow) and then <span className="font-bold">"Add to Home Screen"</span>.</p>
+            </div>
+            <Button onClick={onClose} className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 mt-2">I Understand</Button>
+          </div>
+        )}
 
         <div className="pt-4 border-t border-slate-100 flex items-center justify-center gap-2">
           <p className="text-[10px] text-slate-400 font-medium uppercase tracking-widest text-center">
@@ -330,8 +344,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpen
                     <button
                       onClick={() => {
                         setIsMenuOpen(false);
-                        if (canInstall) setIsInstallModalOpen(true);
-                        else alert("To install this app:\n\n1. Use a normal browser tab (no Incognito).\n2. On iPhone: Tap 'Share' icon and then 'Add to Home Screen'.");
+                        setIsInstallModalOpen(true);
                       }}
                       className="w-full flex items-center px-4 py-3 text-sm text-indigo-700 font-bold bg-indigo-50 border border-indigo-100 hover:bg-indigo-100 rounded-md transition-all shadow-sm"
                     >
@@ -371,7 +384,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpen
         </div>
       </footer>
 
-      <InstallAppModal isOpen={isInstallModalOpen} onClose={() => setIsInstallModalOpen(false)} onInstall={handleInstallClick} />
+      <InstallAppModal isOpen={isInstallModalOpen} onClose={() => setIsInstallModalOpen(false)} onInstall={handleInstallClick} canInstall={canInstall} />
     </div>
   );
 };
