@@ -373,7 +373,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpen
                   </div>
 
                   <div className="p-2">
-                    {canInstall && (
+                    {canInstall ? (
                       <button
                         onClick={() => {
                           setIsMenuOpen(false);
@@ -383,6 +383,17 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpen
                       >
                         <Download className="h-4 w-4 mr-3 group-hover:bounce" />
                         Install Application
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          setIsMenuOpen(false);
+                          alert("To install this app:\n\n1. Use a normal browser tab (not Incognito).\n2. On Android/Chrome: Look for 'Add to Home Screen' in browser settings.\n3. On iPhone/Safari: Tap the 'Share' icon and then 'Add to Home Screen'.");
+                        }}
+                        className="w-full flex items-center px-4 py-2 text-sm text-slate-500 hover:bg-slate-50 rounded-md transition-colors border border-dashed border-slate-200 mb-2"
+                      >
+                        <Smartphone className="h-4 w-4 mr-3 text-slate-400" />
+                        How to Install App
                       </button>
                     )}
 
