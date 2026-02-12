@@ -38,8 +38,8 @@ const InstallAppModal: React.FC<{ isOpen: boolean; onClose: () => void; onInstal
     <Modal isOpen={isOpen} onClose={onClose} title="Install Acropolis AMS">
       <div className="space-y-6">
         <div className="flex justify-center">
-          <div className="bg-indigo-100 p-4 rounded-full">
-            <Sparkles className="h-12 w-12 text-indigo-600 animate-pulse" />
+          <div className="bg-white p-3 rounded-2xl shadow-sm border border-slate-100 h-20 w-20 flex items-center justify-center">
+            <AcropolisLogo className="h-12 w-12" />
           </div>
         </div>
 
