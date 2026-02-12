@@ -19,22 +19,44 @@ export default defineConfig(({ mode }) => {
           cleanupOutdatedCaches: true,
           skipWaiting: true,
           clientsClaim: true,
+          runtimeCaching: [
+            {
+              urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
+              handler: 'CacheFirst',
+              options: {
+                cacheName: 'google-fonts-cache',
+                expiration: {
+                  maxEntries: 10,
+                  maxAgeSeconds: 60 * 60 * 24 * 365 // <== 365 days
+                },
+                cacheableResponse: {
+                  statuses: [0, 200]
+                }
+              }
+            }
+          ]
         },
         manifest: {
           name: 'Acropolis Attendance Management System',
           short_name: 'AcroAMS',
           description: 'Attendance Management System for Acropolis Institute',
-          theme_color: '#ffffff',
+          theme_color: '#4f46e5',
+          background_color: '#f1f5f9',
+          display: 'standalone',
+          orientation: 'portrait',
+          start_url: '/',
           icons: [
             {
               src: 'pwa-192x192.png',
               sizes: '192x192',
-              type: 'image/png'
+              type: 'image/png',
+              purpose: 'any maskable'
             },
             {
               src: 'pwa-512x512.png',
               sizes: '512x512',
-              type: 'image/png'
+              type: 'image/png',
+              purpose: 'any maskable'
             }
           ]
         }

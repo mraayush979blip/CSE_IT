@@ -1,9 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, User as UserIcon, Menu, X, ChevronDown, Settings, Bell, Check, ExternalLink, Trash2 } from 'lucide-react';
+import { LogOut, User as UserIcon, Menu, X, ChevronDown, Settings, Bell, Check, ExternalLink, Trash2, Smartphone, Download, Zap, ShieldCheck, Heart, Sparkles } from 'lucide-react';
 import { User, UserRole, Notification } from '../types';
 import { db } from '../services/db';
-import { AcropolisLogo } from './UI';
+import { AcropolisLogo, Modal, Button } from './UI';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -13,13 +13,92 @@ interface LayoutProps {
   title: string;
 }
 
+const InstallAppModal: React.FC<{ isOpen: boolean; onClose: () => void; onInstall: () => void }> = ({ isOpen, onClose, onInstall }) => {
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Install Acropolis AMS">
+      <div className="space-y-6">
+        <div className="flex justify-center">
+          <div className="bg-indigo-100 p-4 rounded-full">
+            <Sparkles className="h-12 w-12 text-indigo-600 animate-pulse" />
+          </div>
+        </div>
+
+        <div className="text-center">
+          <p className="text-slate-600 text-sm leading-relaxed">
+            Experience the full power of <span className="font-bold text-indigo-600">Acropolis AMS</span> by installing it as a native application on your device.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="flex items-start space-x-3 p-3 bg-slate-50 rounded-lg border border-slate-100">
+            <Smartphone className="h-5 w-5 text-indigo-500 mt-0.5" />
+            <div>
+              <h4 className="text-xs font-bold text-slate-800">Home Screen Access</h4>
+              <p className="text-[10px] text-slate-500">Launch directly from your home screen like any other app.</p>
+            </div>
+          </div>
+          <div className="flex items-start space-x-3 p-3 bg-slate-50 rounded-lg border border-slate-100">
+            <Zap className="h-5 w-5 text-amber-500 mt-0.5" />
+            <div>
+              <h4 className="text-xs font-bold text-slate-800">Lightning Fast</h4>
+              <p className="text-[10px] text-slate-500">Instant loading and smooth performance optimized for your device.</p>
+            </div>
+          </div>
+          <div className="flex items-start space-x-3 p-3 bg-slate-50 rounded-lg border border-slate-100">
+            <ShieldCheck className="h-5 w-5 text-emerald-500 mt-0.5" />
+            <div>
+              <h4 className="text-xs font-bold text-slate-800">Offline Reliable</h4>
+              <p className="text-[10px] text-slate-500">Access your attendance records even without an active connection.</p>
+            </div>
+          </div>
+          <div className="flex items-start space-x-3 p-3 bg-slate-50 rounded-lg border border-slate-100">
+            <Download className="h-5 w-5 text-blue-500 mt-0.5" />
+            <div>
+              <h4 className="text-xs font-bold text-slate-800">Auto Updates</h4>
+              <p className="text-[10px] text-slate-500">Always stay up-to-date with the latest features automatically.</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-100">
+          <p className="text-xs text-indigo-700 font-medium text-center">
+            Click the install button below to add the app to your device home screen instantly.
+          </p>
+        </div>
+
+        <div className="flex flex-col gap-3">
+          <Button onClick={onInstall} className="w-full flex items-center justify-center gap-2 py-3">
+            <Download className="h-5 w-5" />
+            Install App Now
+          </Button>
+          <button onClick={onClose} className="text-slate-400 text-xs hover:text-slate-600 transition">
+            Maybe later
+          </button>
+        </div>
+
+        <div className="pt-4 border-t border-slate-100 flex items-center justify-center gap-2">
+          <p className="text-[10px] text-slate-400 font-medium uppercase tracking-widest">
+            Developed with
+          </p>
+          <Heart className="h-3 w-3 text-red-500 fill-red-500" />
+          <p className="text-[10px] text-slate-400 font-medium uppercase tracking-widest">
+            by <span className="text-slate-600 font-bold">Aayush Sharma</span>
+          </p>
+        </div>
+      </div>
+    </Modal>
+  );
+};
+
 export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpenSettings, title }) => {
   const navigate = useNavigate();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
+  const [isInstallModalOpen, setIsInstallModalOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [actionedStatuses, setActionedStatuses] = useState<Record<string, 'APPROVED' | 'DENIED'>>({});
   const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
+  const [canInstall, setCanInstall] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
 
@@ -37,6 +116,16 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpen
     return () => clearInterval(interval);
   }, [user.uid]);
 
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e: any) => {
+      e.preventDefault();
+      (window as any).deferredPrompt = e;
+      setCanInstall(true);
+    };
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+  }, []);
+
   const fetchNotifications = async () => {
     const data = await db.getNotifications(user.uid);
     const filtered = data
@@ -53,26 +142,21 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpen
 
     const newStatus = action === 'APPROVE' ? 'APPROVED' : 'DENIED';
 
-    // 1. Local update
     setActionedStatuses(prev => ({ ...prev, [notif.id]: newStatus }));
     setNotifications(prev => prev.map(n => n.id === notif.id ? { ...n, status: newStatus } : n));
 
     try {
       if (action === 'APPROVE') {
-        // 1. Delete conflicting data
         await db.deleteAttendanceForOverwrite(notif.data.date, notif.data.branchId, notif.data.slot);
 
-        // 2. Auto-save new attendance if payload exists
         let savedMsg = "";
         if (notif.data.payload && notif.data.payload.length > 0) {
-          // Update timestamps to current time
           const now = Date.now();
           const recordsToSave = notif.data.payload.map(r => ({ ...r, timestamp: now }));
           await db.saveAttendance(recordsToSave);
           savedMsg = " and saved your attendance";
         }
 
-        // 3. Notify requester
         await db.createNotification({
           toUserId: notif.fromUserId,
           fromUserId: user.uid,
@@ -83,7 +167,6 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpen
           timestamp: Date.now()
         });
       } else {
-        // Notify denied
         await db.createNotification({
           toUserId: notif.fromUserId,
           fromUserId: user.uid,
@@ -95,10 +178,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpen
         });
       }
 
-      // 3. Mark in DB
       await db.updateNotificationStatus(notif.id, newStatus);
-
-      // 4. Settling delay
       await new Promise(r => setTimeout(r, 2500));
       fetchNotifications();
     } catch (e) {
@@ -108,18 +188,13 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpen
   };
 
   const deleteNotification = async (id: string) => {
-    // 1. Local update
     setDeletedIds(prev => new Set(prev).add(id));
     setNotifications(prev => prev.filter(n => n.id !== id));
-
     await db.deleteNotification(id);
-
-    // 2. Settling delay
     await new Promise(r => setTimeout(r, 2500));
     fetchNotifications();
   };
 
-  // Close menu when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
@@ -135,9 +210,19 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpen
     };
   }, []);
 
+  const handleInstallClick = async () => {
+    const promptEvent = (window as any).deferredPrompt;
+    if (!promptEvent) return;
+    promptEvent.prompt();
+    const { outcome } = await promptEvent.userChoice;
+    console.log(`User response to the install prompt: ${outcome}`);
+    (window as any).deferredPrompt = null;
+    setCanInstall(false);
+    setIsInstallModalOpen(false);
+  };
+
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col">
-      {/* Navbar */}
       <header className="bg-indigo-900 text-white shadow-md relative z-20">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center space-x-3">
@@ -288,6 +373,19 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpen
                   </div>
 
                   <div className="p-2">
+                    {canInstall && (
+                      <button
+                        onClick={() => {
+                          setIsMenuOpen(false);
+                          setIsInstallModalOpen(true);
+                        }}
+                        className="w-full flex items-center px-4 py-3 text-sm text-indigo-600 font-bold hover:bg-indigo-50 rounded-md transition-all border-2 border-indigo-100 mb-2 shadow-sm hover:shadow group"
+                      >
+                        <Download className="h-4 w-4 mr-3 group-hover:bounce" />
+                        Install Application
+                      </button>
+                    )}
+
                     {user.role !== UserRole.STUDENT && (
                       <button
                         onClick={() => {
@@ -327,8 +425,19 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpen
       </main>
 
       <footer className="bg-slate-200 text-slate-600 py-4 text-center text-sm border-t border-slate-300">
-        &copy; {new Date().getFullYear()} Acropolis Institute. All rights reserved.
+        <div className="flex flex-col items-center gap-1">
+          <p>&copy; {new Date().getFullYear()} Acropolis Institute. All rights reserved.</p>
+          <p className="text-[10px] text-slate-400 font-medium flex items-center gap-1">
+            Made with <Heart className="h-2.5 w-2.5 text-red-400 fill-red-400" /> by <span className="font-bold text-slate-500 uppercase tracking-tighter">Aayush Sharma</span>
+          </p>
+        </div>
       </footer>
+
+      <InstallAppModal
+        isOpen={isInstallModalOpen}
+        onClose={() => setIsInstallModalOpen(false)}
+        onInstall={handleInstallClick}
+      />
     </div>
   );
 };
