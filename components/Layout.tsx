@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, User as UserIcon, Menu, X, ChevronDown, Settings, Bell, Check, ExternalLink, Trash2, Heart } from 'lucide-react';
+import { LogOut, User as UserIcon, Menu, X, ChevronDown, Settings, Bell, Check, ExternalLink, Trash2, Heart, Download, Smartphone, Zap, Sparkles, AlertCircle } from 'lucide-react';
 import { User, UserRole, Notification } from '../types';
 import { db } from '../services/db';
 import { AcropolisLogo, Modal, Button } from './UI';
@@ -13,13 +13,101 @@ interface LayoutProps {
   title: string;
 }
 
+const InstallAppModal: React.FC<{ isOpen: boolean; onClose: () => void; onInstall: () => void; canInstall: boolean }> = ({ isOpen, onClose, onInstall, canInstall }) => {
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone;
+
+  const handleMainAction = () => {
+    if (isStandalone) {
+      alert("Acropolis AMS is already installed! ✅");
+      onClose();
+      return;
+    }
+    if (canInstall) {
+      onInstall();
+    } else {
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+      if (isIOS) {
+        alert("To install on iPhone:\n\n1. Tap the 'Share' icon (at the bottom)\n2. Scroll down and tap 'Add to Home Screen'.");
+      } else {
+        alert("Automatic installation is not ready yet.\n\nPlease tap the three dots (⋮) in your browser and select 'Install App' manually.");
+      }
+    }
+  };
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Install Acropolis AMS">
+      <div className="space-y-6">
+        <div className="flex justify-center">
+          <div className="bg-indigo-100 p-4 rounded-full">
+            <Sparkles className="h-12 w-12 text-indigo-600 animate-pulse" />
+          </div>
+        </div>
+
+        <div className="text-center px-2">
+          <p className="text-slate-600 text-sm leading-relaxed">
+            {isStandalone
+              ? "You are already using the installed version of Acropolis AMS! Enjoy the lightning-fast experience."
+              : "Experience the full power of Acropolis AMS by installing it as a native application on your device."}
+          </p>
+        </div>
+
+        {!isStandalone && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="flex items-start space-x-3 p-2.5 bg-slate-50 rounded-lg border border-slate-100">
+              <Smartphone className="h-4 w-4 text-indigo-500 mt-0.5" />
+              <div>
+                <h4 className="text-[11px] font-bold text-slate-800 uppercase">Direct Access</h4>
+                <p className="text-[10px] text-slate-500">Launch from your home screen.</p>
+              </div>
+            </div>
+            <div className="flex items-start space-x-3 p-2.5 bg-slate-50 rounded-lg border border-slate-100">
+              <Zap className="h-4 w-4 text-amber-500 mt-0.5" />
+              <div>
+                <h4 className="text-[11px] font-bold text-slate-800 uppercase">Fast & Offline</h4>
+                <p className="text-[10px] text-slate-500">Works great on slow internet.</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {!canInstall && !isStandalone && (
+          <div className="bg-amber-50 p-4 rounded-xl border border-amber-100 space-y-2">
+            <h4 className="text-xs font-bold text-amber-900 flex items-center gap-2">
+              <AlertCircle className="h-3.5 w-3.5" /> Quick Guide
+            </h4>
+            <div className="space-y-1.5 text-[10px] text-amber-800 leading-tight">
+              <p><span className="font-bold">Android:</span> Tap (⋮) → <span className="font-bold">"Install App"</span></p>
+              <p><span className="font-bold">iPhone:</span> Tap [Share] → <span className="font-bold">"Add to Home Screen"</span></p>
+            </div>
+          </div>
+        )}
+
+        <div className="flex flex-col gap-3">
+          <Button
+            onClick={handleMainAction}
+            className={`w-full flex items-center justify-center gap-2 py-3 shadow-lg transition-transform active:scale-95 ${isStandalone ? 'bg-emerald-600 hover:bg-emerald-700' : ''}`}
+          >
+            {isStandalone ? <Check className="h-5 w-5" /> : <Download className="h-5 w-5" />}
+            {isStandalone ? "Already Installed" : "Install Application Now"}
+          </Button>
+          <button onClick={onClose} className="text-slate-400 text-xs hover:text-slate-600 transition font-medium text-center">
+            Maybe later
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+};
+
 export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpenSettings, title }) => {
   const navigate = useNavigate();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
+  const [isInstallModalOpen, setIsInstallModalOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [actionedStatuses, setActionedStatuses] = useState<Record<string, 'APPROVED' | 'DENIED'>>({});
   const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
+  const [canInstall, setCanInstall] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
 
@@ -36,6 +124,38 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpen
     const interval = setInterval(fetchNotifications, 10000); // Poll every 10s
     return () => clearInterval(interval);
   }, [user.uid]);
+
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e: any) => {
+      e.preventDefault();
+      (window as any).deferredPrompt = e;
+      setCanInstall(true);
+
+      const hasShownAuto = sessionStorage.getItem('pwa_auto_prompt_shown');
+      if (!hasShownAuto) {
+        setTimeout(() => {
+          setIsInstallModalOpen(true);
+          sessionStorage.setItem('pwa_auto_prompt_shown', 'true');
+        }, 3000);
+      }
+    };
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    // iOS detection for auto-popup
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone;
+    if (isIOS && !isStandalone) {
+      const hasShownAuto = sessionStorage.getItem('pwa_auto_prompt_shown');
+      if (!hasShownAuto) {
+        setTimeout(() => {
+          setIsInstallModalOpen(true);
+          sessionStorage.setItem('pwa_auto_prompt_shown', 'true');
+        }, 5000);
+      }
+    }
+
+    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+  }, []);
 
   const fetchNotifications = async () => {
     const data = await db.getNotifications(user.uid);
@@ -108,6 +228,16 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpen
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  const handleInstallClick = async () => {
+    const promptEvent = (window as any).deferredPrompt;
+    if (!promptEvent) return;
+    promptEvent.prompt();
+    const { outcome } = await promptEvent.userChoice;
+    (window as any).deferredPrompt = null;
+    setCanInstall(false);
+    setIsInstallModalOpen(false);
+  };
 
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col">
@@ -237,6 +367,18 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpen
                   </div>
 
                   <div className="p-2 space-y-1">
+                    {/* Primary Install Option */}
+                    <button
+                      onClick={() => {
+                        setIsMenuOpen(false);
+                        setIsInstallModalOpen(true);
+                      }}
+                      className="w-full flex items-center px-4 py-3 text-sm text-indigo-700 font-bold bg-indigo-50 border border-indigo-100 hover:bg-indigo-100 rounded-md transition-all shadow-sm"
+                    >
+                      <Download className="h-4 w-4 mr-3" />
+                      Install Application
+                    </button>
+
                     {user.role !== UserRole.STUDENT && (
                       <button
                         onClick={() => { setIsMenuOpen(false); onOpenSettings(); }}
@@ -268,6 +410,8 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpen
           </p>
         </div>
       </footer>
+
+      <InstallAppModal isOpen={isInstallModalOpen} onClose={() => setIsInstallModalOpen(false)} onInstall={handleInstallClick} canInstall={canInstall} />
     </div>
   );
 };
