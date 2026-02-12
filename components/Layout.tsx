@@ -125,8 +125,34 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpen
       e.preventDefault();
       (window as any).deferredPrompt = e;
       setCanInstall(true);
+
+      // Automatic Trigger Logic:
+      // If the app is ready and we haven't shown the prompt in this session yet,
+      // show it automatically after a 2-second "warm-up" delay.
+      const hasShownAuto = sessionStorage.getItem('pwa_auto_prompt_shown');
+      if (!hasShownAuto) {
+        setTimeout(() => {
+          setIsInstallModalOpen(true);
+          sessionStorage.setItem('pwa_auto_prompt_shown', 'true');
+        }, 2000);
+      }
     };
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    // iOS/Safari Automatic Trigger (since beforeinstallprompt doesn't fire on iOS)
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone;
+
+    if (isIOS && !isStandalone) {
+      const hasShownAuto = sessionStorage.getItem('pwa_auto_prompt_shown');
+      if (!hasShownAuto) {
+        setTimeout(() => {
+          setIsInstallModalOpen(true);
+          sessionStorage.setItem('pwa_auto_prompt_shown', 'true');
+        }, 4000); // 4s delay for iOS to let the page settle
+      }
+    }
+
     return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
   }, []);
 
