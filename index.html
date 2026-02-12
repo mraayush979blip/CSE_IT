@@ -41,6 +41,15 @@
   </div>
 
   <script>
+    // Capture PWA Install Prompt as early as possible
+    window.addEventListener('beforeinstallprompt', (e) => {
+      console.log('PWA: beforeinstallprompt captured globally');
+      e.preventDefault();
+      window.deferredPrompt = e;
+      // Notify React if it's already listening
+      window.dispatchEvent(new CustomEvent('pwa-prompt-captured'));
+    });
+
     // Fail-safe logic
     (function () {
       const checkDelay = 10000; // 10 seconds (more generous)

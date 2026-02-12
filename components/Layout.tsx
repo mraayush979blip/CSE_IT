@@ -126,7 +126,21 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpen
   }, [user.uid]);
 
   useEffect(() => {
+    // 1. Check if the prompt was already captured by index.html script
+    if ((window as any).deferredPrompt) {
+      console.log('PWA: Using globally captured prompt');
+      setCanInstall(true);
+    }
+
+    // 2. Listen for 'late' events through global script notification
+    const handleGlobalCapture = () => {
+      console.log('PWA: Prompt notification received from global script');
+      setCanInstall(true);
+    };
+    window.addEventListener('pwa-prompt-captured', handleGlobalCapture);
+
     const handleBeforeInstallPrompt = (e: any) => {
+      console.log('PWA: beforeinstallprompt captured locally');
       e.preventDefault();
       (window as any).deferredPrompt = e;
       setCanInstall(true);
@@ -154,7 +168,10 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpen
       }
     }
 
-    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('pwa-prompt-captured', handleGlobalCapture);
+    };
   }, []);
 
   const fetchNotifications = async () => {
