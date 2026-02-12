@@ -368,10 +368,54 @@ const StudentManagement: React.FC = () => {
 
   return (
     <Card>
-      <div className="flex items-center text-sm mb-6 text-slate-500 flex-wrap">
-        <span className={`cursor-pointer hover:text-indigo-600 ${level === 'branches' ? 'font-bold text-indigo-600' : ''}`} onClick={() => navigate('/admin/students')}>Classes</span>
-        {selBranch && <><ChevronRight className="h-4 w-4 mx-2" /><span className={`cursor-pointer hover:text-indigo-600 ${level === 'batches' ? 'font-bold text-indigo-600' : ''}`} onClick={() => navigate(`/admin/students/${branchId}`)}>{selBranch.name}</span></>}
-        {selBatch && <><ChevronRight className="h-4 w-4 mx-2" /><span className="font-bold text-indigo-600">{selBatch.name}</span></>}
+      <div className="flex items-center text-sm mb-6 text-slate-500 flex-wrap justify-between">
+        <div className="flex items-center">
+          <span className={`cursor-pointer hover:text-indigo-600 ${level === 'branches' ? 'font-bold text-indigo-600' : ''}`} onClick={() => navigate('/admin/students')}>Classes</span>
+          {selBranch && <><ChevronRight className="h-4 w-4 mx-2" /><span className={`cursor-pointer hover:text-indigo-600 ${level === 'batches' ? 'font-bold text-indigo-600' : ''}`} onClick={() => navigate(`/admin/students/${branchId}`)}>{selBranch.name}</span></>}
+          {selBatch && <><ChevronRight className="h-4 w-4 mx-2" /><span className="font-bold text-indigo-600">{selBatch.name}</span></>}
+        </div>
+
+        {level === 'branches' && (
+          <button
+            onClick={async () => {
+              if (!confirm("This will scan all students and fix their Class/Branch associations based on their Batch. Use this if students seem 'missing'. Continue?")) return;
+              setLoading(true);
+              try {
+                const students = await db.getAllStudents();
+                const batches = await db.getBranches().then(async brs => {
+                  const allBatches: Batch[] = [];
+                  for (const br of brs) {
+                    const bts = await db.getBatches(br.id);
+                    allBatches.push(...bts);
+                  }
+                  return allBatches;
+                });
+
+                let fixed = 0;
+                for (const s of students) {
+                  if (!s.studentData?.batchId) continue;
+                  const batch = batches.find(b => b.id === s.studentData?.batchId);
+                  if (batch && s.studentData.branchId !== batch.branchId) {
+                    await db.updateStudent(s.uid, {
+                      displayName: s.displayName,
+                      studentData: { ...s.studentData, branchId: batch.branchId }
+                    });
+                    fixed++;
+                  }
+                }
+                alert(`Restoration complete! Fixed ${fixed} students.`);
+                loadInitialData();
+              } catch (err: any) {
+                alert("Restoration failed: " + err.message);
+              } finally {
+                setLoading(false);
+              }
+            }}
+            className="text-[10px] bg-amber-50 text-amber-700 border border-amber-200 px-2 py-1 rounded hover:bg-amber-100 transition-colors flex items-center gap-1 font-bold"
+          >
+            <AlertTriangle className="h-3 w-3" /> Restore Missing Students
+          </button>
+        )}
       </div>
 
       {level !== 'students' ? (
