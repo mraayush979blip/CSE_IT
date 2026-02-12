@@ -324,7 +324,9 @@ class SupabaseService implements IDataService {
       display_name: data.displayName,
       enrollment_id: data.studentData?.enrollmentId,
       roll_no: data.studentData?.rollNo,
-      mobile_no: data.studentData?.mobileNo
+      mobile_no: data.studentData?.mobileNo,
+      branch_id: data.studentData?.branchId,
+      batch_id: data.studentData?.batchId
     }).eq('id', uid);
     if (error) throw error;
   }
