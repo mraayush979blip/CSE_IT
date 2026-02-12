@@ -60,12 +60,6 @@ const InstallAppModal: React.FC<{ isOpen: boolean; onClose: () => void; onInstal
           </div>
         </div>
 
-        <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-100">
-          <p className="text-xs text-indigo-700 font-medium text-center">
-            Click the install button below to add the app to your device home screen instantly.
-          </p>
-        </div>
-
         <div className="flex flex-col gap-3">
           <Button onClick={onInstall} className="w-full flex items-center justify-center gap-2 py-3">
             <Download className="h-5 w-5" />
@@ -77,12 +71,8 @@ const InstallAppModal: React.FC<{ isOpen: boolean; onClose: () => void; onInstal
         </div>
 
         <div className="pt-4 border-t border-slate-100 flex items-center justify-center gap-2">
-          <p className="text-[10px] text-slate-400 font-medium uppercase tracking-widest">
-            Developed with
-          </p>
-          <Heart className="h-3 w-3 text-red-500 fill-red-500" />
-          <p className="text-[10px] text-slate-400 font-medium uppercase tracking-widest">
-            by <span className="text-slate-600 font-bold">Aayush Sharma</span>
+          <p className="text-[10px] text-slate-400 font-medium uppercase tracking-widest text-center">
+            Developed with <Heart className="h-2.5 w-2.5 inline text-red-500 fill-red-500 mb-0.5" /> by <span className="text-slate-600 font-bold">Aayush Sharma</span>
           </p>
         </div>
       </div>
@@ -121,15 +111,6 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpen
       e.preventDefault();
       (window as any).deferredPrompt = e;
       setCanInstall(true);
-
-      // AUTO-PROMPT: If they haven't seen it recently, show the modal automatically
-      const hasSeenPrompt = sessionStorage.getItem('has_seen_install_prompt');
-      if (!hasSeenPrompt) {
-        setTimeout(() => {
-          setIsInstallModalOpen(true);
-          sessionStorage.setItem('has_seen_install_prompt', 'true');
-        }, 2000); // Wait 2 seconds for the user to see the page first
-      }
     };
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
@@ -148,16 +129,12 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpen
 
   const handleNotificationAction = async (notif: Notification, action: 'APPROVE' | 'DENY') => {
     if (actionedStatuses[notif.id] || notif.status !== 'PENDING') return;
-
     const newStatus = action === 'APPROVE' ? 'APPROVED' : 'DENIED';
-
     setActionedStatuses(prev => ({ ...prev, [notif.id]: newStatus }));
     setNotifications(prev => prev.map(n => n.id === notif.id ? { ...n, status: newStatus } : n));
-
     try {
       if (action === 'APPROVE') {
         await db.deleteAttendanceForOverwrite(notif.data.date, notif.data.branchId, notif.data.slot);
-
         let savedMsg = "";
         if (notif.data.payload && notif.data.payload.length > 0) {
           const now = Date.now();
@@ -165,7 +142,6 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpen
           await db.saveAttendance(recordsToSave);
           savedMsg = " and saved your attendance";
         }
-
         await db.createNotification({
           toUserId: notif.fromUserId,
           fromUserId: user.uid,
@@ -186,7 +162,6 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpen
           timestamp: Date.now()
         });
       }
-
       await db.updateNotificationStatus(notif.id, newStatus);
       await new Promise(r => setTimeout(r, 2500));
       fetchNotifications();
@@ -206,17 +181,11 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpen
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setIsMenuOpen(false);
-      }
-      if (notifRef.current && !notifRef.current.contains(event.target as Node)) {
-        setIsNotifOpen(false);
-      }
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) setIsMenuOpen(false);
+      if (notifRef.current && !notifRef.current.contains(event.target as Node)) setIsNotifOpen(false);
     };
     document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   const handleInstallClick = async () => {
@@ -224,7 +193,6 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpen
     if (!promptEvent) return;
     promptEvent.prompt();
     const { outcome } = await promptEvent.userChoice;
-    console.log(`User response to the install prompt: ${outcome}`);
     (window as any).deferredPrompt = null;
     setCanInstall(false);
     setIsInstallModalOpen(false);
@@ -245,7 +213,6 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpen
           </div>
 
           <div className="flex items-center gap-3">
-            {/* Notification Bell */}
             <div className="relative" ref={notifRef}>
               <button
                 onClick={() => navigate(`${getRolePath()}/notifications`)}
@@ -278,9 +245,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpen
                             }
                           }}
                           className="text-[10px] text-red-500 hover:underline font-bold"
-                        >
-                          Clear All
-                        </button>
+                        >Clear All</button>
                       )}
                       <button onClick={() => fetchNotifications()} className="text-[10px] text-indigo-600 hover:underline">Refresh</button>
                     </div>
@@ -305,22 +270,16 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpen
                               </div>
                               <div className="mt-2 flex items-center justify-between">
                                 <span className="text-[10px] text-slate-400">{new Date(n.timestamp).toLocaleString()}</span>
-
                                 {n.type === 'OVERWRITE_REQUEST' && n.status === 'PENDING' && (
                                   <button
                                     onClick={() => handleNotificationAction(n, 'APPROVE')}
                                     className="px-2 py-1 text-xs font-bold text-white bg-indigo-600 rounded hover:bg-indigo-700 shadow-sm transition-colors"
-                                  >
-                                    Approve Overwrite
-                                  </button>
+                                  >Approve Overwrite</button>
                                 )}
                                 <button
                                   onClick={() => deleteNotification(n.id)}
                                   className="p-1 px-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
-                                  title="Delete"
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </button>
+                                ><Trash2 className="h-3.5 w-3.5" /></button>
                               </div>
                             </div>
                           </div>
@@ -332,9 +291,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpen
                     <button
                       onClick={() => { navigate(`${getRolePath()}/notifications`); setIsNotifOpen(false); }}
                       className="w-full py-2 bg-slate-50 text-indigo-600 text-xs font-bold border-t border-slate-100 hover:bg-indigo-50 flex items-center justify-center gap-1"
-                    >
-                      See All Notifications <ExternalLink className="h-3 w-3" />
-                    </button>
+                    >See All Notifications <ExternalLink className="h-3 w-3" /></button>
                   )}
                 </div>
               )}
@@ -344,90 +301,54 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpen
               <button
                 onClick={() => setIsMenuOpen(!isMenuOpen)}
                 className="flex items-center space-x-3 p-2 hover:bg-indigo-800 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                aria-expanded={isMenuOpen}
-                aria-haspopup="true"
               >
                 <div className="hidden md:flex flex-col items-end">
                   <span className="text-sm font-semibold leading-none">{user.displayName}</span>
                   <span className="text-xs text-indigo-300 uppercase tracking-wider mt-0.5">{user.role}</span>
                 </div>
-                <div className="h-8 w-8 bg-indigo-700 rounded-full flex items-center justify-center border border-indigo-600">
-                  <Menu className="h-5 w-5" />
-                </div>
+                <div className="h-8 w-8 bg-indigo-700 rounded-full flex items-center justify-center border border-indigo-600"><Menu className="h-5 w-5" /></div>
               </button>
 
-              {/* Dropdown Menu */}
               {isMenuOpen && (
                 <div className="absolute right-0 top-full mt-2 w-72 bg-white rounded-lg shadow-xl border border-slate-200 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200 origin-top-right">
                   <div className="p-5 border-b border-slate-100 bg-slate-50">
                     <div className="flex items-center space-x-3 mb-3">
-                      <div className="h-12 w-12 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-xl font-bold">
-                        {user.displayName.charAt(0)}
-                      </div>
+                      <div className="h-12 w-12 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-xl font-bold">{user.displayName.charAt(0)}</div>
                       <div>
                         <p className="font-bold text-slate-900 leading-tight">{user.displayName}</p>
                         <p className="text-xs text-slate-500">{user.email}</p>
                       </div>
                     </div>
-                    <div className="flex flex-wrap gap-2">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
-                        {user.role}
-                      </span>
-                      {user.studentData?.enrollmentId && (
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600 font-mono">
-                          {user.studentData.enrollmentId}
-                        </span>
-                      )}
+                    <div className="flex flex-wrap gap-2 text-xs font-medium uppercase tracking-tighter">
+                      <span className="px-2 py-0.5 rounded bg-indigo-100 text-indigo-800">{user.role}</span>
+                      {user.studentData?.enrollmentId && <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-600 font-mono">{user.studentData.enrollmentId}</span>}
                     </div>
                   </div>
 
-                  <div className="p-2">
-                    {canInstall ? (
-                      <button
-                        onClick={() => {
-                          setIsMenuOpen(false);
-                          setIsInstallModalOpen(true);
-                        }}
-                        className="w-full flex items-center px-4 py-3 text-sm text-indigo-600 font-bold hover:bg-indigo-50 rounded-md transition-all border-2 border-indigo-100 mb-2 shadow-sm hover:shadow group"
-                      >
-                        <Download className="h-4 w-4 mr-3 group-hover:bounce" />
-                        Install Application
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => {
-                          setIsMenuOpen(false);
-                          alert("To install this app:\n\n1. Use a normal browser tab (not Incognito).\n2. On Android/Chrome: Look for 'Add to Home Screen' in browser settings.\n3. On iPhone/Safari: Tap the 'Share' icon and then 'Add to Home Screen'.");
-                        }}
-                        className="w-full flex items-center px-4 py-2 text-sm text-slate-500 hover:bg-slate-50 rounded-md transition-colors border border-dashed border-slate-200 mb-2"
-                      >
-                        <Smartphone className="h-4 w-4 mr-3 text-slate-400" />
-                        How to Install App
-                      </button>
-                    )}
-
-                    {user.role !== UserRole.STUDENT && (
-                      <button
-                        onClick={() => {
-                          setIsMenuOpen(false);
-                          onOpenSettings();
-                        }}
-                        className="w-full flex items-center px-4 py-2 text-sm text-slate-700 hover:bg-indigo-50 rounded-md transition-colors"
-                      >
-                        <Settings className="h-4 w-4 mr-3" />
-                        Change Password
-                      </button>
-                    )}
+                  <div className="p-2 space-y-1">
+                    {/* Primary Install Option - Stylized as requested */}
                     <button
                       onClick={() => {
                         setIsMenuOpen(false);
-                        onLogout();
+                        if (canInstall) setIsInstallModalOpen(true);
+                        else alert("To install this app:\n\n1. Use a normal browser tab (no Incognito).\n2. On iPhone: Tap 'Share' icon and then 'Add to Home Screen'.");
                       }}
-                      className="w-full flex items-center px-4 py-2 text-sm text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                      className="w-full flex items-center px-4 py-3 text-sm text-indigo-700 font-bold bg-indigo-50 border border-indigo-100 hover:bg-indigo-100 rounded-md transition-all shadow-sm"
                     >
-                      <LogOut className="h-4 w-4 mr-3" />
-                      Sign Out
+                      <Download className="h-4 w-4 mr-3" />
+                      Install Application
                     </button>
+
+                    {user.role !== UserRole.STUDENT && (
+                      <button
+                        onClick={() => { setIsMenuOpen(false); onOpenSettings(); }}
+                        className="w-full flex items-center px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 rounded-md transition-colors"
+                      ><Settings className="h-4 w-4 mr-3" />Change Password</button>
+                    )}
+                    <button
+                      onClick={() => { setIsMenuOpen(false); onLogout(); }}
+                      className="w-full flex items-center px-4 py-2 text-sm text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                    ><LogOut className="h-4 w-4 mr-3" />Sign Out</button>
                   </div>
                 </div>
               )}
@@ -436,11 +357,8 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpen
         </div>
       </header>
 
-      {/* Main Content */}
       <main className="flex-grow container mx-auto px-4 py-8">
-        <div className="mb-6 flex justify-between items-center">
-          <h2 className="text-2xl font-bold text-slate-800">{title}</h2>
-        </div>
+        <div className="mb-6"><h2 className="text-2xl font-bold text-slate-800">{title}</h2></div>
         {children}
       </main>
 
@@ -453,27 +371,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpen
         </div>
       </footer>
 
-      <InstallAppModal
-        isOpen={isInstallModalOpen}
-        onClose={() => setIsInstallModalOpen(false)}
-        onInstall={handleInstallClick}
-      />
-
-      {/* Floating Install Button - Effortless access */}
-      {canInstall && (
-        <button
-          onClick={() => setIsInstallModalOpen(true)}
-          className="fixed bottom-6 right-6 z-40 bg-indigo-600 text-white p-4 rounded-full shadow-2xl hover:bg-indigo-700 hover:scale-110 transition-all animate-bounce group"
-          title="Install App"
-        >
-          <div className="flex items-center gap-2">
-            <Download className="h-6 w-6" />
-            <span className="max-w-0 overflow-hidden group-hover:max-w-xs transition-all duration-300 font-bold text-sm">
-              Install App
-            </span>
-          </div>
-        </button>
-      )}
+      <InstallAppModal isOpen={isInstallModalOpen} onClose={() => setIsInstallModalOpen(false)} onInstall={handleInstallClick} />
     </div>
   );
 };
