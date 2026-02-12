@@ -212,7 +212,19 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpen
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
+            {/* Quick Install Button - More visible now */}
+            <button
+              onClick={() => {
+                if (canInstall) setIsInstallModalOpen(true);
+                else alert("To install this app:\n\n1. Use a normal browser tab (no Incognito).\n2. On iPhone: Tap 'Share' icon and then 'Add to Home Screen'.");
+              }}
+              className="flex items-center gap-1.5 peer bg-indigo-800/50 hover:bg-indigo-700 text-white px-2.5 py-1.5 rounded-lg text-[10px] sm:text-xs font-bold transition-all border border-indigo-700/50"
+            >
+              <Download className={`h-3.5 w-3.5 ${canInstall ? 'animate-bounce' : ''}`} />
+              <span className="hidden xs:inline">Install</span>
+            </button>
+
             <div className="relative" ref={notifRef}>
               <button
                 onClick={() => navigate(`${getRolePath()}/notifications`)}
