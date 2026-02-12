@@ -812,7 +812,7 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
       let recordsToExport = allClassRecords;
 
       const start = exportRange === 'CUSTOM' ? exportStartDate : '';
-      const end = exportEndDate; // User said 'till today', we always bound by today if custom or till today
+      const end = exportEndDate;
 
       recordsToExport = allClassRecords.filter(r => {
          const inStart = !start || r.date >= start;
@@ -825,10 +825,16 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
          return;
       }
 
-      if (exportFormat === 'COMPATIBLE') {
-         // FORMAT: Name, Enrollment, Total Sessions, Present, Percentage
-         const csvRows = [['Student Name', 'Enrollment', 'Total Sessions', 'Present', 'Percentage (%)']];
+      // 🚀 PERFORMANCE OPTIMIZATION: Build a lookup map
+      // This reduces complexity from O(Students * Slots * Records) to O(Records)
+      const lookupMap = new Map<string, AttendanceRecord>();
+      recordsToExport.forEach(r => {
+         const key = `${r.studentId}_${r.date}_${r.lectureSlot || 1}`;
+         lookupMap.set(key, r);
+      });
 
+      if (exportFormat === 'COMPATIBLE') {
+         const csvRows = [['Student Name', 'Enrollment', 'Total Sessions', 'Present', 'Percentage (%)']];
          const sortedStudents = [...visibleStudents].sort((a, b) => (a.studentData?.rollNo || '').localeCompare(b.studentData?.rollNo || '', undefined, { numeric: true }));
 
          sortedStudents.forEach(s => {
@@ -847,8 +853,6 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
 
          downloadCSV(csvRows, `Attendance_Summary_${metaData.subjects[selSubjectId]?.name || 'Log'}.csv`);
       } else {
-         // FORMAT: Detailed (Physical Register Style)
-         // 1. Identify all unique (date, slot) pairs and sort them
          const slotsMap = new Map<string, { date: string, slot: number }>();
          recordsToExport.forEach(r => {
             const slot = r.lectureSlot || 1;
@@ -863,11 +867,9 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
             return a.slot - b.slot;
          });
 
-         // 2. Build Headers
          const headers = ['Student Name', 'Enrollment', 'Total Sessions', 'Present Count', 'Attendance %', ...sortedSlots.map(s => `${s.date} (L${s.slot})`)];
          const csvRows = [headers];
 
-         // 3. Build Rows
          const sortedStudents = [...visibleStudents].sort((a, b) => (a.studentData?.rollNo || '').localeCompare(b.studentData?.rollNo || '', undefined, { numeric: true }));
 
          sortedStudents.forEach(s => {
@@ -885,11 +887,12 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
             ];
 
             sortedSlots.forEach(slotInfo => {
-               const rec = myRecs.find(r => r.date === slotInfo.date && (r.lectureSlot || 1) === slotInfo.slot);
+               // 🚀 Using optimized O(1) lookup
+               const rec = lookupMap.get(`${s.uid}_${slotInfo.date}_${slotInfo.slot}`);
                if (rec) {
                   row.push(rec.isPresent ? 'P' : 'A');
                } else {
-                  row.push('-'); // No record for this specific student in this slot
+                  row.push('-');
                }
             });
             csvRows.push(row);
