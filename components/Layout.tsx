@@ -121,6 +121,15 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpen
       e.preventDefault();
       (window as any).deferredPrompt = e;
       setCanInstall(true);
+
+      // AUTO-PROMPT: If they haven't seen it recently, show the modal automatically
+      const hasSeenPrompt = sessionStorage.getItem('has_seen_install_prompt');
+      if (!hasSeenPrompt) {
+        setTimeout(() => {
+          setIsInstallModalOpen(true);
+          sessionStorage.setItem('has_seen_install_prompt', 'true');
+        }, 2000); // Wait 2 seconds for the user to see the page first
+      }
     };
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
@@ -449,6 +458,22 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpen
         onClose={() => setIsInstallModalOpen(false)}
         onInstall={handleInstallClick}
       />
+
+      {/* Floating Install Button - Effortless access */}
+      {canInstall && (
+        <button
+          onClick={() => setIsInstallModalOpen(true)}
+          className="fixed bottom-6 right-6 z-40 bg-indigo-600 text-white p-4 rounded-full shadow-2xl hover:bg-indigo-700 hover:scale-110 transition-all animate-bounce group"
+          title="Install App"
+        >
+          <div className="flex items-center gap-2">
+            <Download className="h-6 w-6" />
+            <span className="max-w-0 overflow-hidden group-hover:max-w-xs transition-all duration-300 font-bold text-sm">
+              Install App
+            </span>
+          </div>
+        </button>
+      )}
     </div>
   );
 };
