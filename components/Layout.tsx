@@ -227,6 +227,19 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpen
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3">
+            {/* Quick Install Icon - Always Visible for One-Click or Instructions */}
+            <button
+              onClick={() => {
+                if (canInstall) handleInstallClick();
+                else setIsInstallModalOpen(true);
+              }}
+              className="p-2 bg-indigo-500/20 hover:bg-indigo-500/40 text-white rounded-full transition-all border border-white/20 group relative"
+              title={canInstall ? "Install App Directly" : "How to Install App"}
+            >
+              <Download className={`h-5 w-5 ${canInstall ? 'animate-bounce' : ''}`} />
+              {canInstall && <span className="absolute -top-1 -right-1 flex h-3 w-3"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span><span className="relative inline-flex rounded-full h-3 w-3 bg-indigo-500"></span></span>}
+            </button>
+
             <div className="relative" ref={notifRef}>
               <button
                 onClick={() => navigate(`${getRolePath()}/notifications`)}
@@ -385,6 +398,21 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpen
       </footer>
 
       <InstallAppModal isOpen={isInstallModalOpen} onClose={() => setIsInstallModalOpen(false)} onInstall={handleInstallClick} canInstall={canInstall} />
+
+      {/* Persistent Floating Install Icon for Direct Access */}
+      {canInstall && (
+        <button
+          onClick={() => {
+            setIsInstallModalOpen(true);
+          }}
+          className="fixed bottom-6 right-6 z-40 bg-indigo-600 text-white p-4 rounded-full shadow-2xl hover:bg-indigo-700 hover:scale-110 transition-all animate-bounce group flex items-center gap-2 overflow-hidden max-w-[56px] hover:max-w-[180px]"
+        >
+          <Download className="h-6 w-6 flex-shrink-0" />
+          <span className="whitespace-nowrap font-bold text-sm opacity-0 group-hover:opacity-100 transition-opacity">
+            Install App Now
+          </span>
+        </button>
+      )}
     </div>
   );
 };
