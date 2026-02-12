@@ -320,15 +320,34 @@ class SupabaseService implements IDataService {
   }
 
   async updateStudent(uid: string, data: Partial<User>): Promise<void> {
+    const mobileNo = data.studentData?.mobileNo;
+
+    // Update profile data including the administrative password reference
     const { error } = await supabase.from('profiles').update({
       display_name: data.displayName,
       enrollment_id: data.studentData?.enrollmentId,
       roll_no: data.studentData?.rollNo,
-      mobile_no: data.studentData?.mobileNo,
+      mobile_no: mobileNo,
       branch_id: data.studentData?.branchId,
-      batch_id: data.studentData?.batchId
+      batch_id: data.studentData?.batchId,
+      password: mobileNo // Keep reference password in sync with mobile no
     }).eq('id', uid);
+
     if (error) throw error;
+
+    // Also update the actual login password in auth.users if mobile number is provided
+    if (mobileNo) {
+      try {
+        await supabase.rpc('admin_reset_password', {
+          target_user_id: uid,
+          new_password: mobileNo
+        });
+      } catch (e) {
+        console.error("Failed to sync auth password with mobile number:", e);
+        // We don't throw here to avoid blocking the profile update, 
+        // but the password will be out of sync if the RPC fails.
+      }
+    }
   }
 
   async importStudents(students: Partial<User>[]): Promise<{ success: number; failed: number; errors: string[] }> {
