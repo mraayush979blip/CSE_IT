@@ -13,20 +13,46 @@ interface LayoutProps {
   title: string;
 }
 
+// Add basic shake animation for feedback
+const shakeAnimation = `
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-5px); }
+    75% { transform: translateX(5px); }
+  }
+  .animate-shake { animation: shake 0.2s ease-in-out 0s 2; }
+`;
+
 const InstallAppModal: React.FC<{ isOpen: boolean; onClose: () => void; onInstall: () => void; canInstall: boolean }> = ({ isOpen, onClose, onInstall, canInstall }) => {
   const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone;
+  const [isShaking, setIsShaking] = React.useState(false);
 
   const handleMainAction = () => {
     if (isStandalone) {
-      alert("Acropolis AMS is already installed and running as an app!");
+      alert("Acropolis AMS is already installed and running as an app! ✅");
       onClose();
       return;
     }
-    onInstall();
+
+    if (canInstall) {
+      onInstall();
+    } else {
+      // If we can't trigger the prompt automatically, give feedback
+      setIsShaking(true);
+      setTimeout(() => setIsShaking(false), 500);
+
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+      if (isIOS) {
+        alert("To install on iPhone:\n\n1. Tap the 'Share' icon (at the bottom)\n2. Scroll down and tap 'Add to Home Screen'.");
+      } else {
+        alert("Automatic installation is not ready yet.\n\nPlease tap the three dots (⋮) in your browser and select 'Install' or 'Add to Home Screen' manually.");
+      }
+    }
   };
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Install Acropolis AMS">
+      <style>{shakeAnimation}</style>
       <div className="space-y-6">
         <div className="flex justify-center">
           <div className="bg-indigo-100 p-4 rounded-full">
@@ -76,7 +102,7 @@ const InstallAppModal: React.FC<{ isOpen: boolean; onClose: () => void; onInstal
         <div className="flex flex-col gap-3">
           <Button
             onClick={handleMainAction}
-            className={`w-full flex items-center justify-center gap-2 py-3 shadow-lg transition-transform active:scale-95 ${isStandalone ? 'bg-emerald-600 hover:bg-emerald-700' : ''}`}
+            className={`w-full flex items-center justify-center gap-2 py-3 shadow-lg transition-all cursor-pointer active:scale-95 ${isShaking ? 'animate-shake' : ''} ${isStandalone ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-indigo-600 hover:bg-indigo-700'}`}
           >
             {isStandalone ? <Check className="h-5 w-5" /> : <Download className="h-5 w-5" />}
             {isStandalone ? "Already Installed" : "Install Application Now"}
