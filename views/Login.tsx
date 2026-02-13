@@ -66,7 +66,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-200 to-indigo-100 p-4">
       <Card className="w-full max-w-md shadow-xl border-t-4 border-indigo-600 relative">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center h-24 w-24 mb-2 bg-indigo-50 rounded-full p-4 shadow-sm">
+          <div className="inline-flex items-center justify-center h-24 w-24 mb-2 bg-white rounded-full p-4 shadow-sm border border-slate-100">
             <AcropolisLogo className="h-full w-full" />
           </div>
           <h1 className="text-2xl font-bold text-slate-900">Acropolis AMS</h1>

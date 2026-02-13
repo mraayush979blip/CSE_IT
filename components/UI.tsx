@@ -102,43 +102,10 @@ export const FileUploader: React.FC<{ onFileSelect: (file: File) => void; accept
 };
 
 export const AcropolisLogo: React.FC<{ className?: string }> = ({ className }) => (
-  <svg viewBox="0 0 200 150" className={className} xmlns="http://www.w3.org/2000/svg" fill="none">
-    {/* Blue Orbit (Tilted Ellipse) */}
-    <path
-      d="M190 75 C190 115 110 135 70 115 C30 95 30 55 100 35"
-      stroke="#1e3a8a"
-      strokeWidth="5"
-      strokeLinecap="round"
-      fill="none"
-    />
-
-    {/* Red Orbit (Crossing Ellipse) */}
-    <path
-      d="M10 75 C10 35 90 15 130 35 C170 55 170 95 100 115"
-      stroke="#dc2626"
-      strokeWidth="5"
-      strokeLinecap="round"
-      fill="none"
-    />
-
-    {/* Ionic Pillar Capital (The Scroll) - Dark Blue */}
-    <path
-      d="M75 55 C65 55 60 65 65 70 C70 75 80 75 80 75 L120 75 C120 75 130 75 135 70 C140 65 135 55 125 55 Z"
-      fill="#1e3a8a"
-    />
-    {/* Pillar Shaft - Vertical Lines */}
-    <rect x="82" y="78" width="6" height="40" fill="#1e3a8a" />
-    <rect x="92" y="78" width="6" height="40" fill="#1e3a8a" />
-    <rect x="102" y="78" width="6" height="40" fill="#1e3a8a" />
-    <rect x="112" y="78" width="6" height="40" fill="#1e3a8a" />
-    {/* Pillar Base */}
-    <rect x="75" y="118" width="50" height="8" fill="#1e3a8a" />
-
-    {/* Engineering Gear (Red) - Tucked top right */}
-    <g transform="translate(130, 60)">
-      <circle cx="0" cy="0" r="10" stroke="#dc2626" strokeWidth="3" fill="none" />
-      <path d="M0 -14 V-10 M10 -10 L7 -7 M14 0 H10 M10 10 L7 7 M0 14 V10 M-10 10 L-7 7 M-14 0 H-10 M-10 -10 L-7 -7" stroke="#dc2626" strokeWidth="4" strokeLinecap="round" />
-      <circle cx="0" cy="0" r="4" fill="#dc2626" />
-    </g>
-  </svg>
+  <img
+    src="/pwa-192x192.png"
+    alt="Acropolis Logo"
+    className={`${className} object-contain`}
+  />
 );
+

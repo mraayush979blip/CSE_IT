@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, User as UserIcon, Menu, X, ChevronDown, Settings, Bell, Check, ExternalLink, Trash2, Heart, Download, Smartphone, Zap, Sparkles, AlertCircle } from 'lucide-react';
+import { LogOut, User as UserIcon, Menu, X, ChevronDown, Settings, Bell, Check, ExternalLink, Trash2, Heart, Download, Smartphone, Activity, AlertCircle, Bug } from 'lucide-react';
 import { User, UserRole, Notification } from '../types';
 import { db } from '../services/db';
 import { AcropolisLogo, Modal, Button } from './UI';
@@ -61,7 +61,7 @@ const InstallAppModal: React.FC<{ isOpen: boolean; onClose: () => void; onInstal
               </div>
             </div>
             <div className="flex items-start space-x-3 p-2.5 bg-slate-50 rounded-lg border border-slate-100">
-              <Zap className="h-4 w-4 text-amber-500 mt-0.5" />
+              <Activity className="h-4 w-4 text-amber-500 mt-0.5" />
               <div>
                 <h4 className="text-[11px] font-bold text-slate-800 uppercase">Fast & Offline</h4>
                 <p className="text-[10px] text-slate-500">Works great on slow internet.</p>
@@ -402,6 +402,10 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpen
                         className="w-full flex items-center px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 rounded-md transition-colors"
                       ><Settings className="h-4 w-4 mr-3" />Change Password</button>
                     )}
+                    <button
+                      onClick={() => { setIsMenuOpen(false); navigate(`${getRolePath()}/report`); }}
+                      className="w-full flex items-center px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 rounded-md transition-colors"
+                    ><Bug className="h-4 w-4 mr-3 text-amber-500" />Report Bug / Review</button>
                     <button
                       onClick={() => { setIsMenuOpen(false); onLogout(); }}
                       className="w-full flex items-center px-4 py-2 text-sm text-red-600 hover:bg-red-50 rounded-md transition-colors"

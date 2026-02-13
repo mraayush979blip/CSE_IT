@@ -9,6 +9,7 @@ import { AdminDashboard } from './views/Admin';
 import { FacultyDashboard } from './views/Faculty';
 import { StudentDashboard } from './views/Student';
 import { NotificationsPage } from './views/Notifications';
+import { BugReport } from './views/BugReport';
 import { Modal, Input, Button } from './components/UI';
 import { ProtectedRoute } from './components/ProtectedRoute';
 
@@ -142,6 +143,7 @@ const App: React.FC = () => {
                 <Route path="monitor" element={<AdminDashboard />} />
                 <Route path="reports" element={<AdminDashboard />} />
                 <Route path="notifications" element={<NotificationsPage user={user!} />} />
+                <Route path="report" element={<BugReport />} />
                 <Route path="*" element={<Navigate to="/admin/students" replace />} />
               </Routes>
             </DashboardLayout>
@@ -160,6 +162,7 @@ const App: React.FC = () => {
                 <Route path="history" element={<FacultyDashboard user={user!} />} />
                 <Route path="coordinator" element={<FacultyDashboard user={user!} />} />
                 <Route path="notifications" element={<NotificationsPage user={user!} />} />
+                <Route path="report" element={<BugReport />} />
                 <Route path="*" element={<Navigate to="/faculty/mark" replace />} />
               </Routes>
             </DashboardLayout>
@@ -182,10 +185,19 @@ const App: React.FC = () => {
               <Routes>
                 <Route path="dashboard" element={<StudentDashboard user={user!} />} />
                 <Route path="notifications" element={<NotificationsPage user={user!} />} />
+                <Route path="report" element={<BugReport />} />
                 <Route path="*" element={<Navigate to="/student/dashboard" replace />} />
               </Routes>
             </DashboardLayout>
           </ProtectedRoute>
+        } />
+
+        <Route path="/report-bug" element={
+          user ? (
+            <DashboardLayout title="Feedback & Support">
+              <BugReport />
+            </DashboardLayout>
+          ) : <Navigate to="/login" replace />
         } />
 
         <Route path="/" element={<Navigate to={user ? getDashboardPath(user.role) : "/login"} replace />} />
