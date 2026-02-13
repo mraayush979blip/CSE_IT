@@ -1363,9 +1363,6 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
    // --- Render Helpers ---
    const SelectionPrompt = () => (
       <div className="flex flex-col items-center justify-center py-10 px-6 bg-slate-50/50 rounded-3xl border-2 border-dashed border-slate-200 animate-in fade-in zoom-in duration-500">
-         <div className="h-20 w-20 bg-white rounded-2xl shadow-xl shadow-indigo-100 flex items-center justify-center mb-6 border border-slate-100">
-            <Loader2 className="h-10 w-10 text-indigo-500 animate-spin" />
-         </div>
          <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight mb-2">Ready to Start?</h3>
          <p className="text-sm text-slate-400 font-medium text-center max-w-[200px]">Select a Class and Subject above to begin marking attendance.</p>
       </div>
