@@ -126,25 +126,32 @@ const AboutDeveloperModal: React.FC<{ isOpen: boolean; onClose: () => void }> = 
           <p className="text-xs font-bold text-black/40 uppercase tracking-[0.2em] mt-1">Full Stack Developer</p>
         </div>
 
-        <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100 space-y-4">
-          <div className="flex items-start gap-3">
-            <div className="p-2 bg-white rounded-xl shadow-sm border border-slate-100">
-              <Code2 className="h-4 w-4 text-slate-600" />
-            </div>
-            <div>
-              <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Expertise</h4>
-              <p className="text-xs text-slate-700 font-medium leading-relaxed">Full-stack web development with focus on high-performance educational portals and interactive UI/UX.</p>
+        {/* Professional Bento Cards */}
+        <div className="grid grid-cols-1 gap-4">
+          <div className="group bg-slate-50 p-6 rounded-[2rem] border border-slate-200 transition-all hover:bg-white hover:shadow-2xl hover:shadow-slate-200/50">
+            <div className="flex items-start gap-4">
+              <div className="h-12 w-12 rounded-2xl bg-white shadow-sm border border-slate-100 flex items-center justify-center group-hover:scale-110 transition-transform duration-500">
+                <Code2 className="h-6 w-6 text-slate-900" />
+              </div>
+              <div className="flex-1">
+                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Principal Expertise</h4>
+                <p className="text-xs text-slate-800 font-bold leading-relaxed">
+                  Architecting <span className="text-black">high-performance</span> educational ecosystems with a focus on seamless scalability and pixel-perfect UI/UX.
+                </p>
+              </div>
             </div>
           </div>
+        </div>
 
-          <div className="flex items-start gap-3">
-            <div className="p-2 bg-white rounded-xl shadow-sm border border-slate-100">
-              <Globe className="h-4 w-4 text-indigo-500" />
-            </div>
-            <div>
-              <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Vision</h4>
-              <p className="text-xs text-slate-700 font-medium leading-relaxed">Building seamless digital solutions for modern institutions to optimize administrative efficiency.</p>
-            </div>
+        {/* Tech Stack Tags */}
+        <div className="space-y-3 px-2">
+          <h4 className="text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">Engineered With</h4>
+          <div className="flex flex-wrap justify-center gap-1.5">
+            {['React', 'Vite', 'TypeScript', 'Tailwind', 'Node.js'].map(tech => (
+              <span key={tech} className="px-3 py-1 bg-slate-100 text-slate-500 rounded-full text-[9px] font-black uppercase tracking-widest border border-slate-200">
+                {tech}
+              </span>
+            ))}
           </div>
         </div>
 
