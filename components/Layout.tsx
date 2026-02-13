@@ -110,7 +110,7 @@ const AboutDeveloperModal: React.FC<{ isOpen: boolean; onClose: () => void }> = 
             <div className="h-full w-full rounded-full bg-white overflow-hidden border-4 border-white flex items-center justify-center">
               {!imgError ? (
                 <img
-                  src="/developer_pic.jpg"
+                  src="https://drive.google.com/uc?export=view&id=1HRjdsWfJJm8loU9-SjE5HCQycQwDASzm"
                   alt="Aayush Sharma"
                   className="h-full w-full object-cover"
                   onError={() => setImgError(true)}

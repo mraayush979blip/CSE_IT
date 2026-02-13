@@ -1362,7 +1362,7 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
 
    // --- Render Helpers ---
    const SelectionPrompt = () => (
-      <div className="flex flex-col items-center justify-center py-20 px-6 bg-slate-50/50 rounded-3xl border-2 border-dashed border-slate-200 animate-in fade-in zoom-in duration-500">
+      <div className="flex flex-col items-center justify-center py-10 px-6 bg-slate-50/50 rounded-3xl border-2 border-dashed border-slate-200 animate-in fade-in zoom-in duration-500">
          <div className="h-20 w-20 bg-white rounded-2xl shadow-xl shadow-indigo-100 flex items-center justify-center mb-6 border border-slate-100">
             <Loader2 className="h-10 w-10 text-indigo-500 animate-spin" />
          </div>
@@ -1483,7 +1483,7 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
    const showDashboard = selBranchId && selSubjectId;
 
    return (
-      <div className="space-y-6 pb-20">
+      <div className={`space-y-6 ${showDashboard || forceCoordinatorView ? 'pb-32' : 'pb-6'}`}>
          {/* 1. Command Center / Top Bar */}
          {!forceCoordinatorView && (
             <div className="bg-gradient-to-br from-indigo-900 to-indigo-800 p-4 rounded-b-2xl -mx-4 -mt-6 mb-2 shadow-xl shadow-indigo-200/50">
