@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, User as UserIcon, Menu, X, ChevronDown, Settings, Bell, Check, ExternalLink, Trash2, Heart, Download, Smartphone, Activity, AlertCircle, Bug } from 'lucide-react';
+import { LogOut, User as UserIcon, Menu, X, ChevronDown, Settings, Bell, Check, ExternalLink, Trash2, Heart, Download, Smartphone, Activity, AlertCircle, Bug, Linkedin, Code2, Globe } from 'lucide-react';
 import { User, UserRole, Notification } from '../types';
 import { db } from '../services/db';
 import { AcropolisLogo, Modal, Button } from './UI';
@@ -99,11 +99,83 @@ const InstallAppModal: React.FC<{ isOpen: boolean; onClose: () => void; onInstal
   );
 };
 
+const AboutDeveloperModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
+  const [imgError, setImgError] = useState(false);
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="About the Developer">
+      <div className="space-y-6">
+        <div className="flex flex-col items-center">
+          <div className="h-28 w-28 rounded-full bg-gradient-to-tr from-black to-slate-600 p-1 shadow-2xl">
+            <div className="h-full w-full rounded-full bg-white overflow-hidden border-4 border-white flex items-center justify-center">
+              {!imgError ? (
+                <img
+                  src="/developer_pic.jpg"
+                  alt="Aayush Sharma"
+                  className="h-full w-full object-cover"
+                  onError={() => setImgError(true)}
+                />
+              ) : (
+                <div className="h-full w-full bg-slate-50 flex items-center justify-center text-3xl font-black text-slate-800">
+                  AS
+                </div>
+              )}
+            </div>
+          </div>
+          <h3 className="mt-4 text-xl font-black text-slate-800 uppercase tracking-tight">Aayush Sharma</h3>
+          <p className="text-xs font-bold text-black/40 uppercase tracking-[0.2em] mt-1">Full Stack Developer</p>
+        </div>
+
+        <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100 space-y-4">
+          <div className="flex items-start gap-3">
+            <div className="p-2 bg-white rounded-xl shadow-sm border border-slate-100">
+              <Code2 className="h-4 w-4 text-slate-600" />
+            </div>
+            <div>
+              <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Expertise</h4>
+              <p className="text-xs text-slate-700 font-medium leading-relaxed">Full-stack web development with focus on high-performance educational portals and interactive UI/UX.</p>
+            </div>
+          </div>
+
+          <div className="flex items-start gap-3">
+            <div className="p-2 bg-white rounded-xl shadow-sm border border-slate-100">
+              <Globe className="h-4 w-4 text-indigo-500" />
+            </div>
+            <div>
+              <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Vision</h4>
+              <p className="text-xs text-slate-700 font-medium leading-relaxed">Building seamless digital solutions for modern institutions to optimize administrative efficiency.</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-3">
+          <a
+            href="https://www.linkedin.com/in/aayush-sharma-2013d"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full flex items-center justify-center gap-3 bg-[#0077B5] hover:bg-[#00669c] text-white py-4 rounded-2xl font-black uppercase tracking-widest text-xs transition-all shadow-lg shadow-blue-100 active:scale-95"
+          >
+            <Linkedin className="h-5 w-5" />
+            Connect on LinkedIn
+          </a>
+          <button
+            onClick={onClose}
+            className="text-slate-400 text-[10px] font-black uppercase tracking-[0.3em] hover:text-slate-600 transition text-center mt-2"
+          >
+            Close Profile
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+};
+
 export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpenSettings, title }) => {
   const navigate = useNavigate();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [isInstallModalOpen, setIsInstallModalOpen] = useState(false);
+  const [isDeveloperModalOpen, setIsDeveloperModalOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [actionedStatuses, setActionedStatuses] = useState<Record<string, 'APPROVED' | 'DENIED'>>({});
   const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
@@ -407,6 +479,10 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpen
                       className="w-full flex items-center px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 rounded-md transition-colors"
                     ><Bug className="h-4 w-4 mr-3 text-amber-500" />Report Bug / Review</button>
                     <button
+                      onClick={() => { setIsMenuOpen(false); setIsDeveloperModalOpen(true); }}
+                      className="w-full flex items-center px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 rounded-md transition-colors"
+                    ><UserIcon className="h-4 w-4 mr-3 text-indigo-500" />About Developer</button>
+                    <button
                       onClick={() => { setIsMenuOpen(false); onLogout(); }}
                       className="w-full flex items-center px-4 py-2 text-sm text-red-600 hover:bg-red-50 rounded-md transition-colors"
                     ><LogOut className="h-4 w-4 mr-3" />Sign Out</button>
@@ -423,16 +499,9 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpen
         {children}
       </main>
 
-      <footer className="bg-slate-200 text-slate-600 py-4 text-center text-sm border-t border-slate-300">
-        <div className="flex flex-col items-center gap-1">
-          <p>&copy; {new Date().getFullYear()} Acropolis Institute. All rights reserved.</p>
-          <p className="text-[10px] text-slate-400 font-medium flex items-center gap-1">
-            Made with <Heart className="h-2.5 w-2.5 text-red-400 fill-red-400" /> by <span className="font-bold text-slate-500 uppercase tracking-tighter">Aayush Sharma</span>
-          </p>
-        </div>
-      </footer>
 
       <InstallAppModal isOpen={isInstallModalOpen} onClose={() => setIsInstallModalOpen(false)} onInstall={handleInstallClick} canInstall={canInstall} />
+      <AboutDeveloperModal isOpen={isDeveloperModalOpen} onClose={() => setIsDeveloperModalOpen(false)} />
     </div>
   );
 };

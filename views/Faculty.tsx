@@ -1,11 +1,11 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { db } from '../services/db';
-import { User, FacultyAssignment, AttendanceRecord, Batch } from '../types';
+import { User, FacultyAssignment, AttendanceRecord, Batch, Subject } from '../types';
 import { Button, Card, Modal, Input, Select } from '../components/UI';
 import {
    Save, History, FileDown, Filter, ArrowLeft, CheckCircle2, ChevronDown, Check, X,
    CheckSquare, Square, XCircle, AlertCircle, AlertTriangle, Trash, Loader2,
-   Calendar, RefreshCw, Layers, Eye, BookOpen, User as UserIcon, Activity
+   Calendar, RefreshCw, Layers, Eye, BookOpen, User as UserIcon, Activity, Users
 } from 'lucide-react';
 import { useNavigate, useLocation, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { Skeleton, SkeletonRow, SkeletonCard } from '../components/Skeleton';
@@ -39,8 +39,36 @@ const CoordinatorView: React.FC<{ branchId: string; facultyUser: User; metaData:
    const [isSaving, setIsSaving] = useState(false);
    const [saveMessage, setSaveMessage] = useState('');
    const [history, setHistory] = useState<AttendanceRecord[]>([]);
-   const [activeTab, setActiveTab] = useState<'MARK' | 'HISTORY' | 'MONITOR' | 'REPORTS'>('MARK');
+   const [activeTab, setActiveTab] = useState<'MARK' | 'HISTORY' | 'MONITOR' | 'REPORTS' | 'SEARCH'>('MARK');
    const [extraReason, setExtraReason] = useState('');
+
+   // Search State
+   const [searchQuery, setSearchQuery] = useState('');
+   const [searchResults, setSearchResults] = useState<User[]>([]);
+   const [isSearching, setIsSearching] = useState(false);
+   const [viewSearchStudent, setViewSearchStudent] = useState<User | null>(null);
+   const [studentAttendance, setStudentAttendance] = useState<AttendanceRecord[]>([]);
+   const [allSubjects, setAllSubjects] = useState<Subject[]>([]);
+   const [loadingStats, setLoadingStats] = useState(false);
+
+   // Scroll state for smart navigation
+   const [isNavVisible, setIsNavVisible] = useState(true);
+   const [lastScrollY, setLastScrollY] = useState(0);
+
+   useEffect(() => {
+      const handleScroll = () => {
+         const currentScrollY = window.scrollY;
+         // Hide on scroll down, show on scroll up
+         if (currentScrollY > lastScrollY && currentScrollY > 100) {
+            setIsNavVisible(false);
+         } else {
+            setIsNavVisible(true);
+         }
+         setLastScrollY(currentScrollY);
+      };
+      window.addEventListener('scroll', handleScroll, { passive: true });
+      return () => window.removeEventListener('scroll', handleScroll);
+   }, [lastScrollY]);
 
 
    useEffect(() => {
@@ -118,6 +146,42 @@ const CoordinatorView: React.FC<{ branchId: string; facultyUser: User; metaData:
       } catch (e: any) { alert(e.message); } finally { setIsSaving(false); }
    };
 
+   useEffect(() => {
+      const timer = setTimeout(async () => {
+         if (searchQuery.trim().length >= 3) {
+            setIsSearching(true);
+            try {
+               const res = await db.searchStudents(searchQuery.trim());
+               setSearchResults(res);
+            } catch (err) {
+               console.error(err);
+            } finally {
+               setIsSearching(false);
+            }
+         } else {
+            setSearchResults([]);
+         }
+      }, 500);
+      return () => clearTimeout(timer);
+   }, [searchQuery]);
+
+   const loadStudentStats = async (student: User) => {
+      setViewSearchStudent(student);
+      setLoadingStats(true);
+      try {
+         const [att, subs] = await Promise.all([
+            db.getStudentAttendance(student.uid),
+            db.getSubjects()
+         ]);
+         setStudentAttendance(att);
+         setAllSubjects(subs);
+      } catch (e) {
+         console.error(e);
+      } finally {
+         setLoadingStats(false);
+      }
+   };
+
 
    if (loading) return <div className="p-10 text-center"><Loader2 className="animate-spin h-10 w-10 mx-auto text-indigo-500" /></div>;
 
@@ -141,9 +205,11 @@ const CoordinatorView: React.FC<{ branchId: string; facultyUser: User; metaData:
                   </p>
                </div>
 
-               <div className="flex bg-black/20 p-1.5 rounded-2xl backdrop-blur-xl border border-white/5 overflow-x-auto no-scrollbar max-w-full">
+               {/* Navigation Tabs - Unified for all screens */}
+               <div className={`hidden lg:flex bg-black/40 backdrop-blur-2xl p-1.5 rounded-2xl border border-white/10 shadow-inner max-w-max self-end`}>
                   {[
                      { id: 'MARK', label: 'Mark Extra', icon: Save },
+                     { id: 'SEARCH', label: 'Search', icon: Filter },
                      { id: 'MONITOR', label: 'Monitor', icon: Eye },
                      { id: 'REPORTS', label: 'Reports', icon: FileDown },
                      { id: 'HISTORY', label: 'History', icon: History }
@@ -151,18 +217,229 @@ const CoordinatorView: React.FC<{ branchId: string; facultyUser: User; metaData:
                      <button
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id as any)}
-                        className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-300 whitespace-nowrap ${activeTab === tab.id
-                           ? 'bg-white text-indigo-900 shadow-lg scale-[1.02] translate-y-[-1px]'
-                           : 'text-indigo-200 hover:text-white hover:bg-white/5'
+                        className={`group relative flex items-center gap-2 px-5 py-2.5 rounded-xl transition-all duration-300 ease-out whitespace-nowrap ${activeTab === tab.id
+                           ? 'bg-white text-indigo-900 shadow-[0_4px_20px_rgba(255,255,255,0.2)] scale-[1.02] -translate-y-[1px]'
+                           : 'text-indigo-100 hover:text-white hover:bg-white/10'
                            }`}
                      >
-                        <tab.icon className={`h-3.5 w-3.5 ${activeTab === tab.id ? 'text-indigo-600' : 'opacity-50'}`} />
-                        {tab.label}
+                        <tab.icon className={`h-4 w-4 transition-transform duration-300 group-hover:scale-110 ${activeTab === tab.id ? 'text-indigo-600' : 'opacity-70 group-hover:opacity-100'}`} />
+                        <span className="text-[10px] font-black uppercase tracking-widest">{tab.label}</span>
                      </button>
                   ))}
                </div>
             </div>
          </div>
+
+         {/* Smart Mobile Navigation - Fixed Bottom with LinkedIn-style Hide-on-scroll logic */}
+         <div className={`lg:hidden fixed bottom-8 left-0 right-0 z-[100] px-6 transition-all duration-500 ease-[cubic-bezier(0.23,1,0.32,1)] ${isNavVisible ? 'translate-y-0 opacity-100' : 'translate-y-32 opacity-0'
+            }`}>
+            <div className="mx-auto max-w-sm bg-indigo-950/95 backdrop-blur-3xl px-2 py-2 rounded-[2.5rem] border border-white/10 shadow-[0_15px_50px_rgba(0,0,0,0.4)] flex justify-between items-center">
+               {[
+                  { id: 'MARK', label: 'Mark', icon: Save },
+                  { id: 'SEARCH', label: 'Search', icon: Filter },
+                  { id: 'MONITOR', label: 'Monitor', icon: Eye },
+                  { id: 'REPORTS', label: 'Reports', icon: FileDown },
+                  { id: 'HISTORY', label: 'History', icon: History }
+               ].map((tab) => (
+                  <button
+                     key={tab.id}
+                     onClick={() => {
+                        setActiveTab(tab.id as any);
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                     }}
+                     className={`flex-1 flex flex-col items-center justify-center gap-1 py-2.5 rounded-[1.8rem] transition-all duration-500 ${activeTab === tab.id
+                        ? 'bg-white text-indigo-900 shadow-lg scale-90'
+                        : 'text-indigo-200 hover:text-white'
+                        }`}
+                  >
+                     <tab.icon className={`h-4.5 w-4.5 transition-transform duration-500 ${activeTab === tab.id ? 'text-indigo-600' : 'opacity-60'}`} />
+                     <span className={`text-[7px] font-black uppercase tracking-widest ${activeTab === tab.id ? 'block' : 'hidden'}`}>{tab.label}</span>
+                  </button>
+               ))}
+            </div>
+         </div>
+
+         {activeTab === 'SEARCH' && (
+            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
+               <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm transition-all hover:shadow-md">
+                  <div className="flex items-center gap-3 mb-4">
+                     <div className="p-2 bg-indigo-50 rounded-xl">
+                        <Filter className="h-4 w-4 text-indigo-600" />
+                     </div>
+                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Search Student</label>
+                  </div>
+                  <div className="relative">
+                     <input
+                        type="text"
+                        value={searchQuery}
+                        onChange={e => setSearchQuery(e.target.value)}
+                        placeholder="Enrollment, Mobile No, or Name..."
+                        className="w-full pl-4 pr-12 py-4 border-none bg-slate-50 font-bold text-indigo-900 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all"
+                     />
+                     {isSearching && (
+                        <div className="absolute right-4 top-1/2 -translate-y-1/2">
+                           <Loader2 className="h-5 w-5 animate-spin text-indigo-500" />
+                        </div>
+                     )}
+                  </div>
+               </div>
+
+               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  <div className="lg:col-span-1 space-y-3">
+                     <div className="px-2 flex justify-between items-center">
+                        <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">
+                           {searchQuery.trim() === '' ? 'Class Students' : 'Search Results'}
+                        </h4>
+                        <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">
+                           {searchQuery.trim() === '' ? students.length : (searchResults.length > 0 ? searchResults.length : students.filter(s =>
+                              s.displayName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                              s.studentData?.enrollmentId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                              s.studentData?.mobileNo?.toLowerCase().includes(searchQuery.toLowerCase())
+                           ).length)}
+                        </span>
+                     </div>
+                     <div className="space-y-2 max-h-[500px] overflow-y-auto no-scrollbar pr-1">
+                        {(searchQuery.trim() === '' ? students : (
+                           searchResults.length > 0 ? searchResults : students.filter(s =>
+                              s.displayName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                              s.studentData?.enrollmentId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                              s.studentData?.mobileNo?.toLowerCase().includes(searchQuery.toLowerCase())
+                           )
+                        )).map(s => (
+                           <button
+                              key={s.uid}
+                              onClick={() => loadStudentStats(s)}
+                              className={`w-full text-left p-4 rounded-2xl border transition-all ${viewSearchStudent?.uid === s.uid
+                                 ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-100'
+                                 : 'bg-white border-slate-100 hover:border-indigo-100 text-slate-700'
+                                 }`}
+                           >
+                              <div className="font-black uppercase tracking-tight text-sm mb-0.5">{s.displayName}</div>
+                              <div className={`text-[10px] font-mono opacity-60 ${viewSearchStudent?.uid === s.uid ? 'text-white' : 'text-slate-500'}`}>
+                                 {s.studentData?.enrollmentId}
+                              </div>
+                           </button>
+                        ))}
+                        {(searchQuery.trim() !== '' && searchResults.length === 0 && students.filter(s =>
+                           s.displayName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                           s.studentData?.enrollmentId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                           s.studentData?.mobileNo?.toLowerCase().includes(searchQuery.toLowerCase())
+                        ).length === 0 && !isSearching) && (
+                              <div className="text-center py-10 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-100">
+                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No matching students</p>
+                              </div>
+                           )}
+                     </div>
+                  </div>
+
+                  <div className="lg:col-span-2">
+                     {viewSearchStudent ? (
+                        <div className="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm animate-in fade-in slide-in-from-right-4 duration-500">
+                           <div className="flex justify-between items-start mb-8">
+                              <div>
+                                 <h3 className="text-2xl font-black text-slate-800 uppercase tracking-tight mb-1">{viewSearchStudent.displayName}</h3>
+                                 <div className="flex gap-3">
+                                    <span className="text-xs font-mono text-slate-400 bg-slate-50 px-2 py-1 rounded-lg border border-slate-100">
+                                       {viewSearchStudent.studentData?.enrollmentId}
+                                    </span>
+                                    <span className="text-xs font-mono text-slate-400 bg-slate-50 px-2 py-1 rounded-lg border border-slate-100">
+                                       {viewSearchStudent.studentData?.mobileNo}
+                                    </span>
+                                 </div>
+                              </div>
+                              <Activity className="h-8 w-8 text-indigo-100" strokeWidth={3} />
+                           </div>
+
+                           {loadingStats ? (
+                              <div className="flex flex-col items-center justify-center py-20">
+                                 <Loader2 className="h-8 w-8 animate-spin text-indigo-500 mb-2" />
+                                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Analyzing Data...</span>
+                              </div>
+                           ) : (
+                              <div className="space-y-6">
+                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {allSubjects.map(sub => {
+                                       const relevant = studentAttendance.filter(a => a.subjectId === sub.id);
+                                       const total = relevant.length;
+                                       const present = relevant.filter(a => a.isPresent).length;
+                                       const perc = total === 0 ? 0 : Math.round((present / total) * 100);
+
+                                       if (total === 0) return null;
+
+                                       return (
+                                          <div key={sub.id} className="p-4 rounded-3xl bg-slate-50 border border-slate-100 group hover:border-indigo-100 transition-all">
+                                             <div className="flex justify-between items-center mb-3">
+                                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{sub.code}</span>
+                                                <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${perc < 75 ? 'bg-rose-100 text-rose-600' : 'bg-emerald-100 text-emerald-600'}`}>
+                                                   {perc}%
+                                                </span>
+                                             </div>
+                                             <h4 className="text-sm font-black text-slate-700 uppercase tracking-tight mb-2">{sub.name}</h4>
+                                             <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                                                <div
+                                                   className={`h-full transition-all duration-1000 ${perc < 75 ? 'bg-rose-500' : 'bg-emerald-500'}`}
+                                                   style={{ width: `${perc}%` }}
+                                                />
+                                             </div>
+                                             <div className="flex justify-between mt-2">
+                                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Attended</span>
+                                                <span className="text-[9px] font-black text-slate-600">{present} / {total}</span>
+                                             </div>
+                                          </div>
+                                       );
+                                    }).filter(Boolean)}
+                                 </div>
+
+                                 {studentAttendance.length > 0 ? (
+                                    <div className="mt-8">
+                                       <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Recent Activity</h4>
+                                       <div className="rounded-2xl border border-slate-100 overflow-hidden">
+                                          <table className="w-full text-left text-xs">
+                                             <thead className="bg-slate-50 border-b border-slate-100">
+                                                <tr>
+                                                   <th className="px-4 py-3 font-black text-slate-500 uppercase tracking-widest">Date</th>
+                                                   <th className="px-4 py-3 font-black text-slate-500 uppercase tracking-widest">Subject</th>
+                                                   <th className="px-4 py-3 font-black text-slate-500 uppercase tracking-widest text-right">Status</th>
+                                                </tr>
+                                             </thead>
+                                             <tbody className="divide-y divide-slate-50">
+                                                {studentAttendance.sort((a, b) => b.date.localeCompare(a.date)).slice(0, 10).map(rec => {
+                                                   const sub = allSubjects.find(s => s.id === rec.subjectId);
+                                                   return (
+                                                      <tr key={rec.id} className="hover:bg-slate-50/50 transition-colors">
+                                                         <td className="px-4 py-3 font-mono text-slate-500">{rec.date}</td>
+                                                         <td className="px-4 py-3 font-black text-slate-700 uppercase tracking-tight">{sub?.name || 'Extra'}</td>
+                                                         <td className="px-4 py-3 text-right">
+                                                            <span className={`font-black uppercase text-[9px] tracking-widest ${rec.isPresent ? 'text-emerald-500' : 'text-rose-500'}`}>
+                                                               {rec.isPresent ? 'Present' : 'Absent'}
+                                                            </span>
+                                                         </td>
+                                                      </tr>
+                                                   );
+                                                })}
+                                             </tbody>
+                                          </table>
+                                       </div>
+                                    </div>
+                                 ) : (
+                                    <div className="text-center py-20 bg-slate-50 rounded-[2rem] border-2 border-dashed border-slate-100">
+                                       <Activity className="h-10 w-10 text-slate-200 mx-auto mb-4" />
+                                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No attendance records found</p>
+                                    </div>
+                                 )}
+                              </div>
+                           )}
+                        </div>
+                     ) : (
+                        <div className="h-full flex flex-col items-center justify-center py-20 bg-slate-50/50 rounded-[2.5rem] border-2 border-dashed border-slate-100">
+                           <BookOpen className="h-10 w-10 text-slate-200 mb-4" />
+                           <p className="font-black text-slate-400 uppercase tracking-widest text-xs">Select a student to view details</p>
+                        </div>
+                     )}
+                  </div>
+               </div>
+            </div>
+         )}
 
          {activeTab === 'MARK' && (
             <div className="space-y-6 animate-in fade-in zoom-in duration-500">
@@ -328,17 +605,17 @@ const CoordinatorView: React.FC<{ branchId: string; facultyUser: User; metaData:
                   </div>
                </div>
 
-               {/* Premium Sticky Footer for Mobile */}
-               <div className="fixed bottom-6 left-6 right-6 md:sticky md:bottom-auto md:left-auto md:right-auto z-40">
-                  <div className="bg-white/80 backdrop-blur-2xl p-4 md:p-6 rounded-[2.5rem] border border-white shadow-[0_20px_50px_rgba(79,70,229,0.15)] md:shadow-none flex flex-col md:flex-row items-center justify-between gap-4 border-t transition-all hover:bg-white">
-                     <div className="hidden md:flex flex-col">
+               {/* Premium Footer - Now scrolls with content on mobile to avoid overlapping */}
+               <div className="mt-8 mb-24 md:mb-0 md:sticky md:bottom-6 z-40">
+                  <div className="bg-white/80 backdrop-blur-2xl p-4 md:p-6 rounded-[2.5rem] border border-slate-100 shadow-xl shadow-indigo-100/20 md:shadow-none flex flex-col md:flex-row items-center justify-between gap-4 border-t transition-all hover:bg-white">
+                     <div className="flex flex-col items-center md:items-start text-center md:text-left">
                         <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Status Summary</span>
                         <div className="text-sm font-black text-indigo-900 leading-none">
                            {Object.values(status).filter(v => v).length} Present / {students.length} Total
                         </div>
                      </div>
 
-                     <div className="flex items-center gap-4 w-full md:w-auto">
+                     <div className="flex flex-col md:flex-row items-center gap-4 w-full md:w-auto">
                         {saveMessage && (
                            <span className="text-xs font-black text-emerald-600 uppercase tracking-widest animate-in fade-in slide-in-from-right-2">
                               {saveMessage}
@@ -350,7 +627,7 @@ const CoordinatorView: React.FC<{ branchId: string; facultyUser: User; metaData:
                            className="w-full md:w-[280px] h-14 bg-indigo-600 text-white !rounded-3xl font-black uppercase tracking-[0.2em] text-xs shadow-xl shadow-indigo-100 hover:bg-indigo-700 active:scale-[0.98] transition-all disabled:grayscale disabled:opacity-50"
                         >
                            {isSaving ? (
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-2 justify-center">
                                  <Loader2 className="h-4 w-4 animate-spin" />
                                  <span>Processing...</span>
                               </div>
@@ -369,6 +646,7 @@ const CoordinatorView: React.FC<{ branchId: string; facultyUser: User; metaData:
          )}
 
          {activeTab === 'HISTORY' && (
+            // ... (History content remains same)
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500 pb-20">
                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 px-2">
                   <div className="space-y-0.5">
@@ -1214,8 +1492,8 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                      <Layers className="h-6 w-6 text-indigo-100" />
                   </div>
                   <div>
-                     <h1 className="text-lg font-bold text-white leading-tight">Faculty Dashboard</h1>
-                     <p className="text-indigo-200 text-[10px] font-medium tracking-wider uppercase">{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</p>
+                     <h1 className="text-lg font-black text-white leading-tight">Welcome Back, {user.displayName?.split(' ')[0]}!</h1>
+                     <p className="text-indigo-200 text-[10px] font-black tracking-[0.2em] uppercase">{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</p>
                   </div>
                </div>
 
@@ -1469,34 +1747,37 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                      </table>
                   </div>
 
-                  {/* Sticky Footer */}
-                  <div className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-xl border-t border-slate-100 p-4 shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.1)] z-50 flex justify-between items-center safe-area-pb">
-                     <div className="flex flex-col">
+                  {/* Premium Footer - Now scrolls with content to avoid obstruction */}
+                  <div className="mt-8 mb-20 bg-white/80 backdrop-blur-xl border border-slate-100 p-6 rounded-[2.5rem] shadow-xl shadow-indigo-100/20 flex flex-col md:flex-row justify-between items-center gap-6">
+                     <div className="flex flex-col items-center md:items-start">
                         <div className="flex items-baseline gap-1">
-                           <span className="text-xl font-black text-indigo-600 leading-none">{visibleStudents.filter(s => attendanceStatus[s.uid]).length}</span>
-                           <span className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">/ {visibleStudents.length} Students</span>
+                           <span className="text-2xl font-black text-indigo-600 leading-none">{visibleStudents.filter(s => attendanceStatus[s.uid]).length}</span>
+                           <span className="text-[12px] font-black text-slate-400 uppercase tracking-tighter">/ {visibleStudents.length} Students</span>
                         </div>
-                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">Marked Present</span>
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-1">Marked Present</span>
                      </div>
 
-                     <div className="flex items-center gap-3">
+                     <div className="flex flex-col md:flex-row items-center gap-4 w-full md:w-auto">
                         {saveMessage && (
-                           <div className="flex items-center gap-1 bg-emerald-50 text-emerald-600 px-2 py-1 rounded-lg animate-in fade-in slide-in-from-right-2">
-                              <Check className="h-3 w-3" />
+                           <div className="flex items-center gap-1.5 bg-emerald-50 text-emerald-600 px-3 py-1.5 rounded-full animate-in fade-in slide-in-from-right-2">
+                              <Check className="h-3.5 w-3.5" strokeWidth={3} />
                               <span className="text-[10px] font-black uppercase tracking-tight">{saveMessage.includes('Sync') ? 'Synced' : 'Saved'}</span>
                            </div>
                         )}
                         <button
                            onClick={handleSaveClick}
                            disabled={isSaving}
-                           className={`h-12 px-8 rounded-2xl font-black text-[11px] uppercase tracking-[0.1em] shadow-2xl transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2 ${isEditMode ? 'bg-orange-600 text-white shadow-orange-200' : 'bg-indigo-600 text-white shadow-indigo-200 hover:bg-indigo-700'}`}
+                           className={`h-14 px-10 w-full md:w-auto rounded-3xl font-black text-xs uppercase tracking-[0.1em] shadow-2xl transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-3 ${isEditMode ? 'bg-orange-600 text-white shadow-orange-200' : 'bg-indigo-600 text-white shadow-indigo-200 hover:bg-indigo-700'}`}
                         >
                            {isSaving ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
+                              <div className="flex items-center gap-2">
+                                 <Loader2 className="h-4 w-4 animate-spin" />
+                                 <span>Processing...</span>
+                              </div>
                            ) : (
                               <>
-                                 <Save className="h-4 w-4" />
-                                 {isEditMode ? 'Update Record' : 'Save Attendance'}
+                                 <Save className="h-5 w-5" />
+                                 <span>{isEditMode ? 'Update Record' : 'Save Attendance'}</span>
                               </>
                            )}
                         </button>

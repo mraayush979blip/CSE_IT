@@ -63,6 +63,7 @@ interface IDataService {
 
   // Setup
   seedDatabase: () => Promise<void>;
+  searchStudents: (query: string) => Promise<User[]>;
 }
 
 // --- Supabase Implementation ---
@@ -718,6 +719,17 @@ class SupabaseService implements IDataService {
     for (const b of SEED_BATCHES) await supabase.from('batches').upsert({ id: b.id, name: b.name, branch_id: b.branchId });
     for (const s of SEED_SUBJECTS) await supabase.from('subjects').upsert(s);
   }
+
+  async searchStudents(query: string): Promise<User[]> {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('role', UserRole.STUDENT)
+      .or(`display_name.ilike.%${query}%,enrollment_id.ilike.%${query}%,mobile_no.ilike.%${query}%`)
+      .limit(50);
+    if (error) throw error;
+    return data.map(p => this.mapProfile(p));
+  }
 }
 
 // --- MOCK Implementation (Unchanged) ---
@@ -1021,6 +1033,16 @@ class MockService implements IDataService {
     localStorage.setItem('ams_users', JSON.stringify(SEED_USERS));
     localStorage.setItem('ams_assignments', JSON.stringify(SEED_ASSIGNMENTS));
     alert("Local Database seeded!");
+  }
+
+  async searchStudents(query: string): Promise<User[]> {
+    const q = query.toLowerCase();
+    const students = await this.getAllStudents();
+    return students.filter(s =>
+      s.displayName.toLowerCase().includes(q) ||
+      s.studentData?.enrollmentId.toLowerCase().includes(q) ||
+      s.studentData?.mobileNo.toLowerCase().includes(q)
+    ).slice(0, 50);
   }
 }
 

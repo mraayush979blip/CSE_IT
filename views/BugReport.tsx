@@ -1,9 +1,11 @@
 
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, Button, Input } from '../components/UI';
-import { Bug, Send, MessageSquare, User, Smartphone, AlertCircle } from 'lucide-react';
+import { Bug, Send, MessageSquare, User, Smartphone, AlertCircle, Sparkles, Zap, ShieldAlert, CheckCircle2, Star, ArrowLeft } from 'lucide-react';
 
 export const BugReport: React.FC = () => {
+    const navigate = useNavigate();
     const [form, setForm] = useState({
         name: '',
         type: 'BUG', // BUG or REVIEW
@@ -30,118 +32,164 @@ export const BugReport: React.FC = () => {
             window.open(whatsappUrl, '_blank');
             setIsSubmitting(false);
             setForm({ name: '', type: 'BUG', message: '', priority: 'NORMAL' });
-        }, 800);
+        }, 1200);
     };
 
     return (
-        <div className="max-w-2xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-            <div className="text-center space-y-2">
-                <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-indigo-50 text-indigo-600 rounded-full text-xs font-black uppercase tracking-widest border border-indigo-100 mb-2">
-                    <MessageSquare className="h-3.5 w-3.5" />
-                    Feedback Center
-                </div>
-                <h2 className="text-4xl font-black text-slate-800 uppercase tracking-tight leading-none">Report Bug or Review</h2>
-                <p className="text-slate-400 font-medium">Your feedback helps us make Acropolis AMS better for everyone.</p>
+        <div className="max-w-3xl mx-auto space-y-6 md:space-y-10 animate-in fade-in slide-in-from-bottom-6 duration-1000 pb-20">
+            {/* Navigation Header */}
+            <div className="flex items-center justify-between px-2 pt-2 md:pt-4">
+                <button
+                    onClick={() => navigate(-1)}
+                    className="group flex items-center gap-2 px-4 py-2 bg-white border border-black/10 rounded-xl text-black/60 hover:text-black hover:border-black transition-all active:scale-95"
+                >
+                    <ArrowLeft className="h-4 w-4 group-hover:-translate-x-1 transition-transform" />
+                    <span className="text-xs font-black uppercase tracking-widest">Go Back</span>
+                </button>
             </div>
 
-            <Card className="rounded-[2.5rem] border-none shadow-2xl shadow-indigo-100 overflow-hidden relative">
-                <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-50 rounded-full -translate-x-1/2 -translate-y-1/2 blur-3xl opacity-50" />
+            {/* Monochrome Header */}
+            <div className="relative text-center space-y-2 md:space-y-4 pt-2">
+                <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-black text-white rounded-full text-[9px] font-black uppercase tracking-[0.2em] shadow-xl mb-1">
+                    <Sparkles className="h-3.5 w-3.5" />
+                    Feedback Hub
+                </div>
 
-                <form onSubmit={handleSubmit} className="relative space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="space-y-2">
-                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2 flex items-center gap-2">
+                <h2 className="text-3xl md:text-5xl font-black text-black uppercase tracking-tighter leading-tight py-1">
+                    Build It <span className="opacity-40 tracking-widest">Together</span>
+                </h2>
+
+                <p className="max-w-lg mx-auto text-black/40 font-bold text-[10px] md:text-xs uppercase tracking-[0.3em] leading-relaxed px-4">
+                    Refining the experience, one report at a time.
+                </p>
+            </div>
+
+            {/* Main Form Card - Minimalist Black & White */}
+            <div className="w-full">
+                <Card className="rounded-[2rem] md:rounded-[3rem] border border-black/5 bg-white shadow-[0_10px_50px_rgba(0,0,0,0.05)] overflow-hidden relative p-6 md:p-12">
+                    <form onSubmit={handleSubmit} className="relative space-y-8 md:space-y-10">
+                        {/* Personal Info Group */}
+                        <div className="space-y-4">
+                            <label className="text-[10px] md:text-[11px] font-black text-black/40 uppercase tracking-[0.2em] flex items-center gap-2 ml-1">
                                 <User className="h-3 w-3" />
-                                Your Name
+                                Your Identity
                             </label>
                             <Input
                                 required
                                 value={form.name}
                                 onChange={e => setForm({ ...form, name: e.target.value })}
-                                placeholder="Enter your full name"
-                                className="border-none bg-slate-50 rounded-2xl h-14 font-bold text-slate-700 focus:ring-indigo-500/20"
+                                placeholder="Enter your name..."
+                                className="border-b-2 border-t-0 border-l-0 border-r-0 border-black/5 rounded-none bg-transparent h-14 md:h-16 font-black text-black placeholder:text-black/10 focus:border-black focus:ring-0 transition-all text-base md:text-lg px-2"
                             />
                         </div>
-                        <div className="space-y-2">
-                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2 flex items-center gap-2">
-                                <AlertCircle className="h-3 w-3" />
-                                Feedback Type
-                            </label>
-                            <select
-                                value={form.type}
-                                onChange={e => setForm({ ...form, type: e.target.value })}
-                                className="w-full h-14 bg-slate-50 border-none rounded-2xl text-sm font-bold text-slate-700 px-4 outline-none focus:ring-2 focus:ring-indigo-500/20"
-                            >
-                                <option value="BUG">🪲 Report a Bug</option>
-                                <option value="REVIEW">⭐️ General Review</option>
-                            </select>
-                        </div>
-                    </div>
 
-                    <div className="space-y-2">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2 flex items-center gap-2">
-                            <Smartphone className="h-3 w-3" />
-                            Priority Level
-                        </label>
-                        <div className="grid grid-cols-3 gap-3">
-                            {['LOW', 'NORMAL', 'URGENT'].map(p => (
+                        {/* Type Toggle - High Contrast */}
+                        <div className="space-y-4">
+                            <label className="text-[10px] md:text-[11px] font-black text-black/40 uppercase tracking-[0.2em] flex items-center gap-2 ml-1">
+                                <Zap className="h-3 w-3" />
+                                Category
+                            </label>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <button
-                                    key={p}
                                     type="button"
-                                    onClick={() => setForm({ ...form, priority: p })}
-                                    className={`py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest border-2 transition-all ${form.priority === p
-                                            ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-md'
-                                            : 'border-slate-50 bg-slate-50 text-slate-400 hover:bg-slate-100'
+                                    onClick={() => setForm({ ...form, type: 'BUG' })}
+                                    className={`flex items-center gap-4 p-5 rounded-2xl border-2 transition-all duration-300 ${form.type === 'BUG'
+                                        ? 'bg-black border-black text-white shadow-xl'
+                                        : 'bg-white border-black/5 text-black hover:border-black/20'
                                         }`}
                                 >
-                                    {p}
+                                    <div className={`h-10 w-10 rounded-xl flex items-center justify-center transition-all ${form.type === 'BUG' ? 'bg-white/20' : 'bg-black/5'}`}>
+                                        <Bug className="h-5 w-5" />
+                                    </div>
+                                    <div className="text-left">
+                                        <div className="text-sm font-black uppercase tracking-tight">Bug Report</div>
+                                        <div className={`text-[9px] font-bold uppercase tracking-widest mt-0.5 ${form.type === 'BUG' ? 'text-white/60' : 'text-black/40'}`}>Found a glitch?</div>
+                                    </div>
                                 </button>
-                            ))}
+
+                                <button
+                                    type="button"
+                                    onClick={() => setForm({ ...form, type: 'REVIEW' })}
+                                    className={`flex items-center gap-4 p-5 rounded-2xl border-2 transition-all duration-300 ${form.type === 'REVIEW'
+                                        ? 'bg-black border-black text-white shadow-xl'
+                                        : 'bg-white border-black/5 text-black hover:border-black/20'
+                                        }`}
+                                >
+                                    <div className={`h-10 w-10 rounded-xl flex items-center justify-center transition-all ${form.type === 'REVIEW' ? 'bg-white/20' : 'bg-black/5'}`}>
+                                        <Star className="h-5 w-5" />
+                                    </div>
+                                    <div className="text-left">
+                                        <div className="text-sm font-black uppercase tracking-tight">Experience</div>
+                                        <div className={`text-[9px] font-bold uppercase tracking-widest mt-0.5 ${form.type === 'REVIEW' ? 'text-white/60' : 'text-black/40'}`}>Share feedback</div>
+                                    </div>
+                                </button>
+                            </div>
                         </div>
-                    </div>
 
-                    <div className="space-y-2">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2 flex items-center gap-2">
-                            <MessageSquare className="h-3 w-3" />
-                            Detailed Description
-                        </label>
-                        <textarea
-                            required
-                            value={form.message}
-                            onChange={e => setForm({ ...form, message: e.target.value })}
-                            placeholder="Explain the issue or share your experience..."
-                            className="w-full p-5 bg-slate-50 border-none rounded-3xl min-h-[150px] font-medium text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all resize-none"
-                        />
-                    </div>
+                        {/* Description */}
+                        <div className="space-y-4">
+                            <label className="text-[10px] md:text-[11px] font-black text-black/40 uppercase tracking-[0.2em] flex items-center gap-2 ml-1">
+                                <MessageSquare className="h-3 w-3" />
+                                The Briefing
+                            </label>
+                            <textarea
+                                required
+                                value={form.message}
+                                onChange={e => setForm({ ...form, message: e.target.value })}
+                                placeholder="Tell us what happened..."
+                                className="w-full p-6 bg-black/[0.02] border-2 border-black/5 rounded-2xl min-h-[140px] md:min-h-[160px] font-bold text-black outline-none focus:border-black/20 transition-all resize-none text-sm md:text-base"
+                            />
+                        </div>
 
-                    <Button
-                        type="submit"
-                        disabled={isSubmitting}
-                        className="w-full h-16 bg-indigo-600 text-white rounded-3xl font-black uppercase tracking-widest shadow-xl shadow-indigo-200 hover:scale-[1.01] active:scale-[0.99] transition-all flex items-center justify-center gap-3"
-                    >
-                        {isSubmitting ? (
-                            <div className="animate-spin rounded-full h-5 w-5 border-2 border-white/20 border-t-white" />
-                        ) : (
-                            <>
-                                <Send className="h-5 w-5" />
-                                Submit to WhatsApp
-                            </>
-                        )}
-                    </Button>
-                </form>
-            </Card>
+                        {/* Priority Selection - Moved here! */}
+                        <div className="space-y-4 pt-4 border-t border-black/5">
+                            <label className="text-[10px] md:text-[11px] font-black text-black/40 uppercase tracking-[0.2em] flex items-center gap-2 ml-1">
+                                <ShieldAlert className="h-3 w-3 text-black" />
+                                Priority Level
+                            </label>
+                            <div className="grid grid-cols-3 gap-3">
+                                {['LOW', 'NORMAL', 'URGENT'].map(p => (
+                                    <button
+                                        key={p}
+                                        type="button"
+                                        onClick={() => setForm({ ...form, priority: p })}
+                                        className={`py-4 rounded-xl text-[9px] md:text-[11px] font-black uppercase tracking-[0.2em] transition-all border-2 ${form.priority === p
+                                            ? 'bg-black border-black text-white shadow-lg scale-[1.02]'
+                                            : 'bg-white border-black/5 text-black/40 hover:border-black/20'
+                                            }`}
+                                    >
+                                        {p}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
 
-            <div className="bg-amber-50 p-6 rounded-[2rem] border border-amber-100 flex items-start gap-4">
-                <div className="p-2 bg-amber-100 rounded-xl">
-                    <AlertCircle className="h-5 w-5 text-amber-600" />
-                </div>
-                <div>
-                    <h4 className="text-xs font-black text-amber-900 uppercase tracking-widest">Why WhatsApp?</h4>
-                    <p className="text-xs text-amber-700/80 font-medium leading-relaxed mt-1">
-                        We use WhatsApp for direct communication. Once you click submit, you'll be redirected to your WhatsApp app to send the pre-filled message directly to our support team for a faster response.
-                    </p>
-                </div>
+                        {/* Final Action Button */}
+                        <Button
+                            type="submit"
+                            disabled={isSubmitting}
+                            className="w-full h-16 md:h-20 bg-black text-white rounded-2xl md:rounded-3xl font-black uppercase tracking-[0.3em] shadow-2xl hover:bg-black/90 active:scale-[0.98] transition-all flex items-center justify-center gap-3 text-xs md:text-sm mt-4"
+                        >
+                            {isSubmitting ? (
+                                <div className="flex items-center gap-2 animate-pulse">
+                                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-white/20 border-t-white" />
+                                    Processing...
+                                </div>
+                            ) : (
+                                <>
+                                    <Send className="h-4 w-4 md:h-5 md:w-5" />
+                                    Submit Feedback
+                                </>
+                            )}
+                        </Button>
+                    </form>
+                </Card>
             </div>
+
+            {/* Compact Note */}
+            <p className="text-center text-[9px] md:text-[10px] text-black/30 font-bold uppercase tracking-[0.3em] px-10">
+                Messages are routed via WhatsApp for instant processing and direct communication with our technical squad.
+            </p>
         </div>
     );
 };

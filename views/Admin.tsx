@@ -157,9 +157,32 @@ const StudentManagement: React.FC = () => {
   const [isEditingStudent, setIsEditingStudent] = useState(false);
   const [editStudentForm, setEditStudentForm] = useState({ uid: '', name: '', mobile: '', enroll: '', rollNo: '' });
 
+  // Search State
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<User[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
 
   // Derived level
   const level = studentId ? 'detail' : batchId ? 'students' : branchId ? 'batches' : 'branches';
+
+  useEffect(() => {
+    const timer = setTimeout(async () => {
+      if (searchQuery.trim().length >= 3) {
+        setIsSearching(true);
+        try {
+          const res = await db.searchStudents(searchQuery.trim());
+          setSearchResults(res);
+        } catch (err) {
+          console.error(err);
+        } finally {
+          setIsSearching(false);
+        }
+      } else {
+        setSearchResults([]);
+      }
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   useEffect(() => {
     loadInitialData();
@@ -368,6 +391,61 @@ const StudentManagement: React.FC = () => {
 
   return (
     <Card>
+      <div className="mb-6 space-y-4">
+        {/* Global Search Bar */}
+        <div className="relative">
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <Filter className="h-4 w-4 text-slate-400" />
+          </div>
+          <input
+            type="text"
+            className="block w-full pl-10 pr-3 py-2 border border-slate-300 rounded-lg leading-5 bg-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm text-slate-900"
+            placeholder="Search student by Enrollment, Mobile No, or Name..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+          {isSearching && <div className="absolute inset-y-0 right-0 pr-3 flex items-center"><div className="animate-spin h-4 w-4 border-2 border-indigo-500 border-t-transparent rounded-full"></div></div>}
+        </div>
+
+        {/* Search Results Dropdown-like display */}
+        {searchQuery.length >= 3 && (
+          <div className="bg-slate-50 border rounded-lg overflow-hidden shadow-sm">
+            <div className="px-3 py-2 bg-slate-100 text-[10px] font-bold text-slate-500 uppercase tracking-widest flex justify-between">
+              <span>Search Results</span>
+              <span>{searchResults.length} found</span>
+            </div>
+            {searchResults.length > 0 ? (
+              <div className="max-h-60 overflow-y-auto">
+                {searchResults.map(s => (
+                  <div
+                    key={s.uid}
+                    onClick={() => {
+                      setSearchQuery('');
+                      // Navigate to detail view
+                      navigate(`/admin/students/${s.studentData?.branchId}/${s.studentData?.batchId}/${s.uid}`);
+                    }}
+                    className="flex justify-between items-center px-4 py-2 hover:bg-indigo-50 cursor-pointer border-b last:border-b-0"
+                  >
+                    <div>
+                      <div className="text-sm font-semibold text-slate-900">{s.displayName}</div>
+                      <div className="text-[10px] text-slate-500 font-mono">
+                        {s.studentData?.enrollmentId} | {branches.find(b => b.id === s.studentData?.branchId)?.name || '...'}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-[10px] font-mono text-slate-600">{s.studentData?.mobileNo}</div>
+                      <ChevronRight className="h-4 w-4 text-slate-400 inline ml-2" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="p-4 text-center text-sm text-slate-500">{isSearching ? 'Searching...' : 'No students found.'}</div>
+            )}
+          </div>
+        )}
+      </div>
+
       <div className="flex items-center text-sm mb-6 text-slate-500 flex-wrap justify-between">
         <div className="flex items-center">
           <span className={`cursor-pointer hover:text-indigo-600 ${level === 'branches' ? 'font-bold text-indigo-600' : ''}`} onClick={() => navigate('/admin/students')}>Classes</span>
