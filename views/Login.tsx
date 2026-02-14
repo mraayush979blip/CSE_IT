@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { db } from '../services/db';
-import { User } from '../types';
+import { User, SystemSettings } from '../types';
 import { Button, Card, Input, AcropolisLogo, Select, AboutDeveloperModal } from '../components/UI';
 import { Lock, Mail, Eye, EyeOff, Users } from 'lucide-react';
 
@@ -15,14 +15,23 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [isDevModalOpen, setIsDevModalOpen] = useState(false);
+  const [settings, setSettings] = useState<SystemSettings>({ studentLoginEnabled: true });
 
   const [selectedRole, setSelectedRole] = useState<'FACULTY' | 'COORDINATOR' | 'STUDENT'>('FACULTY');
+
+  React.useEffect(() => {
+    db.getSystemSettings().then(setSettings).catch(console.error);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
     try {
+      if (selectedRole === 'STUDENT' && !settings.studentLoginEnabled) {
+        throw new Error("Student login is currently disabled by administrator.");
+      }
+
       const user = await db.login(email, password);
 
       // 0. Automatic Admin Logic: If user is admin, ignore selection and log in as admin
@@ -91,7 +100,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
             >
               <option value="FACULTY">Login as Faculty</option>
               <option value="COORDINATOR">Login as Class Coordinator</option>
-              <option value="STUDENT">Login as Student</option>
+              {settings.studentLoginEnabled && <option value="STUDENT">Login as Student</option>}
             </Select>
           </div>
 

@@ -99,3 +99,7 @@ export interface Mark {
   createdAt?: string;
   updatedAt?: string;
 }
+
+export interface SystemSettings {
+  studentLoginEnabled: boolean;
+}

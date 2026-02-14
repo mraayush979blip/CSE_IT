@@ -1,6 +1,6 @@
 
 import { supabase, authClient } from './supabase';
-import { User, Branch, Batch, Subject, FacultyAssignment, CoordinatorAssignment, AttendanceRecord, UserRole, Notification, MidSemType, Mark } from "../types";
+import { User, Branch, Batch, Subject, FacultyAssignment, CoordinatorAssignment, AttendanceRecord, UserRole, Notification, MidSemType, Mark, SystemSettings } from "../types";
 import { SEED_BRANCHES, SEED_BATCHES, SEED_SUBJECTS, SEED_USERS, SEED_ASSIGNMENTS } from "../constants";
 
 // --- Service Interface ---
@@ -70,6 +70,10 @@ interface IDataService {
   getStudentMarks: (studentId: string) => Promise<Mark[]>;
   getBranchMarks: (branchId: string, midSemType: MidSemType) => Promise<Mark[]>;
   saveMarks: (marks: Omit<Mark, 'id' | 'createdAt' | 'updatedAt'>[]) => Promise<void>;
+
+  // Settings
+  getSystemSettings: () => Promise<SystemSettings>;
+  updateSystemSettings: (settings: SystemSettings) => Promise<void>;
 }
 
 // --- Supabase Implementation ---
@@ -840,6 +844,31 @@ class SupabaseService implements IDataService {
     });
     if (error) throw error;
   }
+
+  async getSystemSettings(): Promise<SystemSettings> {
+    const { data, error } = await supabase.from('system_settings').select('*');
+    if (error) throw error;
+
+    const settings: SystemSettings = {
+      studentLoginEnabled: true // Default
+    };
+
+    data?.forEach(row => {
+      if (row.key === 'student_login_enabled') {
+        settings.studentLoginEnabled = row.value === true || row.value === 'true' || row.value === JSON.parse('true');
+      }
+    });
+
+    return settings;
+  }
+
+  async updateSystemSettings(settings: SystemSettings): Promise<void> {
+    const { error } = await supabase.from('system_settings').upsert({
+      key: 'student_login_enabled',
+      value: settings.studentLoginEnabled
+    });
+    if (error) throw error;
+  }
 }
 
 // --- MOCK Implementation (Unchanged) ---
@@ -1186,6 +1215,16 @@ class MockService implements IDataService {
       }
     });
     this.save('ams_marks', all);
+  }
+
+  async getSystemSettings(): Promise<SystemSettings> {
+    const data = localStorage.getItem('ams_settings');
+    if (!data) return { studentLoginEnabled: true };
+    return JSON.parse(data);
+  }
+
+  async updateSystemSettings(settings: SystemSettings): Promise<void> {
+    localStorage.setItem('ams_settings', JSON.stringify(settings));
   }
 }
 

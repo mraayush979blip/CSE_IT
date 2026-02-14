@@ -1,19 +1,88 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { db } from '../services/db';
-import { Branch, Batch, User, Subject, FacultyAssignment, AttendanceRecord, CoordinatorAssignment, Mark } from '../types';
+import { Branch, Batch, User, Subject, FacultyAssignment, AttendanceRecord, CoordinatorAssignment, Mark, SystemSettings } from '../types';
 import { Card, Button, Input, Select, Modal, FileUploader } from '../components/UI';
-import { Plus, Trash2, ChevronRight, Users, BookOpen, Database, Key, ArrowLeft, CheckCircle2, XCircle, Trash, Eye, Layers, Edit2, Calendar, Smartphone, Filter, AlertCircle, AlertTriangle, Trophy } from 'lucide-react';
+import { Plus, Trash2, ChevronRight, Users, BookOpen, Database, Key, ArrowLeft, CheckCircle2, XCircle, Trash, Eye, Layers, Edit2, Calendar, Smartphone, Filter, AlertCircle, AlertTriangle, Trophy, Settings } from 'lucide-react';
 import { useNavigate, useLocation, Routes, Route, Navigate, useParams } from 'react-router-dom';
+
+const SystemManagement: React.FC = () => {
+  const [settings, setSettings] = useState<SystemSettings>({ studentLoginEnabled: true });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    db.getSystemSettings().then(s => {
+      setSettings(s);
+      setLoading(false);
+    }).catch(err => {
+      console.error(err);
+      setLoading(false);
+    });
+  }, []);
+
+  const handleToggleStudentLogin = async () => {
+    setSaving(true);
+    try {
+      const newSettings = { ...settings, studentLoginEnabled: !settings.studentLoginEnabled };
+      await db.updateSystemSettings(newSettings);
+      setSettings(newSettings);
+    } catch (err: any) {
+      alert("Failed to update settings: " + err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) return <div className="p-8 text-center text-slate-500">Loading settings...</div>;
+
+  return (
+    <Card className="max-w-2xl mx-auto">
+      <div className="space-y-6">
+        <div className="flex items-center gap-3 pb-4 border-b">
+          <Settings className="h-6 w-6 text-indigo-600" />
+          <h3 className="text-xl font-bold text-slate-900">System Configuration</h3>
+        </div>
+
+        <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-200">
+          <div>
+            <h4 className="font-bold text-slate-900">Student Login Access</h4>
+            <p className="text-sm text-slate-500">Control whether students can sign in to the application.</p>
+          </div>
+          <button
+            onClick={handleToggleStudentLogin}
+            disabled={saving}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${settings.studentLoginEnabled ? 'bg-indigo-600' : 'bg-slate-300'}`}
+          >
+            <span
+              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${settings.studentLoginEnabled ? 'translate-x-6' : 'translate-x-1'}`}
+            />
+          </button>
+        </div>
+
+        <div className="bg-amber-50 border-l-4 border-amber-500 p-4">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="h-5 w-5 text-amber-600 mt-0.5" />
+            <div className="text-sm text-amber-700">
+              <p className="font-bold">Important Note</p>
+              <p>Disabling student login will immediately hide the "Login as Student" option from the login screen and block any active student login attempts.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Card>
+  );
+};
 
 export const AdminDashboard: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [seeding, setSeeding] = useState(false);
 
-  // Determine active tab from path (admin/students or admin/faculty or admin/monitor or admin/reports)
+  // Determine active tab from path (admin/students or admin/faculty or admin/monitor or admin/reports or admin/system)
   const activeTab = location.pathname.includes('/admin/faculty') ? 'faculty' :
     location.pathname.includes('/admin/monitor') ? 'monitor' :
-      location.pathname.includes('/admin/reports') ? 'reports' : 'students';
+      location.pathname.includes('/admin/reports') ? 'reports' :
+        location.pathname.includes('/admin/system') ? 'system' : 'students';
 
   const handleSeed = async () => {
     if (!window.confirm("This will reset/overwrite initial data. Continue?")) return;
@@ -56,6 +125,12 @@ export const AdminDashboard: React.FC = () => {
           >
             Report
           </button>
+          <button
+            onClick={() => navigate('/admin/system')}
+            className={`px-4 py-2 font-medium text-sm transition-colors ${activeTab === 'system' ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-slate-500 hover:text-slate-800'}`}
+          >
+            System Settings
+          </button>
         </div>
         <button onClick={handleSeed} disabled={seeding} className="mb-2 text-xs flex items-center px-3 py-1.5 bg-slate-200 text-slate-700 hover:bg-slate-300 rounded transition-colors">
           <Database className="h-3 w-3 mr-1.5" />
@@ -65,7 +140,8 @@ export const AdminDashboard: React.FC = () => {
 
       {activeTab === 'students' ? <StudentManagement /> :
         activeTab === 'faculty' ? <FacultyManagement /> :
-          activeTab === 'monitor' ? <AttendanceMonitor /> : <ReportManagement />}
+          activeTab === 'monitor' ? <AttendanceMonitor /> :
+            activeTab === 'system' ? <SystemManagement /> : <ReportManagement />}
     </div>
   );
 };
