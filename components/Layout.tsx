@@ -18,8 +18,9 @@ const InstallAppModal: React.FC<{ isOpen: boolean; onClose: () => void; onInstal
 
   const handleMainAction = () => {
     if (isStandalone) {
-      alert("Acropolis AMS is already installed! ✅");
-      onClose();
+      if (confirm("This will refresh all assets, clear temporary cache, and sync the latest updates. The app will reload. Continue?")) {
+        (window as any).forceAppUpdate();
+      }
       return;
     }
     if (canInstall) {
@@ -85,8 +86,8 @@ const InstallAppModal: React.FC<{ isOpen: boolean; onClose: () => void; onInstal
             onClick={handleMainAction}
             className={`w-full flex items-center justify-center gap-2 py-3 shadow-lg transition-transform active:scale-95 ${isStandalone ? 'bg-emerald-600 hover:bg-emerald-700' : ''}`}
           >
-            {isStandalone ? <Check className="h-5 w-5" /> : <Download className="h-5 w-5" />}
-            {isStandalone ? "Already Installed" : "Install Application Now"}
+            {isStandalone ? <Activity className="h-5 w-5" /> : <Download className="h-5 w-5" />}
+            {isStandalone ? "Update & Sync Application" : "Install Application Now"}
           </Button>
           <button onClick={onClose} className="text-slate-400 text-xs hover:text-slate-600 transition font-medium text-center">
             Maybe later
@@ -185,6 +186,12 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpen
   const [actionedStatuses, setActionedStatuses] = useState<Record<string, 'APPROVED' | 'DENIED'>>({});
   const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
   const [canInstall, setCanInstall] = useState(false);
+  const [isStandalone, setIsStandalone] = useState(false);
+
+  useEffect(() => {
+    const checkStandalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone;
+    setIsStandalone(!!isStandalone);
+  }, []);
   const menuRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
 
@@ -469,8 +476,8 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpen
                       }}
                       className="w-full flex items-center px-4 py-3 text-sm text-indigo-700 font-bold bg-indigo-50 border border-indigo-100 hover:bg-indigo-100 rounded-md transition-all shadow-sm"
                     >
-                      <Download className="h-4 w-4 mr-3" />
-                      Install Application
+                      {isStandalone ? <Activity className="h-4 w-4 mr-3" /> : <Download className="h-4 w-4 mr-3" />}
+                      {isStandalone ? "Update / Sync App" : "Install Application"}
                     </button>
 
                     {user.role !== UserRole.STUDENT && (
