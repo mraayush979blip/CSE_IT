@@ -101,12 +101,13 @@ export const FileUploader: React.FC<{ onFileSelect: (file: File) => void; accept
   );
 };
 
-export const AcropolisLogo: React.FC<{ className?: string }> = ({ className }) => {
+export const AcropolisLogo: React.FC<{ className?: string; variant?: 'login' | 'dashboard' }> = ({ className, variant = 'login' }) => {
+  const isDashboard = variant === 'dashboard';
   return (
     <img
-      src="/pwa-192x192.png"
+      src={isDashboard ? "https://lh3.googleusercontent.com/d/1KLlB1FydOf1bvIlPFjra9cHsufesouHV" : "/pwa-192x192.png"}
       alt="Acropolis Logo"
-      className={`${className} object-contain scale-[1.8]`}
+      className={`${className} object-contain ${!isDashboard ? 'scale-[1.8]' : ''}`}
     />
   );
 };

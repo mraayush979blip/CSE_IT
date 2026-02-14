@@ -38,9 +38,7 @@ const InstallAppModal: React.FC<{ isOpen: boolean; onClose: () => void; onInstal
     <Modal isOpen={isOpen} onClose={onClose} title="Install Acropolis AMS">
       <div className="space-y-6">
         <div className="flex justify-center">
-          <div className="bg-white p-3 rounded-2xl shadow-sm border border-slate-100 h-20 w-20 flex items-center justify-center">
-            <AcropolisLogo className="h-12 w-12" />
-          </div>
+          <AcropolisLogo className="h-12 w-12" variant="dashboard" />
         </div>
 
         <div className="text-center px-2">
@@ -341,7 +339,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpen
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <div className="h-10 w-10 bg-white rounded-md p-1 flex items-center justify-center flex-shrink-0">
-              <AcropolisLogo className="h-full w-full" />
+              <AcropolisLogo className="h-full w-full" variant="dashboard" />
             </div>
             <div>
               <h1 className="text-xl font-bold tracking-tight">Acropolis AMS</h1>
