@@ -102,13 +102,11 @@ export const FileUploader: React.FC<{ onFileSelect: (file: File) => void; accept
 };
 
 export const AcropolisLogo: React.FC<{ className?: string }> = ({ className }) => {
-  const [error, setError] = React.useState(false);
   return (
     <img
-      src={error ? "/pwa-192x192.png" : "https://lh3.googleusercontent.com/d/1KLlB1FydOf1bvIlPFjra9cHsufesouHV"}
+      src="/pwa-192x192.png"
       alt="Acropolis Logo"
       className={`${className} object-contain`}
-      onError={() => setError(true)}
     />
   );
 };

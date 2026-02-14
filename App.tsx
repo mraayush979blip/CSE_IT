@@ -78,6 +78,7 @@ const App: React.FC = () => {
       alert("Password must be at least 6 characters.");
       return;
     }
+    if (!window.confirm("Are you sure you want to change your password?")) return;
     setSettingsLoading(true);
     try {
       await db.changePassword(passForm.current, passForm.new);
@@ -160,6 +161,9 @@ const App: React.FC = () => {
                 <Route path="history/:branchId/:subjectId" element={<FacultyDashboard user={user!} />} />
                 <Route path="history/:branchId" element={<FacultyDashboard user={user!} />} />
                 <Route path="history" element={<FacultyDashboard user={user!} />} />
+                <Route path="marks/:branchId/:subjectId" element={<FacultyDashboard user={user!} />} />
+                <Route path="marks/:branchId" element={<FacultyDashboard user={user!} />} />
+                <Route path="marks" element={<FacultyDashboard user={user!} />} />
                 <Route path="coordinator" element={<FacultyDashboard user={user!} />} />
                 <Route path="notifications" element={<NotificationsPage user={user!} />} />
                 <Route path="report" element={<BugReport />} />

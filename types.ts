@@ -85,3 +85,17 @@ export interface Notification {
   };
   timestamp: number;
 }
+
+export type MidSemType = 'MID_SEM_1' | 'MID_SEM_2';
+
+export interface Mark {
+  id: string;
+  studentId: string;
+  subjectId: string;
+  facultyId: string;
+  midSemType: MidSemType;
+  marksObtained: number;
+  maxMarks: number;
+  createdAt?: string;
+  updatedAt?: string;
+}

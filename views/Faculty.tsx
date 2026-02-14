@@ -1,11 +1,11 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { db } from '../services/db';
-import { User, FacultyAssignment, AttendanceRecord, Batch, Subject } from '../types';
+import { User, FacultyAssignment, AttendanceRecord, Batch, Subject, Mark, MidSemType } from '../types';
 import { Button, Card, Modal, Input, Select } from '../components/UI';
 import {
    Save, History, FileDown, Filter, ArrowLeft, CheckCircle2, ChevronDown, Check, X,
    CheckSquare, Square, XCircle, AlertCircle, AlertTriangle, Trash, Loader2,
-   Calendar, RefreshCw, Layers, Eye, BookOpen, User as UserIcon, Activity, Users
+   Calendar, RefreshCw, Layers, Eye, BookOpen, User as UserIcon, Activity, Users, Trophy
 } from 'lucide-react';
 import { useNavigate, useLocation, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { Skeleton, SkeletonRow, SkeletonCard } from '../components/Skeleton';
@@ -108,6 +108,7 @@ const CoordinatorView: React.FC<{ branchId: string; facultyUser: User; metaData:
 
    const handleSave = async () => {
       if (selectedSessions.length === 0) { alert("Please select at least one session."); return; }
+      if (!window.confirm("Are you sure you want to save this attendance?")) return;
       setIsSaving(true);
       try {
          const records: AttendanceRecord[] = [];
@@ -764,7 +765,8 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
    // Derived state from URL
    const activeTab = forceCoordinatorView ? 'CO-ORDINATOR' :
       (location.pathname.includes('/history') ? 'HISTORY' :
-         location.pathname.includes('/coordinator') ? 'CO-ORDINATOR' : 'MARK');
+         location.pathname.includes('/marks') ? 'MARKS' :
+            location.pathname.includes('/coordinator') ? 'CO-ORDINATOR' : 'MARK');
 
    // URL Masking: We use indices to keep URLs short in the browser
    const { branchId: urlBranchId, subjectId: urlID2 } = params;
@@ -806,7 +808,7 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
       }
    };
 
-   const setActiveTab = (tab: 'MARK' | 'HISTORY' | 'CO-ORDINATOR') => {
+   const setActiveTab = (tab: 'MARK' | 'HISTORY' | 'CO-ORDINATOR' | 'MARKS') => {
       if (tab === 'CO-ORDINATOR') {
          navigate('/faculty/coordinator');
          return;
@@ -826,6 +828,12 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
    const [isSaving, setIsSaving] = useState(false);
    const [isEditMode, setIsEditMode] = useState(false);
    const [showConfirmModal, setShowConfirmModal] = useState(false);
+
+   // Marks State
+   const [marksData, setMarksData] = useState<Record<string, number>>({});
+   const [midSemType, setMidSemType] = useState<MidSemType>('MID_SEM_1');
+   const [loadingMarks, setLoadingMarks] = useState(false);
+   const [maxMarks, setMaxMarks] = useState(20);
 
    // Conflict State
    const [conflictDetails, setConflictDetails] = useState<{
@@ -927,6 +935,30 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
          load();
       }
    }, [selBranchId, selSubjectId]);
+
+   // 2.1 Load Marks Data
+   useEffect(() => {
+      if (selBranchId && selSubjectId && activeTab === 'MARKS') {
+         const load = async () => {
+            setLoadingMarks(true);
+            try {
+               // Use 'ALL' for batch as we filter visible students in UI
+               const existingMarks = await db.getMarks(selBranchId, 'ALL', selSubjectId, midSemType);
+               const marksMap: Record<string, number> = {};
+               existingMarks.forEach(m => marksMap[m.studentId] = m.marksObtained);
+               setMarksData(marksMap);
+               if (existingMarks.length > 0) {
+                  setMaxMarks(existingMarks[0].maxMarks);
+               }
+            } catch (e) {
+               console.error("Failed to load marks", e);
+            } finally {
+               setLoadingMarks(false);
+            }
+         };
+         load();
+      }
+   }, [selBranchId, selSubjectId, midSemType, activeTab]);
 
    // 3. Initialize Batch Selection when Subject/Branch changes
    useEffect(() => {
@@ -1040,6 +1072,29 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
          if (prev.includes(batchId)) return prev.filter(id => id !== batchId);
          return [...prev, batchId];
       });
+   };
+
+   const handleSaveMarks = async () => {
+      if (!selBranchId || !selSubjectId) return;
+      if (!window.confirm("Are you sure you want to save these marks?")) return;
+      setIsSaving(true);
+      try {
+         const updates = visibleStudents.map(s => ({
+            studentId: s.uid,
+            subjectId: selSubjectId,
+            facultyId: user.uid,
+            midSemType: midSemType,
+            marksObtained: marksData[s.uid] || 0,
+            maxMarks: maxMarks
+         }));
+         await db.saveMarks(updates);
+         setSaveMessage('Marks Saved Successfully!');
+         setTimeout(() => setSaveMessage(''), 3000);
+      } catch (e: any) {
+         alert("Error saving marks: " + e.message);
+      } finally {
+         setIsSaving(false);
+      }
    };
 
    const handleSaveClick = async () => {
@@ -1538,6 +1593,12 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                   className={`flex-1 py-2.5 font-bold text-xs transition-all flex items-center justify-center rounded-lg ${activeTab === 'HISTORY' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                >
                   <History className="w-3.5 h-3.5 mr-2" /> History
+               </button>
+               <button
+                  onClick={() => setActiveTab('MARKS')}
+                  className={`flex-1 py-2.5 font-bold text-xs transition-all flex items-center justify-center rounded-lg ${activeTab === 'MARKS' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+               >
+                  <Trophy className="w-3.5 h-3.5 mr-2" /> MST Marks
                </button>
             </div>
          )}
@@ -2048,6 +2109,116 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                            })}
                         </tbody>
                      </table>
+                  </div>
+               </div>
+            )
+         )}
+
+         {activeTab === 'MARKS' && (
+            !showDashboard ? <SelectionPrompt /> : (
+               <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+                  <div className="space-y-4 mb-6">
+                     <div className="p-4 rounded-2xl bg-indigo-50 border border-indigo-100">
+                        <div className="grid grid-cols-2 gap-4">
+                           <div className="space-y-1">
+                              <label className="block text-[10px] font-black text-indigo-400 uppercase tracking-widest">Exam Type</label>
+                              <Select
+                                 value={midSemType}
+                                 onChange={e => setMidSemType(e.target.value as MidSemType)}
+                                 className="w-full bg-white border-indigo-100 text-xs font-bold"
+                              >
+                                 <option value="MID_SEM_1">MST 1</option>
+                                 <option value="MID_SEM_2">MST 2</option>
+                              </Select>
+                           </div>
+                           <div className="space-y-1">
+                              <label className="block text-[10px] font-black text-indigo-400 uppercase tracking-widest">Max Marks</label>
+                              <Input
+                                 type="number"
+                                 value={maxMarks}
+                                 onChange={e => setMaxMarks(Number(e.target.value))}
+                                 placeholder="Max Marks"
+                                 className="w-full bg-white border-indigo-100 text-xs font-bold"
+                              />
+                           </div>
+                        </div>
+                     </div>
+
+                     <div className="bg-white rounded-3xl border border-slate-100 shadow-xl shadow-indigo-100/20 overflow-hidden">
+                        <div className="overflow-x-auto">
+                           <table className="w-full text-left border-collapse">
+                              <thead className="bg-slate-50 border-b border-slate-100">
+                                 <tr>
+                                    <th className="py-4 px-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Student</th>
+                                    <th className="py-4 px-6 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Marks Obtained</th>
+                                 </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-50">
+                                 {visibleStudents.map(s => (
+                                    <tr key={s.uid} className="hover:bg-slate-50/50 transition-colors">
+                                       <td className="py-4 px-6">
+                                          <div className="font-bold text-slate-800 text-sm uppercase tracking-tight">{s.displayName}</div>
+                                          <div className="text-[10px] font-bold text-slate-400 font-mono">{s.studentData?.enrollmentId} | Roll: {s.studentData?.rollNo || '#'}</div>
+                                       </td>
+                                       <td className="py-4 px-6 text-right">
+                                          <div className="flex items-center justify-end gap-2">
+                                             <input
+                                                type="number"
+                                                value={marksData[s.uid] ?? ''}
+                                                min="0"
+                                                max={maxMarks}
+                                                onChange={e => {
+                                                   const val = Math.min(maxMarks, Math.max(0, Number(e.target.value)));
+                                                   setMarksData(prev => ({ ...prev, [s.uid]: val }));
+                                                }}
+                                                placeholder="0"
+                                                className="w-20 text-right px-3 py-2 bg-slate-50 border border-slate-100 rounded-xl font-black text-indigo-600 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                                             />
+                                             <span className="text-[10px] font-black text-slate-300 uppercase">/ {maxMarks}</span>
+                                          </div>
+                                       </td>
+                                    </tr>
+                                 ))}
+                                 {visibleStudents.length === 0 && (
+                                    <tr>
+                                       <td colSpan={2} className="py-20 text-center">
+                                          <div className="flex flex-col items-center">
+                                             <Trophy className="h-10 w-10 text-slate-100 mb-4" />
+                                             <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">No Students Found</p>
+                                          </div>
+                                       </td>
+                                    </tr>
+                                 )}
+                              </tbody>
+                           </table>
+                        </div>
+                     </div>
+
+                     <div className="mt-8 mb-20 bg-white/80 backdrop-blur-xl border border-slate-100 p-6 rounded-[2.5rem] shadow-xl shadow-indigo-100/20 flex flex-col md:flex-row justify-between items-center gap-6">
+                        <div>
+                           <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Entry Summary</div>
+                           <div className="flex items-baseline gap-2">
+                              <span className="text-2xl font-black text-indigo-600 leading-none">{Object.keys(marksData).length}</span>
+                              <span className="text-[12px] font-black text-slate-400 uppercase tracking-tighter">Graded / {visibleStudents.length} Students</span>
+                           </div>
+                        </div>
+
+                        <div className="flex items-center gap-4 w-full md:w-auto">
+                           {saveMessage && (
+                              <div className="flex items-center gap-1.5 bg-emerald-50 text-emerald-600 px-3 py-1.5 rounded-full animate-in fade-in slide-in-from-right-2">
+                                 <Check className="h-3.5 w-3.5" strokeWidth={3} />
+                                 <span className="text-[10px] font-black uppercase tracking-tight">Saved</span>
+                              </div>
+                           )}
+                           <button
+                              onClick={handleSaveMarks}
+                              disabled={isSaving || visibleStudents.length === 0}
+                              className="h-14 px-12 w-full md:w-auto bg-indigo-600 text-white rounded-3xl font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-indigo-100 hover:bg-indigo-700 active:scale-95 transition-all disabled:opacity-50"
+                           >
+                              {isSaving ? 'Processing...' : 'Save MST Marks'}
+                           </button>
+                        </div>
+                     </div>
                   </div>
                </div>
             )

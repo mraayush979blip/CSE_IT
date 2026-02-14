@@ -1,6 +1,6 @@
 
 import { supabase, authClient } from './supabase';
-import { User, Branch, Batch, Subject, FacultyAssignment, CoordinatorAssignment, AttendanceRecord, UserRole, Notification } from "../types";
+import { User, Branch, Batch, Subject, FacultyAssignment, CoordinatorAssignment, AttendanceRecord, UserRole, Notification, MidSemType, Mark } from "../types";
 import { SEED_BRANCHES, SEED_BATCHES, SEED_SUBJECTS, SEED_USERS, SEED_ASSIGNMENTS } from "../constants";
 
 // --- Service Interface ---
@@ -64,6 +64,12 @@ interface IDataService {
   // Setup
   seedDatabase: () => Promise<void>;
   searchStudents: (query: string) => Promise<User[]>;
+
+  // Marks
+  getMarks: (branchId: string, batchId: string, subjectId: string, midSemType: MidSemType) => Promise<Mark[]>;
+  getStudentMarks: (studentId: string) => Promise<Mark[]>;
+  getBranchMarks: (branchId: string, midSemType: MidSemType) => Promise<Mark[]>;
+  saveMarks: (marks: Omit<Mark, 'id' | 'createdAt' | 'updatedAt'>[]) => Promise<void>;
 }
 
 // --- Supabase Implementation ---
@@ -730,6 +736,110 @@ class SupabaseService implements IDataService {
     if (error) throw error;
     return data.map(p => this.mapProfile(p));
   }
+
+  // --- Marks ---
+  async getMarks(branchId: string, batchId: string, subjectId: string, midSemType: MidSemType): Promise<Mark[]> {
+    // Fetch students in this branch/batch first
+    let studentQuery = supabase.from('profiles')
+      .select('id')
+      .eq('role', UserRole.STUDENT)
+      .eq('branch_id', branchId);
+
+    if (batchId !== 'ALL') {
+      studentQuery = studentQuery.eq('batch_id', batchId);
+    }
+
+    const { data: students, error: studentError } = await studentQuery;
+    if (studentError) throw studentError;
+
+    const studentIds = students.map(s => s.id);
+    if (studentIds.length === 0) return [];
+
+    const { data, error } = await supabase.from('marks')
+      .select('*')
+      .in('student_id', studentIds)
+      .eq('subject_id', subjectId)
+      .eq('mid_sem_type', midSemType);
+
+    if (error) throw error;
+
+    return data.map(m => ({
+      id: m.id,
+      studentId: m.student_id,
+      subjectId: m.subject_id,
+      facultyId: m.faculty_id,
+      midSemType: m.mid_sem_type as MidSemType,
+      marksObtained: Number(m.marks_obtained),
+      maxMarks: Number(m.max_marks),
+      createdAt: m.created_at,
+      updatedAt: m.updated_at
+    }));
+  }
+
+  async getStudentMarks(studentId: string): Promise<Mark[]> {
+    const { data, error } = await supabase.from('marks')
+      .select('*')
+      .eq('student_id', studentId);
+    if (error) throw error;
+    return data.map(m => ({
+      id: m.id,
+      studentId: m.student_id,
+      subjectId: m.subject_id,
+      facultyId: m.faculty_id,
+      midSemType: m.mid_sem_type as MidSemType,
+      marksObtained: Number(m.marks_obtained),
+      maxMarks: Number(m.max_marks),
+      createdAt: m.created_at,
+      updatedAt: m.updated_at
+    }));
+  }
+
+  async getBranchMarks(branchId: string, midSemType: MidSemType): Promise<Mark[]> {
+    const { data: students, error: studentError } = await supabase.from('profiles')
+      .select('id')
+      .eq('role', UserRole.STUDENT)
+      .eq('branch_id', branchId);
+
+    if (studentError) throw studentError;
+    const studentIds = students.map(s => s.id);
+    if (studentIds.length === 0) return [];
+
+    const { data, error } = await supabase.from('marks')
+      .select('*')
+      .in('student_id', studentIds)
+      .eq('mid_sem_type', midSemType);
+
+    if (error) throw error;
+
+    return data.map(m => ({
+      id: m.id,
+      studentId: m.student_id,
+      subjectId: m.subject_id,
+      facultyId: m.faculty_id,
+      midSemType: m.mid_sem_type as MidSemType,
+      marksObtained: Number(m.marks_obtained),
+      maxMarks: Number(m.max_marks),
+      createdAt: m.created_at,
+      updatedAt: m.updated_at
+    }));
+  }
+
+  async saveMarks(marks: Omit<Mark, 'id' | 'createdAt' | 'updatedAt'>[]): Promise<void> {
+    const rows = marks.map(m => ({
+      student_id: m.studentId,
+      subject_id: m.subjectId,
+      faculty_id: m.facultyId,
+      mid_sem_type: m.midSemType,
+      marks_obtained: m.marksObtained,
+      max_marks: m.maxMarks,
+      updated_at: new Date().toISOString()
+    }));
+
+    const { error } = await supabase.from('marks').upsert(rows, {
+      onConflict: 'student_id,subject_id,mid_sem_type'
+    });
+    if (error) throw error;
+  }
 }
 
 // --- MOCK Implementation (Unchanged) ---
@@ -1043,6 +1153,39 @@ class MockService implements IDataService {
       s.studentData?.enrollmentId.toLowerCase().includes(q) ||
       s.studentData?.mobileNo.toLowerCase().includes(q)
     ).slice(0, 50);
+  }
+
+  // --- Marks ---
+  async getMarks(branchId: string, batchId: string, subjectId: string, midSemType: MidSemType): Promise<Mark[]> {
+    const all = this.load('ams_marks', []) as Mark[];
+    const students = await this.getStudents(branchId, batchId);
+    const studentIds = new Set(students.map(s => s.uid));
+    return all.filter(m => studentIds.has(m.studentId) && m.subjectId === subjectId && m.midSemType === midSemType);
+  }
+
+  async getStudentMarks(studentId: string): Promise<Mark[]> {
+    const all = this.load('ams_marks', []) as Mark[];
+    return all.filter(m => m.studentId === studentId);
+  }
+
+  async getBranchMarks(branchId: string, midSemType: MidSemType): Promise<Mark[]> {
+    const all = this.load('ams_marks', []) as Mark[];
+    const students = await this.getStudents(branchId);
+    const studentIds = new Set(students.map(s => s.uid));
+    return all.filter(m => studentIds.has(m.studentId) && m.midSemType === midSemType);
+  }
+
+  async saveMarks(marks: Omit<Mark, 'id' | 'createdAt' | 'updatedAt'>[]): Promise<void> {
+    const all = this.load('ams_marks', []) as Mark[];
+    marks.forEach(newMark => {
+      const idx = all.findIndex(m => m.studentId === newMark.studentId && m.subjectId === newMark.subjectId && m.midSemType === newMark.midSemType);
+      if (idx >= 0) {
+        all[idx] = { ...all[idx], ...newMark, updatedAt: new Date().toISOString() };
+      } else {
+        all.push({ ...newMark, id: `mark_${Date.now()}_${Math.random()}`, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+      }
+    });
+    this.save('ams_marks', all);
   }
 }
 

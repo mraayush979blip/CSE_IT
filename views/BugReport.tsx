@@ -16,6 +16,7 @@ export const BugReport: React.FC = () => {
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
+        if (!window.confirm("Are you sure you want to submit this feedback? It will open WhatsApp.")) return;
         setIsSubmitting(true);
 
         const phoneNumber = "6266439162";

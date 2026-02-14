@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { db } from '../services/db';
-import { Branch, Batch, User, Subject, FacultyAssignment, AttendanceRecord, CoordinatorAssignment } from '../types';
+import { Branch, Batch, User, Subject, FacultyAssignment, AttendanceRecord, CoordinatorAssignment, Mark } from '../types';
 import { Card, Button, Input, Select, Modal, FileUploader } from '../components/UI';
-import { Plus, Trash2, ChevronRight, Users, BookOpen, Database, Key, ArrowLeft, CheckCircle2, XCircle, Trash, Eye, Layers, Edit2, Calendar, Smartphone, Filter, AlertCircle, AlertTriangle } from 'lucide-react';
+import { Plus, Trash2, ChevronRight, Users, BookOpen, Database, Key, ArrowLeft, CheckCircle2, XCircle, Trash, Eye, Layers, Edit2, Calendar, Smartphone, Filter, AlertCircle, AlertTriangle, Trophy } from 'lucide-react';
 import { useNavigate, useLocation, Routes, Route, Navigate, useParams } from 'react-router-dom';
 
 export const AdminDashboard: React.FC = () => {
@@ -74,18 +74,43 @@ export const AdminDashboard: React.FC = () => {
 const AdminStudentDetail: React.FC<{ student: User; onBack: () => void }> = ({ student, onBack }) => {
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [marks, setMarks] = useState<Mark[]>([]);
+  const [faculty, setFaculty] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
+  const [historySubjectFilter, setHistorySubjectFilter] = useState('ALL');
+  const [expandedDate, setExpandedDate] = useState<string | null>(null);
 
   useEffect(() => {
     const load = async () => {
       try {
-        const [att, subs] = await Promise.all([db.getStudentAttendance(student.uid), db.getSubjects()]);
+        const [att, allSubs, marksData, fac, assignments] = await Promise.all([
+          db.getStudentAttendance(student.uid),
+          db.getSubjects(),
+          db.getStudentMarks(student.uid),
+          db.getFaculty(),
+          db.getAssignments()
+        ]);
+
+        // Filter subjects to only show those allotted to this student's branch/batch
+        const allottedSubjectIds = new Set(
+          assignments
+            .filter(a => a.branchId === student.studentData?.branchId && (a.batchId === 'ALL' || a.batchId === student.studentData?.batchId))
+            .map(a => a.subjectId)
+        );
+
+        // Also include subjects that have attendance data (even if assignment was removed)
+        const historySubjectIds = new Set(att.map(a => a.subjectId));
+
+        const filteredSubs = allSubs.filter(s => allottedSubjectIds.has(s.id) || historySubjectIds.has(s.id));
+
         setAttendance(att);
-        setSubjects(subs);
+        setSubjects(filteredSubs);
+        setMarks(marksData);
+        setFaculty(fac);
       } finally { setLoading(false); }
     };
     load();
-  }, [student.uid]);
+  }, [student.uid, student.studentData?.branchId, student.studentData?.batchId]);
 
   const getSubjectStats = (subjectId: string) => {
     const relevant = attendance.filter(a => a.subjectId === subjectId);
@@ -122,15 +147,183 @@ const AdminStudentDetail: React.FC<{ student: User; onBack: () => void }> = ({ s
             ))}
             {subjectStats.length === 0 && <div className="col-span-full p-4 text-center bg-slate-50 border border-dashed rounded text-slate-500">No attendance data.</div>}
           </div>
-          <div className="border border-slate-200 rounded-lg overflow-hidden">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-slate-50 border-b"><tr><th className="px-4 py-2 text-slate-900">Date</th><th className="px-4 py-2 text-slate-900">Subject</th><th className="px-4 py-2 text-center text-slate-900">Slot</th><th className="px-4 py-2 text-right text-slate-900">Status</th></tr></thead>
-              <tbody>
-                {attendance.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(r => (
-                  <tr key={r.id} className="hover:bg-slate-50"><td className="px-4 py-2 text-slate-900 font-mono">{r.date}</td><td className="px-4 py-2 text-slate-900">{subjects.find(s => s.id === r.subjectId)?.name}</td><td className="px-4 py-2 text-center text-slate-900">L{r.lectureSlot || 1}</td><td className="px-4 py-2 text-right">{r.isPresent ? <span className="text-green-600 font-bold">Present</span> : <span className="text-red-600 font-bold">Absent</span>}</td></tr>
-                ))}
-              </tbody>
-            </table>
+
+          <div className="pt-6 border-t border-slate-200">
+            <div className="flex items-center gap-2 mb-4">
+              <Trophy className="h-5 w-5 text-indigo-600" />
+              <h4 className="text-lg font-bold text-slate-900">MST Marks</h4>
+            </div>
+            {marks.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {['MID_SEM_1', 'MID_SEM_2'].map(type => {
+                  const typeMarks = marks.filter(m => m.midSemType === type);
+                  if (typeMarks.length === 0) return null;
+                  return (
+                    <div key={type} className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+                      <div className="bg-slate-50 px-4 py-2 border-b border-slate-200 text-[10px] font-black text-slate-500 uppercase tracking-widest">{type.replace('MID_SEM_', 'MST ')}</div>
+                      <div className="divide-y divide-slate-100">
+                        {typeMarks.map(m => {
+                          const sub = subjects.find(s => s.id === m.subjectId);
+                          const prof = faculty.find(f => f.uid === m.facultyId);
+                          return (
+                            <div key={m.id} className="p-3 flex justify-between items-center text-sm">
+                              <div className="flex flex-col min-w-0 mr-2">
+                                <div className="font-semibold text-slate-700 uppercase text-[10px] truncate">{sub?.name || 'Subject'}</div>
+                                <div className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">Prof. {prof?.displayName || 'Unknown'}</div>
+                              </div>
+                              <div className="font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded whitespace-nowrap">{m.marksObtained} / {m.maxMarks}</div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="p-6 text-center bg-slate-50 border border-dashed rounded text-slate-500 text-sm italic">No marks recorded.</div>
+            )}
+          </div>
+
+          <div className="pt-6 border-t border-slate-200">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+              <div className="flex items-center gap-2">
+                <Calendar className="h-5 w-5 text-indigo-600" />
+                <h4 className="text-lg font-bold text-slate-900">Attendance History</h4>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Filter:</span>
+                <select
+                  value={historySubjectFilter}
+                  onChange={(e) => {
+                    setHistorySubjectFilter(e.target.value);
+                    setExpandedDate(null);
+                  }}
+                  className="text-xs font-bold border border-slate-200 rounded-lg px-3 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all cursor-pointer"
+                >
+                  <option value="ALL">All Subjects</option>
+                  {subjects.map(s => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-sm bg-white">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-slate-50/50 border-b border-slate-100">
+                  <tr>
+                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Date</th>
+                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Present Slots</th>
+                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Absent Slots</th>
+                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {(() => {
+                    const filteredAtt = historySubjectFilter === 'ALL'
+                      ? attendance
+                      : attendance.filter(a => a.subjectId === historySubjectFilter);
+
+                    const dailyGroups: Record<string, { date: string; present: number[]; absent: number[]; records: AttendanceRecord[] }> = {};
+
+                    // Sort attendance by timestamp/slot to ensure order
+                    [...filteredAtt].sort((a, b) => (a.lectureSlot || 0) - (b.lectureSlot || 0)).forEach(r => {
+                      if (!dailyGroups[r.date]) dailyGroups[r.date] = { date: r.date, present: [], absent: [], records: [] };
+                      dailyGroups[r.date].records.push(r);
+                      if (r.isPresent) dailyGroups[r.date].present.push(r.lectureSlot || 1);
+                      else dailyGroups[r.date].absent.push(r.lectureSlot || 1);
+                    });
+
+                    const sortedDates = Object.values(dailyGroups).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+                    if (sortedDates.length === 0) {
+                      return <tr><td colSpan={4} className="px-6 py-12 text-center text-slate-400 font-bold uppercase tracking-widest text-[10px]">No Records Found</td></tr>;
+                    }
+
+                    return sortedDates.map(day => {
+                      const isExpanded = expandedDate === day.date;
+                      return (
+                        <React.Fragment key={day.date}>
+                          <tr
+                            onClick={() => setExpandedDate(isExpanded ? null : day.date)}
+                            className={`hover:bg-slate-50 transition-colors cursor-pointer group ${isExpanded ? 'bg-indigo-50/30' : ''}`}
+                          >
+                            <td className="px-6 py-4">
+                              <span className="font-mono text-xs font-bold text-slate-600 group-hover:text-indigo-600 transition-colors uppercase">{new Date(day.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+                            </td>
+                            <td className="px-6 py-4 text-center">
+                              {day.present.length > 0 ? (
+                                <div className="flex gap-1 justify-center flex-wrap">
+                                  {day.present.sort((a, b) => a - b).map(s => (
+                                    <span key={s} className="px-2 py-0.5 bg-emerald-50 text-emerald-600 font-black text-[10px] rounded-md border border-emerald-100">L{s}</span>
+                                  ))}
+                                </div>
+                              ) : <span className="text-slate-200 font-black text-[10px] uppercase tracking-widest">-</span>}
+                            </td>
+                            <td className="px-6 py-4 text-center">
+                              {day.absent.length > 0 ? (
+                                <div className="flex gap-1 justify-center flex-wrap">
+                                  {day.absent.sort((a, b) => a - b).map(s => (
+                                    <span key={s} className="px-2 py-0.5 bg-rose-50 text-rose-600 font-black text-[10px] rounded-md border border-rose-100">L{s}</span>
+                                  ))}
+                                </div>
+                              ) : <span className="text-slate-200 font-black text-[10px] uppercase tracking-widest">-</span>}
+                            </td>
+                            <td className="px-6 py-4 text-right">
+                              <button className={`p-2 rounded-full transition-all ${isExpanded ? 'bg-indigo-100 text-indigo-600 rotate-180' : 'text-slate-400 hover:bg-slate-100'}`}>
+                                <ChevronRight className="h-4 w-4" />
+                              </button>
+                            </td>
+                          </tr>
+                          {isExpanded && (
+                            <tr className="bg-slate-50/50">
+                              <td colSpan={4} className="px-6 py-4">
+                                <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-300">
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    {(() => {
+                                      // Group by subject within the expanded day
+                                      const subjectGroups: Record<string, { subjectId: string; markedBy: string; slots: number[]; isPresent: boolean[] }> = {};
+                                      day.records.forEach(r => {
+                                        const key = `${r.subjectId}_${r.markedBy}`;
+                                        if (!subjectGroups[key]) subjectGroups[key] = { subjectId: r.subjectId, markedBy: r.markedBy, slots: [], isPresent: [] };
+                                        subjectGroups[key].slots.push(r.lectureSlot || 1);
+                                        subjectGroups[key].isPresent.push(r.isPresent);
+                                      });
+
+                                      return Object.values(subjectGroups).map((sg, idx) => {
+                                        const sub = subjects.find(s => s.id === sg.subjectId);
+                                        const prof = faculty.find(f => f.uid === sg.markedBy);
+                                        return (
+                                          <div key={idx} className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex justify-between items-center group/item hover:border-indigo-200 transition-all">
+                                            <div className="min-w-0 flex-1">
+                                              <div className="font-bold text-slate-800 text-xs uppercase truncate">{sub?.name || 'Subject'}</div>
+                                              <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-0.5">Prof. {prof?.displayName || 'Unknown'}</div>
+                                            </div>
+                                            <div className="flex gap-1 ml-4 shrink-0">
+                                              {sg.slots.map((slot, sidx) => (
+                                                <span key={sidx} className={`px-2 py-0.5 rounded-lg font-black text-[9px] border ${sg.isPresent[sidx] ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-600 border-rose-100'}`}>
+                                                  L{slot}: {sg.isPresent[sidx] ? 'P' : 'A'}
+                                                </span>
+                                              ))}
+                                            </div>
+                                          </div>
+                                        );
+                                      });
+                                    })()}
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
+                      );
+                    });
+                  })()}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}
@@ -320,6 +513,7 @@ const StudentManagement: React.FC = () => {
   const handleAddStudent = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!branchId || !batchId) return;
+    if (!window.confirm("Are you sure you want to add this student?")) return;
     setLoading(true);
     try {
       await db.createStudent({
@@ -334,6 +528,7 @@ const StudentManagement: React.FC = () => {
 
   const handleEditStudent = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!window.confirm("Are you sure you want to update this student?")) return;
     setLoading(true);
     try {
       await db.updateStudent(editStudentForm.uid, {
@@ -364,7 +559,8 @@ const StudentManagement: React.FC = () => {
   };
 
   const handleDelete = async (id: string) => {
-    if (!window.confirm("Delete?")) return;
+    const itemType = level === 'branches' ? 'class' : level === 'batches' ? 'batch' : 'student';
+    if (!window.confirm(`Are you sure you want to delete this ${itemType}? This action cannot be undone.`)) return;
     try {
       if (level === 'branches') {
         await db.deleteBranch(id);
@@ -637,6 +833,7 @@ const FacultyManagement: React.FC = () => {
 
   const handleAddSubject = async () => {
     if (newSub.name) {
+      if (!window.confirm("Are you sure you want to add this subject?")) return;
       try {
         await db.addSubject(newSub.name, newSub.code);
         setNewSub({ name: '', code: '' });
@@ -647,7 +844,7 @@ const FacultyManagement: React.FC = () => {
     }
   };
   const handleDeleteSubject = async (id: string) => {
-    if (confirm("Delete?")) {
+    if (window.confirm("Are you sure you want to delete this subject?")) {
       try {
         await db.deleteSubject(id);
         setSubjects(await db.getSubjects());
@@ -658,6 +855,7 @@ const FacultyManagement: React.FC = () => {
   };
   const handleAddFaculty = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!window.confirm("Are you sure you want to add this faculty member?")) return;
     try {
       await db.createFaculty({
         displayName: newFac.name,
@@ -672,7 +870,7 @@ const FacultyManagement: React.FC = () => {
     }
   };
   const handleDeleteFaculty = async (uid: string) => {
-    if (confirm("Delete?")) {
+    if (window.confirm("Are you sure you want to delete this faculty member?")) {
       try {
         await db.deleteUser(uid);
         setFaculty(await db.getFaculty());
@@ -682,10 +880,11 @@ const FacultyManagement: React.FC = () => {
     }
   };
   const initiateResetPassword = (f: User) => { setSelectedFacultyForReset(f); setResetModalOpen(true); };
-  const handleResetPassword = async () => { if (selectedFacultyForReset) { try { await db.resetFacultyPassword(selectedFacultyForReset.uid, newPasswordInput); alert("Done"); setResetModalOpen(false); setFaculty(await db.getFaculty()); } catch (e: any) { alert(e.message); } } };
+  const handleResetPassword = async () => { if (selectedFacultyForReset) { if (!window.confirm("Are you sure you want to reset this password?")) return; try { await db.resetFacultyPassword(selectedFacultyForReset.uid, newPasswordInput); alert("Done"); setResetModalOpen(false); setFaculty(await db.getFaculty()); } catch (e: any) { alert(e.message); } } };
 
   const handleEditFaculty = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!window.confirm("Are you sure you want to update this faculty member?")) return;
     setIsLoadingData(true);
     try {
       await db.updateFaculty(editFacForm.uid, {
@@ -701,6 +900,7 @@ const FacultyManagement: React.FC = () => {
 
   const handleEditSubject = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!window.confirm("Are you sure you want to update this subject?")) return;
     setIsLoadingData(true);
     try {
       await db.updateSubject(editSubForm.id, editSubForm.name, editSubForm.code);
@@ -736,6 +936,7 @@ const FacultyManagement: React.FC = () => {
 
   const confirmAssignment = async () => {
     if (pendingAssignment) {
+      if (!window.confirm("Are you sure you want to finalize this allocation?")) return;
       try {
         setIsLoadingData(true);
         if (isEditingAssignment && editingAssignmentId) {
@@ -760,7 +961,7 @@ const FacultyManagement: React.FC = () => {
     setEditingAssignmentId(null);
   }
 
-  const handleDeleteAssignment = async (id: string) => { if (confirm("Remove?")) { await db.removeAssignment(id); loadData(); } };
+  const handleDeleteAssignment = async (id: string) => { if (window.confirm("Are you sure you want to remove this faculty allocation?")) { await db.removeAssignment(id); loadData(); } };
 
   const handleEditAssignment = async (assignment: FacultyAssignment) => {
     setIsEditingAssignment(true);
@@ -891,7 +1092,7 @@ const FacultyManagement: React.FC = () => {
                       <td className="p-2 text-slate-900">{faculty.find(f => f.uid === c.facultyId)?.displayName}</td>
                       <td className="p-2 text-slate-900">{branches.find(b => b.id === c.branchId)?.name}</td>
                       <td className="p-2 text-right">
-                        <button onClick={async () => { if (confirm("Remove?")) { await db.removeCoordinator(c.id); await loadData(); } }}>
+                        <button onClick={async () => { if (window.confirm("Are you sure you want to remove this coordinator assignment?")) { await db.removeCoordinator(c.id); await loadData(); } }}>
                           <Trash2 className="h-4 w-4" />
                         </button>
                       </td>

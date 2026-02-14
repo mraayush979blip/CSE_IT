@@ -1,14 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { db } from '../services/db';
-import { User, Subject, AttendanceRecord } from '../types';
+import { User, Subject, AttendanceRecord, Mark } from '../types';
 import { Card } from '../components/UI';
-import { AlertCircle, CheckCircle2 } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Trophy } from 'lucide-react';
 
 interface StudentProps { user: User; }
 
 export const StudentDashboard: React.FC<StudentProps> = ({ user }) => {
    const [subjects, setSubjects] = useState<Subject[]>([]);
    const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
+   const [marks, setMarks] = useState<Mark[]>([]);
    const [loading, setLoading] = useState(true);
 
    useEffect(() => {
@@ -25,7 +26,12 @@ export const StudentDashboard: React.FC<StudentProps> = ({ user }) => {
 
          const allSubs = await db.getSubjects();
          setSubjects(allSubs.filter(s => mySubjectIds.has(s.id)).sort((a, b) => a.name.localeCompare(b.name)));
-         setAttendance(await db.getStudentAttendance(user.uid));
+         const [attData, marksData] = await Promise.all([
+            db.getStudentAttendance(user.uid),
+            db.getStudentMarks(user.uid)
+         ]);
+         setAttendance(attData);
+         setMarks(marksData);
          setLoading(false);
       };
       loadData();
@@ -106,6 +112,56 @@ export const StudentDashboard: React.FC<StudentProps> = ({ user }) => {
                   </Card>
                )
             }) : <div className="col-span-3 text-center p-10 text-slate-500 border border-dashed rounded">No subjects assigned.</div>}
+         </div>
+
+         {/* Marks Section */}
+         <div className="space-y-4 pt-6">
+            <div className="flex items-center gap-2">
+               <Trophy className="h-5 w-5 text-indigo-600" />
+               <h3 className="text-xl font-bold text-slate-900 border-b-2 border-indigo-500 pb-1">MST Marks</h3>
+            </div>
+
+            {marks.length > 0 ? (
+               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {['MID_SEM_1', 'MID_SEM_2'].map(type => {
+                     const typeMarks = marks.filter(m => m.midSemType === type);
+                     if (typeMarks.length === 0) return null;
+
+                     return (
+                        <div key={type} className="space-y-3">
+                           <h4 className="text-sm font-black text-slate-400 uppercase tracking-widest">{type.replace('MID_SEM_', 'MST ')}</h4>
+                           <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden divide-y divide-slate-50">
+                              {typeMarks.map(m => {
+                                 const sub = subjects.find(s => s.id === m.subjectId);
+                                 const pct = Math.round((m.marksObtained / m.maxMarks) * 100);
+                                 return (
+                                    <div key={m.id} className="p-4 flex items-center justify-between hover:bg-slate-50 transition-colors">
+                                       <div className="min-w-0 mr-4">
+                                          <div className="font-bold text-slate-800 text-sm truncate uppercase">{sub?.name || 'Subject'}</div>
+                                          <div className="text-[10px] font-bold text-slate-400">{sub?.code || m.subjectId}</div>
+                                       </div>
+                                       <div className="text-right flex flex-col items-end">
+                                          <div className="flex items-baseline gap-1">
+                                             <span className={`text-lg font-black ${pct < 40 ? 'text-rose-500' : 'text-indigo-600'}`}>{m.marksObtained}</span>
+                                             <span className="text-[10px] font-bold text-slate-300">/ {m.maxMarks}</span>
+                                          </div>
+                                          <div className={`text-[9px] font-black uppercase ${pct < 40 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                                             {pct}%
+                                          </div>
+                                       </div>
+                                    </div>
+                                 );
+                              })}
+                           </div>
+                        </div>
+                     );
+                  })}
+               </div>
+            ) : (
+               <div className="p-10 text-center text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                  <p className="font-bold uppercase tracking-widest text-xs">No marks uploaded yet.</p>
+               </div>
+            )}
          </div>
       </div>
    );
