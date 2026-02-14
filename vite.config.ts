@@ -40,8 +40,8 @@ export default defineConfig(({ mode }) => {
           name: 'Acropolis Attendance Management System v2',
           short_name: 'AcroAMS',
           description: 'Advanced Attendance Management System for Acropolis Institute',
-          theme_color: '#4f46e5',
-          background_color: '#f1f5f9',
+          theme_color: '#ffffff',
+          background_color: '#ffffff',
           display: 'standalone',
           orientation: 'portrait',
           start_url: '/',
@@ -59,13 +59,13 @@ export default defineConfig(({ mode }) => {
               purpose: 'maskable'
             },
             {
-              src: 'pwa-512x512.png',
+              src: 'splash-512.png',
               sizes: '512x512',
               type: 'image/png',
               purpose: 'any'
             },
             {
-              src: 'pwa-512x512.png',
+              src: 'splash-512.png',
               sizes: '512x512',
               type: 'image/png',
               purpose: 'maskable'
