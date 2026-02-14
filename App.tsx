@@ -10,7 +10,7 @@ import { FacultyDashboard } from './views/Faculty';
 import { StudentDashboard } from './views/Student';
 import { NotificationsPage } from './views/Notifications';
 import { BugReport } from './views/BugReport';
-import { Modal, Input, Button } from './components/UI';
+import { Modal, Input, Button, AcropolisLogo } from './components/UI';
 import { ProtectedRoute } from './components/ProtectedRoute';
 
 const App: React.FC = () => {
@@ -106,8 +106,22 @@ const App: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-100">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+      <div className="min-h-screen flex flex-col items-center justify-center bg-white">
+        <div className="animate-pulse mb-16">
+          <AcropolisLogo className="h-32 w-32" />
+        </div>
+        <div className="h-1 w-48 bg-slate-100 rounded-full overflow-hidden">
+          <div className="h-full bg-indigo-600 animate-progress w-full"></div>
+        </div>
+        <style>{`
+          @keyframes progress {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+          }
+          .animate-progress {
+            animation: progress 1.5s infinite linear;
+          }
+        `}</style>
       </div>
     );
   }

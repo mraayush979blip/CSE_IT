@@ -105,9 +105,9 @@ export const AcropolisLogo: React.FC<{ className?: string; variant?: 'login' | '
   const isDashboard = variant === 'dashboard';
   return (
     <img
-      src={isDashboard ? "https://lh3.googleusercontent.com/d/1KLlB1FydOf1bvIlPFjra9cHsufesouHV" : "/pwa-192x192.png"}
+      src={isDashboard ? "https://lh3.googleusercontent.com/d/1KLlB1FydOf1bvIlPFjra9cHsufesouHV" : "/splash-512.png"}
       alt="Acropolis Logo"
-      className={`${className} object-contain ${!isDashboard ? 'scale-[1.1]' : ''}`}
+      className={`${className} object-contain ${!isDashboard ? 'scale-[1.4]' : ''}`}
     />
   );
 };
