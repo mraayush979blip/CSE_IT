@@ -106,7 +106,7 @@ export const AcropolisLogo: React.FC<{ className?: string }> = ({ className }) =
     <img
       src="/pwa-192x192.png"
       alt="Acropolis Logo"
-      className={`${className} object-contain`}
+      className={`${className} object-contain scale-[1.8]`}
     />
   );
 };
