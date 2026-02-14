@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { LogOut, User as UserIcon, Menu, X, ChevronDown, Settings, Bell, Check, ExternalLink, Trash2, Heart, Download, Smartphone, Activity, AlertCircle, Bug, Linkedin, Code2, Globe } from 'lucide-react';
 import { User, UserRole, Notification } from '../types';
 import { db } from '../services/db';
-import { AcropolisLogo, Modal, Button } from './UI';
+import { AcropolisLogo, Modal, Button, AboutDeveloperModal } from './UI';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -98,83 +98,6 @@ const InstallAppModal: React.FC<{ isOpen: boolean; onClose: () => void; onInstal
   );
 };
 
-const AboutDeveloperModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
-  const [imgError, setImgError] = useState(false);
-
-  return (
-    <Modal isOpen={isOpen} onClose={onClose} title="About the Developer">
-      <div className="space-y-6">
-        <div className="flex flex-col items-center">
-          <div className="h-28 w-28 rounded-full bg-gradient-to-tr from-black to-slate-600 p-1 shadow-2xl">
-            <div className="h-full w-full rounded-full bg-white overflow-hidden border-4 border-white flex items-center justify-center">
-              {!imgError ? (
-                <img
-                  src="https://lh3.googleusercontent.com/d/1HRjdsWfJJm8loU9-SjE5HCQycQwDASzm"
-                  alt="Aayush Sharma"
-                  className="h-full w-full object-cover"
-                  onError={() => setImgError(true)}
-                />
-              ) : (
-                <div className="h-full w-full bg-slate-50 flex items-center justify-center text-3xl font-black text-slate-800">
-                  AS
-                </div>
-              )}
-            </div>
-          </div>
-          <h3 className="mt-4 text-xl font-black text-slate-800 uppercase tracking-tight">Aayush Sharma</h3>
-          <p className="text-xs font-bold text-black/40 uppercase tracking-[0.2em] mt-1">Full Stack Developer</p>
-        </div>
-
-        {/* Professional Bento Cards */}
-        <div className="grid grid-cols-1 gap-4">
-          <div className="group bg-slate-50 p-6 rounded-[2rem] border border-slate-200 transition-all hover:bg-white hover:shadow-2xl hover:shadow-slate-200/50">
-            <div className="flex items-start gap-4">
-              <div className="h-12 w-12 rounded-2xl bg-white shadow-sm border border-slate-100 flex items-center justify-center group-hover:scale-110 transition-transform duration-500">
-                <Code2 className="h-6 w-6 text-slate-900" />
-              </div>
-              <div className="flex-1">
-                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Principal Expertise</h4>
-                <p className="text-xs text-slate-800 font-bold leading-relaxed">
-                  Architecting <span className="text-black">high-performance</span> educational ecosystems with a focus on seamless scalability and pixel-perfect UI/UX.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Tech Stack Tags */}
-        <div className="space-y-3 px-2">
-          <h4 className="text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">Engineered With</h4>
-          <div className="flex flex-wrap justify-center gap-1.5">
-            {['React', 'Vite', 'TypeScript', 'Tailwind', 'Node.js'].map(tech => (
-              <span key={tech} className="px-3 py-1 bg-slate-100 text-slate-500 rounded-full text-[9px] font-black uppercase tracking-widest border border-slate-200">
-                {tech}
-              </span>
-            ))}
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-3">
-          <a
-            href="https://www.linkedin.com/in/aayush-sharma-2013d"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="w-full flex items-center justify-center gap-3 bg-[#0077B5] hover:bg-[#00669c] text-white py-4 rounded-2xl font-black uppercase tracking-widest text-xs transition-all shadow-lg shadow-blue-100 active:scale-95"
-          >
-            <Linkedin className="h-5 w-5" />
-            Connect on LinkedIn
-          </a>
-          <button
-            onClick={onClose}
-            className="text-slate-400 text-[10px] font-black uppercase tracking-[0.3em] hover:text-slate-600 transition text-center mt-2"
-          >
-            Close Profile
-          </button>
-        </div>
-      </div>
-    </Modal>
-  );
-};
 
 export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpenSettings, title }) => {
   const navigate = useNavigate();
@@ -187,10 +110,12 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpen
   const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
   const [canInstall, setCanInstall] = useState(false);
   const [isStandalone, setIsStandalone] = useState(false);
+  const loginIntent = sessionStorage.getItem('login_intent');
+  const displayRole = loginIntent === 'COORDINATOR' && user.role === UserRole.FACULTY ? 'COORDINATOR' : user.role;
 
   useEffect(() => {
     const checkStandalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone;
-    setIsStandalone(!!isStandalone);
+    setIsStandalone(!!checkStandalone);
   }, []);
   const menuRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
@@ -444,9 +369,9 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpen
                 onClick={() => setIsMenuOpen(!isMenuOpen)}
                 className="flex items-center space-x-3 p-2 hover:bg-indigo-800 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500"
               >
-                <div className="hidden md:flex flex-col items-end">
-                  <span className="text-sm font-semibold leading-none">{user.displayName}</span>
-                  <span className="text-xs text-indigo-300 uppercase tracking-wider mt-0.5">{user.role}</span>
+                <div className="flex flex-col items-end max-w-[120px] md:max-w-none">
+                  <span className="text-xs md:text-sm font-semibold leading-none truncate w-full text-right">{user.displayName}</span>
+                  <span className="text-[9px] md:text-xs text-indigo-300 uppercase tracking-wider mt-0.5">{displayRole}</span>
                 </div>
                 <div className="h-8 w-8 bg-indigo-700 rounded-full flex items-center justify-center border border-indigo-600"><Menu className="h-5 w-5" /></div>
               </button>
@@ -462,7 +387,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpen
                       </div>
                     </div>
                     <div className="flex flex-wrap gap-2 text-xs font-medium uppercase tracking-tighter">
-                      <span className="px-2 py-0.5 rounded bg-indigo-100 text-indigo-800">{user.role}</span>
+                      <span className="px-2 py-0.5 rounded bg-indigo-100 text-indigo-800">{displayRole}</span>
                       {user.studentData?.enrollmentId && <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-600 font-mono">{user.studentData.enrollmentId}</span>}
                     </div>
                   </div>

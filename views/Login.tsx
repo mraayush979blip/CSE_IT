@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { db } from '../services/db';
 import { User } from '../types';
-import { Button, Card, Input, AcropolisLogo, Select } from '../components/UI';
+import { Button, Card, Input, AcropolisLogo, Select, AboutDeveloperModal } from '../components/UI';
 import { Lock, Mail, Eye, EyeOff, Users } from 'lucide-react';
 
 interface LoginProps {
@@ -14,6 +14,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [isDevModalOpen, setIsDevModalOpen] = useState(false);
 
   const [selectedRole, setSelectedRole] = useState<'FACULTY' | 'COORDINATOR' | 'STUDENT'>('FACULTY');
 
@@ -45,7 +46,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
         }
         const coord = await db.getCoordinatorByFaculty(user.uid);
         if (!coord) {
-          throw new Error("You are not assigned as a Class Coordintor.");
+          throw new Error("You are not assigned as a Class Coordinator.");
         }
         // We'll store a flag in sessionStorage to redirect to coordinator view
         sessionStorage.setItem('login_intent', 'COORDINATOR');
@@ -89,7 +90,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
               required
             >
               <option value="FACULTY">Login as Faculty</option>
-              <option value="COORDINATOR">Login as Class Coordintor</option>
+              <option value="COORDINATOR">Login as Class Coordinator</option>
               <option value="STUDENT">Login as Student</option>
             </Select>
           </div>
@@ -129,7 +130,17 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
             {loading ? 'Signing in...' : 'Sign In'}
           </Button>
         </form>
+
+        <div className="mt-8 pt-6 border-t border-slate-100 text-center">
+          <button
+            onClick={() => setIsDevModalOpen(true)}
+            className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 hover:text-indigo-600 transition-colors"
+          >
+            About the Developer
+          </button>
+        </div>
       </Card>
+      <AboutDeveloperModal isOpen={isDevModalOpen} onClose={() => setIsDevModalOpen(false)} />
     </div>
   );
 };

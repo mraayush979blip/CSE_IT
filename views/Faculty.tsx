@@ -1544,7 +1544,7 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                      <Layers className="h-6 w-6 text-indigo-100" />
                   </div>
                   <div>
-                     <h1 className="text-lg font-black text-white leading-tight">Welcome Back, {user.displayName?.split(' ')[0]}!</h1>
+                     <h1 className="text-lg font-black text-white leading-tight">Welcome Back, {user.displayName}!</h1>
                      <p className="text-indigo-200 text-[10px] font-black tracking-[0.2em] uppercase">{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</p>
                   </div>
                </div>
