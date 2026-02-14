@@ -86,7 +86,7 @@ export interface Notification {
   timestamp: number;
 }
 
-export type MidSemType = 'MID_SEM_1' | 'MID_SEM_2';
+export type MidSemType = 'MID_SEM_1' | 'MID_SEM_2' | 'MID_SEM_REMEDIAL';
 
 export interface Mark {
   id: string;

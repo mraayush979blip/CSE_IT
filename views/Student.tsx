@@ -123,13 +123,13 @@ export const StudentDashboard: React.FC<StudentProps> = ({ user }) => {
 
             {marks.length > 0 ? (
                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {['MID_SEM_1', 'MID_SEM_2'].map(type => {
+                  {['MID_SEM_1', 'MID_SEM_2', 'MID_SEM_REMEDIAL'].map(type => {
                      const typeMarks = marks.filter(m => m.midSemType === type);
                      if (typeMarks.length === 0) return null;
 
                      return (
                         <div key={type} className="space-y-3">
-                           <h4 className="text-sm font-black text-slate-400 uppercase tracking-widest">{type.replace('MID_SEM_', 'MST ')}</h4>
+                           <h4 className="text-sm font-black text-slate-400 uppercase tracking-widest">{type === 'MID_SEM_REMEDIAL' ? 'Remedial MST' : type.replace('MID_SEM_', 'MST ')}</h4>
                            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden divide-y divide-slate-50">
                               {typeMarks.map(m => {
                                  const sub = subjects.find(s => s.id === m.subjectId);

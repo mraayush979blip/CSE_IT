@@ -2129,6 +2129,7 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                               >
                                  <option value="MID_SEM_1">MST 1</option>
                                  <option value="MID_SEM_2">MST 2</option>
+                                 <option value="MID_SEM_REMEDIAL">Remedial MST</option>
                               </Select>
                            </div>
                            <div className="space-y-1">

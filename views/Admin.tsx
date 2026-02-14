@@ -155,12 +155,12 @@ const AdminStudentDetail: React.FC<{ student: User; onBack: () => void }> = ({ s
             </div>
             {marks.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {['MID_SEM_1', 'MID_SEM_2'].map(type => {
+                {['MID_SEM_1', 'MID_SEM_2', 'MID_SEM_REMEDIAL'].map(type => {
                   const typeMarks = marks.filter(m => m.midSemType === type);
                   if (typeMarks.length === 0) return null;
                   return (
                     <div key={type} className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
-                      <div className="bg-slate-50 px-4 py-2 border-b border-slate-200 text-[10px] font-black text-slate-500 uppercase tracking-widest">{type.replace('MID_SEM_', 'MST ')}</div>
+                      <div className="bg-slate-50 px-4 py-2 border-b border-slate-200 text-[10px] font-black text-slate-500 uppercase tracking-widest">{type === 'MID_SEM_REMEDIAL' ? 'Remedial MST' : type.replace('MID_SEM_', 'MST ')}</div>
                       <div className="divide-y divide-slate-100">
                         {typeMarks.map(m => {
                           const sub = subjects.find(s => s.id === m.subjectId);
