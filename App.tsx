@@ -192,6 +192,8 @@ const App: React.FC = () => {
           <ProtectedRoute user={user} allowedRoles={[UserRole.FACULTY]}>
             <DashboardLayout title="Class Coordinator Dashboard">
               <Routes>
+                <Route path="notifications" element={<NotificationsPage user={user!} />} />
+                <Route path="report" element={<BugReport />} />
                 <Route path="*" element={<FacultyDashboard user={user!} forceCoordinatorView={true} />} />
               </Routes>
             </DashboardLayout>
