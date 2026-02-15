@@ -120,12 +120,12 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpen
   const menuRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
 
-  const getRolePath = () => {
+  const getRolePath = (strict = false) => {
     const intent = sessionStorage.getItem('login_intent');
     if (intent === 'COORDINATOR' && user.role === UserRole.FACULTY) return '/coordinator';
-    if (user.role === UserRole.ADMIN) return '/admin';
-    if (user.role === UserRole.FACULTY) return '/faculty';
-    return '/student';
+    if (user.role === UserRole.ADMIN) return strict ? '/admin/students' : '/admin';
+    if (user.role === UserRole.FACULTY) return strict ? '/faculty/mark' : '/faculty';
+    return strict ? '/student/dashboard' : '/student';
   };
 
   useEffect(() => {
@@ -273,7 +273,10 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpen
             className="flex items-center space-x-3 cursor-pointer group"
             onClick={() => {
               const target = getRolePath();
-              if (location.pathname !== target) navigate(target);
+              const targetStrict = getRolePath(true);
+              if (location.pathname !== target && location.pathname !== targetStrict) {
+                navigate(target, { replace: true });
+              }
             }}
           >
             <div className="h-10 w-10 bg-white rounded-md p-1 flex items-center justify-center flex-shrink-0 transition-transform group-hover:scale-110">

@@ -804,7 +804,7 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
       }
 
       if (currentPath !== targetPath) {
-         navigate(targetPath);
+         navigate(targetPath, { replace: true });
       }
    };
 
@@ -812,12 +812,12 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
       if (tab === activeTab) return;
 
       if (tab === 'CO-ORDINATOR') {
-         navigate('/faculty/coordinator');
+         navigate('/faculty/coordinator', { replace: true });
          return;
       }
       const idx = sortedAssignments.findIndex(a => a.branchId === selBranchId && a.subjectId === selSubjectId);
       const suffix = (idx !== -1) ? `/${idx}` : (selBranchId ? `/${selBranchId}` : '');
-      navigate(`/faculty/${tab.toLowerCase()}${suffix}`);
+      navigate(`/faculty/${tab.toLowerCase()}${suffix}`, { replace: true });
    };
 
    // Marking State
