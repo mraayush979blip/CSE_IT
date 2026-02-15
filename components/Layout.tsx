@@ -102,7 +102,6 @@ const InstallAppModal: React.FC<{ isOpen: boolean; onClose: () => void; onInstal
 export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpenSettings, title }) => {
   const navigate = useNavigate();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [isInstallModalOpen, setIsInstallModalOpen] = useState(false);
   const [isDeveloperModalOpen, setIsDeveloperModalOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -118,7 +117,6 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpen
     setIsStandalone(!!checkStandalone);
   }, []);
   const menuRef = useRef<HTMLDivElement>(null);
-  const notifRef = useRef<HTMLDivElement>(null);
 
   const getRolePath = (strict = false) => {
     const intent = sessionStorage.getItem('login_intent');
@@ -249,7 +247,6 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpen
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) setIsMenuOpen(false);
-      if (notifRef.current && !notifRef.current.contains(event.target as Node)) setIsNotifOpen(false);
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -289,14 +286,13 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpen
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3">
-            <div className="relative" ref={notifRef}>
+            <div>
               <button
                 onClick={() => {
                   const target = `${getRolePath()}/notifications`;
                   if (location.pathname !== target) navigate(target);
                 }}
                 className="p-2 rounded-full hover:bg-indigo-800 transition-colors relative"
-                onMouseEnter={() => setIsNotifOpen(true)}
               >
                 <Bell className="h-5 w-5 text-indigo-100" />
                 {notifications.filter(n => n.status === 'PENDING').length > 0 && (
@@ -306,78 +302,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpen
                 )}
               </button>
 
-              {isNotifOpen && (
-                <div
-                  className="absolute right-0 top-full mt-2 w-80 sm:w-96 bg-white rounded-lg shadow-xl border border-slate-200 overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-200"
-                  onMouseLeave={() => setIsNotifOpen(false)}
-                >
-                  <div className="p-3 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
-                    <h3 className="font-semibold text-slate-800 text-sm">Notifications</h3>
-                    <div className="flex gap-3">
-                      {notifications.length > 0 && (
-                        <button
-                          onClick={() => {
-                            if (confirm("Clear all notifications?")) {
-                              db.deleteAllNotifications(user.uid);
-                              setNotifications([]);
-                              fetchNotifications();
-                            }
-                          }}
-                          className="text-[10px] text-red-500 hover:underline font-bold"
-                        >Clear All</button>
-                      )}
-                      <button onClick={() => fetchNotifications()} className="text-[10px] text-indigo-600 hover:underline">Refresh</button>
-                    </div>
-                  </div>
-                  <div className="max-h-[400px] overflow-y-auto">
-                    {notifications.length === 0 ? (
-                      <div className="p-8 text-center text-slate-400 text-sm">No notifications</div>
-                    ) : (
-                      notifications.map(n => (
-                        <div key={n.id} className={`p-4 border-b border-slate-100 last:border-0 ${n.status === 'PENDING' ? 'bg-indigo-50/50' : 'bg-white'}`}>
-                          <div className="flex items-start gap-3">
-                            <div className={`mt-1 h-2 w-2 rounded-full flex-shrink-0 ${n.status === 'PENDING' ? 'bg-indigo-500' : 'bg-slate-300'}`}></div>
-                            <div className="flex-grow">
-                              <p className="text-xs text-slate-700 flex items-center gap-2">
-                                <span className="font-bold">{n.fromUserName}</span>: {n.type === 'OVERWRITE_REQUEST' ? 'Overwrite Request' : 'Approved'}
-                                {n.status === 'APPROVED' && <span className="ml-auto text-[9px] bg-green-100 text-green-700 px-1 rounded font-bold uppercase">Approved</span>}
-                              </p>
-                              <div className="mt-1 flex flex-wrap gap-1">
-                                <span className="px-1.5 py-0.5 bg-indigo-50 text-indigo-700 text-[10px] font-black rounded border border-indigo-100">L{n.data.slot}</span>
-                                <span className="px-1.5 py-0.5 bg-slate-100 text-slate-600 text-[10px] font-bold rounded border border-slate-200">{n.data.subjectName}</span>
-                                <span className="px-1.5 py-0.5 bg-white text-slate-400 text-[10px] font-medium rounded border border-slate-100">{n.data.date}</span>
-                              </div>
-                              <div className="mt-2 flex items-center justify-between">
-                                <span className="text-[10px] text-slate-400">{new Date(n.timestamp).toLocaleString()}</span>
-                                {n.type === 'OVERWRITE_REQUEST' && n.status === 'PENDING' && (
-                                  <button
-                                    onClick={() => handleNotificationAction(n, 'APPROVE')}
-                                    className="px-2 py-1 text-xs font-bold text-white bg-indigo-600 rounded hover:bg-indigo-700 shadow-sm transition-colors"
-                                  >Approve Overwrite</button>
-                                )}
-                                <button
-                                  onClick={() => deleteNotification(n.id)}
-                                  className="p-1 px-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
-                                ><Trash2 className="h-3.5 w-3.5" /></button>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                  {notifications.length > 0 && (
-                    <button
-                      onClick={() => {
-                        const target = `${getRolePath()}/notifications`;
-                        if (location.pathname !== target) navigate(target);
-                        setIsNotifOpen(false);
-                      }}
-                      className="w-full py-2 bg-slate-50 text-indigo-600 text-xs font-bold border-t border-slate-100 hover:bg-indigo-50 flex items-center justify-center gap-1"
-                    >See All Notifications <ExternalLink className="h-3 w-3" /></button>
-                  )}
-                </div>
-              )}
+
             </div>
 
             <div className="relative" ref={menuRef}>
