@@ -147,7 +147,14 @@ export const NotificationsPage: React.FC<NotificationsProps> = ({ user }) => {
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div className="flex items-center gap-4">
                     <button
-                        onClick={() => navigate(-1)}
+                        onClick={() => {
+                            if (window.history.length > 1) {
+                                navigate(-1);
+                            } else {
+                                const rolePath = user.role === 'ADMIN' ? '/admin' : user.role === 'FACULTY' ? '/faculty' : '/student';
+                                navigate(rolePath, { replace: true });
+                            }
+                        }}
                         className="p-2 hover:bg-slate-200 rounded-full transition-colors text-slate-600"
                         title="Go Back"
                     >

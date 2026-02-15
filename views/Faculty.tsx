@@ -796,26 +796,26 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
       if (brid && sid) {
          const idx = sortedAssignments.findIndex(a => a.branchId === brid && a.subjectId === sid);
          if (idx !== -1) {
-            navigate(`/faculty/${activeTab.toLowerCase()}/${idx}`);
+            navigate(`/faculty/${activeTab.toLowerCase()}/${idx}`, { replace: true });
          } else {
             // Fallback to raw IDs if not found in assignments list
-            navigate(`/faculty/${activeTab.toLowerCase()}/${brid}/${sid}`);
+            navigate(`/faculty/${activeTab.toLowerCase()}/${brid}/${sid}`, { replace: true });
          }
       } else if (brid) {
-         navigate(`/faculty/${activeTab.toLowerCase()}/${brid}`);
+         navigate(`/faculty/${activeTab.toLowerCase()}/${brid}`, { replace: true });
       } else {
-         navigate(`/faculty/${activeTab.toLowerCase()}`);
+         navigate(`/faculty/${activeTab.toLowerCase()}`, { replace: true });
       }
    };
 
    const setActiveTab = (tab: 'MARK' | 'HISTORY' | 'CO-ORDINATOR' | 'MARKS') => {
       if (tab === 'CO-ORDINATOR') {
-         navigate('/faculty/coordinator');
+         navigate('/faculty/coordinator', { replace: true });
          return;
       }
       const idx = sortedAssignments.findIndex(a => a.branchId === selBranchId && a.subjectId === selSubjectId);
       const suffix = (idx !== -1) ? `/${idx}` : (selBranchId ? `/${selBranchId}` : '');
-      navigate(`/faculty/${tab.toLowerCase()}${suffix}`);
+      navigate(`/faculty/${tab.toLowerCase()}${suffix}`, { replace: true });
    };
 
    // Marking State

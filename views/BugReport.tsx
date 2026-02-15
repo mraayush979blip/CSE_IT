@@ -41,7 +41,13 @@ export const BugReport: React.FC = () => {
             {/* Navigation Header */}
             <div className="flex items-center justify-between px-2 pt-2 md:pt-4">
                 <button
-                    onClick={() => navigate(-1)}
+                    onClick={() => {
+                        if (window.history.length > 1) {
+                            navigate(-1);
+                        } else {
+                            navigate('/', { replace: true });
+                        }
+                    }}
                     className="group flex items-center gap-2 px-4 py-2 bg-white border border-black/10 rounded-xl text-black/60 hover:text-black hover:border-black transition-all active:scale-95"
                 >
                     <ArrowLeft className="h-4 w-4 group-hover:-translate-x-1 transition-transform" />

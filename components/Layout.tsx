@@ -269,12 +269,12 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpen
     <div className="min-h-screen bg-slate-100 flex flex-col">
       <header className="bg-indigo-900 text-white shadow-md relative z-20">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className="h-10 w-10 bg-white rounded-md p-1 flex items-center justify-center flex-shrink-0">
+          <div className="flex items-center space-x-3 cursor-pointer group" onClick={() => navigate(getRolePath(), { replace: true })}>
+            <div className="h-10 w-10 bg-white rounded-md p-1 flex items-center justify-center flex-shrink-0 transition-transform group-hover:scale-110">
               <AcropolisLogo className="h-full w-full" variant="dashboard" />
             </div>
             <div>
-              <h1 className="text-xl font-bold tracking-tight">Acropolis AMS</h1>
+              <h1 className="text-xl font-bold tracking-tight group-hover:text-indigo-100 transition-colors">Acropolis AMS</h1>
               <p className="text-xs text-indigo-200 hidden sm:block">Attendance Management System</p>
             </div>
           </div>
@@ -282,7 +282,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpen
           <div className="flex items-center gap-2 sm:gap-3">
             <div className="relative" ref={notifRef}>
               <button
-                onClick={() => navigate(`${getRolePath()}/notifications`)}
+                onClick={() => navigate(`${getRolePath()}/notifications`, { replace: true })}
                 className="p-2 rounded-full hover:bg-indigo-800 transition-colors relative"
                 onMouseEnter={() => setIsNotifOpen(true)}
               >
@@ -356,7 +356,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpen
                   </div>
                   {notifications.length > 0 && (
                     <button
-                      onClick={() => { navigate(`${getRolePath()}/notifications`); setIsNotifOpen(false); }}
+                      onClick={() => { navigate(`${getRolePath()}/notifications`, { replace: true }); setIsNotifOpen(false); }}
                       className="w-full py-2 bg-slate-50 text-indigo-600 text-xs font-bold border-t border-slate-100 hover:bg-indigo-50 flex items-center justify-center gap-1"
                     >See All Notifications <ExternalLink className="h-3 w-3" /></button>
                   )}
@@ -412,7 +412,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpen
                       ><Settings className="h-4 w-4 mr-3" />Change Password</button>
                     )}
                     <button
-                      onClick={() => { setIsMenuOpen(false); navigate(`${getRolePath()}/report`); }}
+                      onClick={() => { setIsMenuOpen(false); navigate(`${getRolePath()}/report`, { replace: true }); }}
                       className="w-full flex items-center px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 rounded-md transition-colors"
                     ><Bug className="h-4 w-4 mr-3 text-amber-500" />Report Bug / Review</button>
                     <button
