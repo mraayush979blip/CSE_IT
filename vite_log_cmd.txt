@@ -6,3 +6,4 @@ Port 5174 is in use, trying another one...
   [32m➜[39m  [1mLocal[22m:   [36mhttp://localhost:[1m5175[22m/[39m
   [32m➜[39m  [1mNetwork[22m: [36mhttp://10.128.193.141:[1m5175[22m/[39m
 [2m[32m  ➜[39m[22m[2m  press [22m[1mh + enter[22m[2m to show help[22m
+^C
