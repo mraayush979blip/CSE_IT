@@ -1690,7 +1690,7 @@ const ReportManagement: React.FC = () => {
             </div>
           )}
         </div>
-      </Card>
-    </div>
+      </Card >
+    </div >
   );
 };
