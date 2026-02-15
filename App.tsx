@@ -8,6 +8,7 @@ import { Layout } from './components/Layout';
 import { AdminDashboard } from './views/Admin';
 import { FacultyDashboard } from './views/Faculty';
 import { StudentDashboard } from './views/Student';
+import { DeveloperDashboard } from './views/Developer';
 import { NotificationsPage } from './views/Notifications';
 import { BugReport } from './views/BugReport';
 import { Modal, Input, Button, AcropolisLogo } from './components/UI';
@@ -100,6 +101,7 @@ const App: React.FC = () => {
       case UserRole.ADMIN: return '/admin';
       case UserRole.FACULTY: return '/faculty';
       case UserRole.STUDENT: return '/student';
+      case UserRole.DEVELOPER: return '/developer';
       default: return '/login';
     }
   };
@@ -208,6 +210,22 @@ const App: React.FC = () => {
                 <Route path="notifications" element={<NotificationsPage user={user!} />} />
                 <Route path="report" element={<BugReport />} />
                 <Route path="*" element={<Navigate to="/student/dashboard" replace />} />
+              </Routes>
+            </DashboardLayout>
+          </ProtectedRoute>
+        } />
+
+        <Route path="/developer/*" element={
+          <ProtectedRoute user={user} allowedRoles={[UserRole.DEVELOPER]}>
+            <DashboardLayout title="Developer Console">
+              <Routes>
+                <Route path="dashboard" element={<DeveloperDashboard user={user!} />} />
+                <Route path="logs" element={<DeveloperDashboard user={user!} />} />
+                <Route path="database" element={<DeveloperDashboard user={user!} />} />
+                <Route path="settings" element={<DeveloperDashboard user={user!} />} />
+                <Route path="notifications" element={<NotificationsPage user={user!} />} />
+                <Route path="report" element={<BugReport />} />
+                <Route path="*" element={<Navigate to="/developer/dashboard" replace />} />
               </Routes>
             </DashboardLayout>
           </ProtectedRoute>

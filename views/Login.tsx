@@ -34,8 +34,8 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
 
       const user = await db.login(email, password);
 
-      // 0. Automatic Admin Logic: If user is admin, ignore selection and log in as admin
-      if (user.role === 'ADMIN') {
+      // 0. Automatic Admin/Developer Logic: If user is admin or developer, ignore selection and log in
+      if (user.role === 'ADMIN' || user.role === 'DEVELOPER') {
         sessionStorage.removeItem('login_intent');
         onLogin(user);
         return;

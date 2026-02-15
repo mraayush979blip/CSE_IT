@@ -6,7 +6,7 @@ import { User, UserRole } from '../types';
 interface ProtectedRouteProps {
   user: User | null;
   allowedRoles?: UserRole[];
-  children: JSX.Element;
+  children: React.ReactElement;
 }
 
 export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ user, allowedRoles, children }) => {
@@ -20,7 +20,8 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ user, allowedRol
     if (user.role === UserRole.ADMIN) return <Navigate to="/admin" replace />;
     if (user.role === UserRole.FACULTY) return <Navigate to="/faculty" replace />;
     if (user.role === UserRole.STUDENT) return <Navigate to="/student" replace />;
-    
+    if (user.role === UserRole.DEVELOPER) return <Navigate to="/developer" replace />;
+
     return <div className="p-10 text-center">Unauthorized Access</div>;
   }
 

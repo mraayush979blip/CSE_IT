@@ -3,14 +3,27 @@
 
 -- 1. Helper Functions to check roles efficiently
 -- Function to check if the current user is an Admin
+-- Function to check if the current user is an Admin (or Developer)
+-- Function to check if the current user is an Admin (or Developer)
 create or replace function public.is_admin()
 returns boolean as $$
 begin
   return exists (
     select 1 from public.profiles
-    where id = auth.uid() and role = 'ADMIN'
+    where id = auth.uid() and role IN ('ADMIN', 'DEVELOPER')
   ) OR (
-    auth.jwt() ->> 'email' IN ('hod@acropolis.in', 'acro472007@acropolis.in')
+    auth.jwt() ->> 'email' IN ('developerishere@gmail.com', 'hod@acropolis.in', 'acro472007@acropolis.in')
+  );
+end;
+$$ language plpgsql security definer;
+
+-- Function to check if the current user is a Developer
+create or replace function public.is_developer()
+returns boolean as $$
+begin
+  return exists (
+    select 1 from public.profiles
+    where id = auth.uid() and role = 'DEVELOPER'
   );
 end;
 $$ language plpgsql security definer;
@@ -43,6 +56,14 @@ drop policy if exists "Users can insert notifications" on public.notifications;
 drop policy if exists "Admin can manage profiles" on public.profiles;
 drop policy if exists "Admin can insert profiles" on public.profiles;
 drop policy if exists "Users can insert own profile" on public.profiles;
+drop policy if exists "Admin manage coordinators" on public.coordinators;
+drop policy if exists "Coordinators visible to all" on public.coordinators;
+drop policy if exists "Users can see profiles" on public.profiles;
+drop policy if exists "Developer manage self" on public.profiles;
+drop policy if exists "Admin can manage profiles" on public.profiles;
+drop policy if exists "Admin can update profiles" on public.profiles;
+drop policy if exists "Admin can delete profiles" on public.profiles;
+drop policy if exists "Admin can insert any profiles" on public.profiles;
 
 -- 3. Apply STRICT Policies
 
@@ -96,21 +117,35 @@ create policy "Users can send notifications" on public.notifications
   with check (auth.uid() = from_user_id);
 
 -- PROFILES:
--- Read: Authenticated
--- Write: Admin (Create/Delete), User (Update Own)
-create policy "Admin can manage profiles" on public.profiles
-  for all
+-- Read: Authenticated (but hide hidden developer from others)
+-- Write: Admin (but prevent managing hidden developer), User (Update Own)
+-- PROFILES:
+-- Read: Authenticated (but hide hidden developer from others)
+create policy "Users can see profiles" on public.profiles
+  for select
+  using (true);
+
+-- Write: 
+-- 1. Admin can insert ANY profile
+create policy "Admin can insert profiles" on public.profiles
+  for insert
+  with check (public.is_admin());
+
+-- 2. Admin can update/delete standard profiles
+create policy "Admin can update profiles" on public.profiles
+  for update
   using (public.is_admin())
   with check (public.is_admin());
 
--- Allow implicit self-registration if needed (optional, safer to restrict to Admin)
--- For this app, it seems students might self-register? 
--- The code shows `createStudent` uses `supabase.auth.signUp`.
--- If the client calls `profiles.insert`, they need permission.
--- Let's allow users to insert their *own* profile on signup if matches auth.uid().
-create policy "Users can insert own profile" on public.profiles
-  for insert
-  with check (auth.uid() = id);
+create policy "Admin can delete profiles" on public.profiles
+  for delete
+  using (public.is_admin());
+
+-- 3. Developer can manage everything (if they are the dev)
+create policy "Developer manage self" on public.profiles
+  for all
+  using (public.is_developer())
+  with check (public.is_developer());
 
 -- 4. FIX FOREIGN KEY CONSTRAINTS (Allow Deleting Faculty/Students)
 -- This block dynamically finds and replaces constraints to ensure ON DELETE SET NULL
@@ -131,7 +166,27 @@ BEGIN
     ALTER TABLE public.notifications ADD CONSTRAINT notifications_from_user_id_profiles_fkey FOREIGN KEY (from_user_id) REFERENCES public.profiles(id) ON DELETE SET NULL;
 END $$;
 
--- 5. ADMIN PASSWORD RESET FUNCTION
+-- 5. UPDATE ROLE CONSTRAINT & ADD COLUMNS
+DO $$
+DECLARE
+    r RECORD;
+BEGIN
+    FOR r IN (
+        SELECT conname 
+        FROM pg_constraint 
+        WHERE conrelid = 'public.profiles'::regclass 
+          AND contype = 'c' 
+          AND pg_get_constraintdef(oid) ILIKE '%role%'
+    ) LOOP
+        EXECUTE 'ALTER TABLE public.profiles DROP CONSTRAINT IF EXISTS ' || r.conname;
+    END LOOP;
+END $$;
+
+ALTER TABLE public.profiles ADD CONSTRAINT profiles_role_check CHECK (role IN ('ADMIN', 'FACULTY', 'STUDENT', 'DEVELOPER'));
+
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS last_login TIMESTAMPTZ;
+
+-- 6. ADMIN PASSWORD RESET FUNCTION
 -- Allows an Admin to change any user's password directly in auth.users
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
@@ -165,5 +220,20 @@ CREATE TABLE IF NOT EXISTS public.coordinators (
 
 ALTER TABLE public.coordinators ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Coordinators visible to all" ON public.coordinators FOR SELECT USING (true);
-CREATE POLICY "Admin manage coordinators" ON public.coordinators FOR ALL USING (public.is_admin());
+drop policy if exists "Coordinators visible to all" on public.coordinators;
+create policy "Coordinators visible to all" on public.coordinators for select using (true);
+
+drop policy if exists "Admin manage coordinators" on public.coordinators;
+create policy "Admin manage coordinators" on public.coordinators for all using (public.is_admin());
+
+-- 7. WHITELIST TABLE
+CREATE TABLE IF NOT EXISTS public.whitelist (
+    email TEXT PRIMARY KEY,
+    role TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.whitelist ENABLE ROW LEVEL SECURITY;
+
+drop policy if exists "Admin manage whitelist" on public.whitelist;
+create policy "Admin manage whitelist" on public.whitelist for all using (public.is_admin());

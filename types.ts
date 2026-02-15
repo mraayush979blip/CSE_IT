@@ -2,7 +2,8 @@
 export enum UserRole {
   ADMIN = 'ADMIN',
   FACULTY = 'FACULTY',
-  STUDENT = 'STUDENT'
+  STUDENT = 'STUDENT',
+  DEVELOPER = 'DEVELOPER'
 }
 
 export interface User {
@@ -20,6 +21,7 @@ export interface User {
   facultyData?: {
     serialNo?: string;
   };
+  lastLogin?: string;
 }
 
 export interface Branch {

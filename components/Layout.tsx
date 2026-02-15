@@ -123,6 +123,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpen
     if (intent === 'COORDINATOR' && user.role === UserRole.FACULTY) return '/coordinator';
     if (user.role === UserRole.ADMIN) return strict ? '/admin/students' : '/admin';
     if (user.role === UserRole.FACULTY) return strict ? '/faculty/mark' : '/faculty';
+    if (user.role === UserRole.DEVELOPER) return strict ? '/developer/dashboard' : '/developer';
     return strict ? '/student/dashboard' : '/student';
   };
 
