@@ -711,13 +711,6 @@ class SupabaseService implements IDataService {
     if (error) throw error;
   }
 
-  async seedDatabase(): Promise<void> {
-    // Seeding in Supabase is done via SQL or simple inserts
-    // Note: Profiles won't link to Auth users automatically unless seeded in auth.users too.
-    for (const b of SEED_BRANCHES) await supabase.from('branches').upsert(b);
-    for (const b of SEED_BATCHES) await supabase.from('batches').upsert({ id: b.id, name: b.name, branch_id: b.branchId });
-    for (const s of SEED_SUBJECTS) await supabase.from('subjects').upsert(s);
-  }
 
   async searchStudents(query: string): Promise<User[]> {
     const { data, error } = await supabase
