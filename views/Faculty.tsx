@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
+import * as XLSX from 'xlsx';
 import { db } from '../services/db';
 import { User, FacultyAssignment, AttendanceRecord, Batch, Subject, Mark, MidSemType } from '../types';
 import { Button, Card, Modal, Input, Select } from '../components/UI';
@@ -1300,8 +1301,6 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
          return;
       }
 
-      // 🚀 PERFORMANCE OPTIMIZATION: Build a lookup map
-      // This reduces complexity from O(Students * Slots * Records) to O(Records)
       const lookupMap = new Map<string, AttendanceRecord>();
       recordsToExport.forEach(r => {
          const key = `${r.studentId}_${r.date}_${r.lectureSlot || 1}`;
@@ -1318,15 +1317,29 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
             const present = myRecs.filter(r => r.isPresent).length;
             const pct = total === 0 ? 0 : Math.round((present / total) * 100);
             csvRows.push([
-               `"${s.displayName}"`,
-               `="${s.studentData?.enrollmentId || ''}"`,
+               s.displayName,
+               s.studentData?.enrollmentId || '',
                total.toString(),
                present.toString(),
-               pct.toString()
+               `${pct}%`
             ]);
          });
 
-         downloadCSV(csvRows, `Attendance_Summary_${metaData.subjects[selSubjectId]?.name || 'Log'}.csv`);
+         const wb = XLSX.utils.book_new();
+         const ws = XLSX.utils.aoa_to_sheet(csvRows);
+         const colWidths = csvRows[0].map((_, colIndex) => {
+            let maxLen = 10;
+            csvRows.forEach(row => {
+               if (row[colIndex]) {
+                  const len = row[colIndex].toString().length;
+                  if (len > maxLen) maxLen = len;
+               }
+            });
+            return { wch: maxLen + 2 };
+         });
+         ws['!cols'] = colWidths;
+         XLSX.utils.book_append_sheet(wb, ws, "Summary");
+         XLSX.writeFile(wb, `Summary_${metaData.subjects[selSubjectId]?.name || 'Log'}_${new Date().toLocaleDateString().replace(/\//g, '-')}.xlsx`);
       } else {
          const slotsMap = new Map<string, { date: string, slot: number }>();
          recordsToExport.forEach(r => {
@@ -1343,37 +1356,37 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
          });
 
          const headers = ['Student Name', 'Enrollment', 'Total Sessions', 'Present Count', 'Attendance %', ...sortedSlots.map(s => `${s.date} (L${s.slot})`)];
-         const csvRows = [headers];
-
-         const sortedStudents = [...visibleStudents].sort((a, b) => (a.studentData?.rollNo || '').localeCompare(b.studentData?.rollNo || '', undefined, { numeric: true }));
-
-         sortedStudents.forEach(s => {
+         const dataRows = [...visibleStudents].sort((a, b) => (a.studentData?.rollNo || '').localeCompare(b.studentData?.rollNo || '', undefined, { numeric: true })).map(s => {
             const myRecs = recordsToExport.filter(r => r.studentId === s.uid);
             const total = myRecs.length;
             const present = myRecs.filter(r => r.isPresent).length;
             const pct = total === 0 ? 0 : Math.round((present / total) * 100);
 
-            const row = [
-               `"${s.displayName}"`,
-               `="${s.studentData?.enrollmentId || ''}"`,
-               total.toString(),
-               present.toString(),
-               `${pct}%`
-            ];
+            const row = [s.displayName, s.studentData?.enrollmentId || '', total.toString(), present.toString(), `${pct}%`];
 
             sortedSlots.forEach(slotInfo => {
-               // 🚀 Using optimized O(1) lookup
                const rec = lookupMap.get(`${s.uid}_${slotInfo.date}_${slotInfo.slot}`);
-               if (rec) {
-                  row.push(rec.isPresent ? 'P' : 'A');
-               } else {
-                  row.push('-');
-               }
+               row.push(rec ? (rec.isPresent ? 'P' : 'A') : '-');
             });
-            csvRows.push(row);
+            return row;
          });
 
-         downloadCSV(csvRows, `Attendance_Detailed_${metaData.subjects[selSubjectId]?.name || 'Log'}.csv`);
+         const excelRows = [headers, ...dataRows];
+         const wb = XLSX.utils.book_new();
+         const ws = XLSX.utils.aoa_to_sheet(excelRows);
+         const colWidths = excelRows[0].map((_, colIndex) => {
+            let maxLen = 10;
+            excelRows.forEach(row => {
+               if (row[colIndex]) {
+                  const len = row[colIndex].toString().length;
+                  if (len > maxLen) maxLen = len;
+               }
+            });
+            return { wch: maxLen + 2 };
+         });
+         ws['!cols'] = colWidths;
+         XLSX.utils.book_append_sheet(wb, ws, "Detailed");
+         XLSX.writeFile(wb, `Detailed_${metaData.subjects[selSubjectId]?.name || 'Log'}_${new Date().toLocaleDateString().replace(/\//g, '-')}.xlsx`);
       }
       setShowExportModal(false);
    };
@@ -2655,13 +2668,67 @@ const CoordinatorReport: React.FC<{ branchId: string; branchName: string; studen
          ];
       });
 
-      const csvRows = [...headerInfo, ...dataRows];
-      const csvContent = "\uFEFF" + csvRows.map(row => row.map(cell => `"${cell.toString().replace(/"/g, '""')}"`).join(",")).join("\n");
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const link = document.createElement("a");
-      link.href = URL.createObjectURL(blob);
-      link.download = `Report_${branchName}_${new Date().toLocaleDateString()}.csv`;
-      link.click();
+      // --- STATS CALCULATION ---
+      const totalStudents = filteredStudents.length;
+      const detentionCount = filteredStudents.filter(s => {
+         const present = previewRecords.filter(r => r.studentId === s.uid && r.subjectId !== 'sub_extra' && r.isPresent).length;
+         const pct = totalRegularSessions === 0 ? 0 : (present / totalRegularSessions) * 100;
+         return pct < 75;
+      }).length;
+
+      const studentStats = filteredStudents.map(s => {
+         const present = previewRecords.filter(r => r.studentId === s.uid && r.subjectId !== 'sub_extra' && r.isPresent).length;
+         const pct = totalRegularSessions === 0 ? 0 : (present / totalRegularSessions) * 100;
+         return { name: s.displayName, pct };
+      });
+
+      const maxAtt = studentStats.length > 0 ? Math.max(...studentStats.map(s => s.pct)) : 0;
+      const highestAttendNames = studentStats.filter(s => s.pct === maxAtt).map(s => s.name).join(", ");
+      const classAvg = totalStudents === 0 ? 0 : Math.round(studentStats.reduce((acc, curr) => acc + curr.pct, 0) / totalStudents);
+
+      const statsInfo = [
+         ["EXECUTIVE SUMMARY", ""],
+         ["Total Strength", totalStudents.toString()],
+         ["Class Average", `${classAvg}%`],
+         ["Detention Count (<75%)", detentionCount.toString()],
+         ["Highest Attendance", `${Math.round(maxAtt)}% (${highestAttendNames})`],
+         []
+      ];
+
+      const csvRows = [...headerInfo, ...statsInfo, mainHeader, totalsRow, ...dataRows];
+
+      // Create Workbook
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.aoa_to_sheet(csvRows);
+
+      // --- ADVANCED STYLING & FORMATTING ---
+      // 1. Merge Main Headers
+      ws['!merges'] = [
+         { s: { r: 0, c: 0 }, e: { r: 0, c: mainHeader.length - 1 } }, // Main Title
+         { s: { r: 1, c: 0 }, e: { r: 1, c: mainHeader.length - 1 } }, // Dept
+         { s: { r: 2, c: 0 }, e: { r: 2, c: mainHeader.length - 1 } }  // Branch
+      ];
+
+      // 2. Auto-adjust column widths
+      const colWidths = mainHeader.map((_, colIndex) => {
+         let maxLen = 10;
+         csvRows.forEach((row, rowIndex) => {
+            if (rowIndex < 7) return; // Skip big title merges for width calculation
+            const val = row[colIndex];
+            if (val) {
+               const len = val.toString().length;
+               if (len > maxLen) maxLen = len;
+            }
+         });
+         return { wch: maxLen + 4 };
+      });
+      ws['!cols'] = colWidths;
+
+      // 3. Freeze Panes (Freeze top 15 rows and first 2 columns)
+      ws['!views'] = [{ state: 'frozen', xSplit: 2, ySplit: 15 }];
+
+      XLSX.utils.book_append_sheet(wb, ws, "Attendance Report");
+      XLSX.writeFile(wb, `Report_${branchName}_${new Date().toLocaleDateString().replace(/\//g, '-')}.xlsx`);
    };
 
    return (

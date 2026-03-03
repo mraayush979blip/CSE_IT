@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
+import * as XLSX from 'xlsx';
 import { db } from '../services/db';
 import { Branch, Batch, User, Subject, FacultyAssignment, AttendanceRecord, CoordinatorAssignment, Mark, SystemSettings } from '../types';
 import { Card, Button, Input, Select, Modal, FileUploader } from '../components/UI';
@@ -1492,19 +1493,18 @@ const ReportManagement: React.FC = () => {
       const totalRegularSessions = new Set(regularRecs.map(r => `${r.date}_${r.lectureSlot}_${r.subjectId}`)).size;
 
       const subjectHeaders = uniqueSubjectIds.map(sid => subjects.find(s => s.id === sid)?.code || sid);
-      const csvRows = [
+
+      const headerRows = [
         ["ACROPOLIS INSTITUTE OF RESEARCH AND TECHNOLOGY"],
         ["DEPT OF COMPUTER SCIENCE AND ENGINEERING"],
         [`Attendance Summary Report: ${branchName}`],
         [`Period: ${exportRange === 'TILL_TODAY' ? 'Full Session' : `${exportStartDate} to ${exportEndDate}`}`],
-        [],
-        ["Serial No", "Name", "Enrollment", ...subjectHeaders, "Extra", "Total lectures", "Attendance %"],
-        ["", "Total lectures held", "", ...uniqueSubjectIds.map(sid => subjectSessionCounts[sid].toString()), "", totalRegularSessions.toString(), ""]
+        []
       ];
 
       const sortedStudents = [...students].sort((a, b) => (a.studentData?.rollNo || '').localeCompare(b.studentData?.rollNo || '', undefined, { numeric: true }));
 
-      sortedStudents.forEach(s => {
+      const dataRows = sortedStudents.map(s => {
         const studentRecs = recordsToExport.filter(r => r.studentId === s.uid);
         const studentRegularRecs = studentRecs.filter(r => r.subjectId !== 'sub_extra' && r.isPresent);
         const extraCount = studentRecs.filter(r => r.subjectId === 'sub_extra' && r.isPresent).length;
@@ -1516,17 +1516,65 @@ const ReportManagement: React.FC = () => {
         const totalAttended = studentRegularRecs.length;
         const pct = totalRegularSessions === 0 ? 0 : Math.round((totalAttended / totalRegularSessions) * 100);
 
-        csvRows.push([
+        return [
           s.studentData?.rollNo || '',
-          `"${s.displayName}"`,
-          `="${s.studentData?.enrollmentId || ''}"`,
+          s.displayName,
+          s.studentData?.enrollmentId || '',
           ...subjectAttendance,
           extraCount.toString(),
           totalAttended.toString(),
           `${pct}%`
-        ]);
+        ];
       });
-      downloadCSV(csvRows, `Attendance_Summary_${branchName}.csv`);
+
+      const studentStats = sortedStudents.map(s => {
+        const present = recordsToExport.filter(r => r.studentId === s.uid && r.subjectId !== 'sub_extra' && r.isPresent).length;
+        const pct = totalRegularSessions === 0 ? 0 : (present / totalRegularSessions) * 100;
+        return { name: s.displayName, pct };
+      });
+
+      const maxAtt = studentStats.length > 0 ? Math.max(...studentStats.map(s => s.pct)) : 0;
+      const highestAttendNames = studentStats.filter(s => s.pct === maxAtt).map(s => s.name).join(", ");
+      const classAvg = sortedStudents.length === 0 ? 0 : Math.round(studentStats.reduce((acc, curr) => acc + curr.pct, 0) / sortedStudents.length);
+      const detentionCount = studentStats.filter(s => s.pct < 75).length;
+
+      const statsInfo = [
+        ["EXECUTIVE SUMMARY", ""],
+        ["Total Strength", sortedStudents.length.toString()],
+        ["Class Average", `${classAvg}%`],
+        ["Detention Count (<75%)", detentionCount.toString()],
+        ["Highest Attendance", `${Math.round(maxAtt)}% (${highestAttendNames})`],
+        []
+      ];
+
+      const headerLabels = ["Serial No", "Name", "Enrollment", ...subjectHeaders, "Extra", "Total lectures", "Attendance %"];
+      const totalsLabelRow = ["", "Total lectures held", "", ...uniqueSubjectIds.map(sid => subjectSessionCounts[sid].toString()), "", totalRegularSessions.toString(), ""];
+      const excelRows = [...headerRows, ...statsInfo, headerLabels, totalsLabelRow, ...dataRows];
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.aoa_to_sheet(excelRows);
+      ws['!merges'] = [
+        { s: { r: 0, c: 0 }, e: { r: 0, c: headerLabels.length - 1 } },
+        { s: { r: 1, c: 0 }, e: { r: 1, c: headerLabels.length - 1 } },
+        { s: { r: 2, c: 0 }, e: { r: 2, c: headerLabels.length - 1 } }
+      ];
+      const colWidths = headerLabels.map((_, colIndex) => {
+        let maxLen = 10;
+        excelRows.forEach((row, rIdx) => {
+          if (rIdx < 6) return;
+          if (row[colIndex]) {
+            const len = row[colIndex].toString().length;
+            if (len > maxLen) maxLen = len;
+          }
+        });
+        return { wch: maxLen + 4 };
+      });
+      ws['!cols'] = colWidths;
+      ws['!views'] = [{ state: 'frozen', xSplit: 2, ySplit: 14 }];
+
+      XLSX.utils.book_append_sheet(wb, ws, "Attendance Summary");
+
+      // Write File
+      XLSX.writeFile(wb, `Summary_${branchName}_${new Date().toLocaleDateString().replace(/\//g, '-')}.xlsx`);
     } else {
       const slotsMap = new Map<string, { date: string, slot: number, subjectId: string }>();
       recordsToExport.forEach(r => {
@@ -1548,20 +1596,39 @@ const ReportManagement: React.FC = () => {
 
       const sortedStudents = [...students].sort((a, b) => (a.studentData?.rollNo || '').localeCompare(b.studentData?.rollNo || '', undefined, { numeric: true }));
 
-      sortedStudents.forEach(s => {
+      const dataRows = sortedStudents.map(s => {
         const myRecs = recordsToExport.filter(r => r.studentId === s.uid);
         const total = myRecs.length;
         const present = myRecs.filter(r => r.isPresent).length;
         const pct = total === 0 ? 0 : Math.round((present / total) * 100);
-        const row = [`"${s.displayName}"`, `="${s.studentData?.enrollmentId || ''}"`, total.toString(), present.toString(), `${pct}%`];
+        const row = [s.displayName, s.studentData?.enrollmentId || '', total.toString(), present.toString(), `${pct}%`];
 
         sortedSlots.forEach(slotInfo => {
           const rec = myRecs.find(r => r.date === slotInfo.date && (r.lectureSlot || 1) === slotInfo.slot && r.subjectId === slotInfo.subjectId);
           row.push(rec ? (rec.isPresent ? 'P' : 'A') : '-');
         });
-        csvRows.push(row);
+        return row;
       });
-      downloadCSV(csvRows, `Attendance_Detailed_${branchName}.csv`);
+
+      const excelRows = [headers, ...dataRows];
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.aoa_to_sheet(excelRows);
+
+      // Auto-adjust column widths
+      const colWidths = excelRows[0].map((_, colIndex) => {
+        let maxLen = 10;
+        excelRows.forEach(row => {
+          if (row[colIndex]) {
+            const len = row[colIndex].toString().length;
+            if (len > maxLen) maxLen = len;
+          }
+        });
+        return { wch: maxLen + 2 };
+      });
+      ws['!cols'] = colWidths;
+
+      XLSX.utils.book_append_sheet(wb, ws, "Detailed Attendance");
+      XLSX.writeFile(wb, `Detailed_${branchName}_${new Date().toLocaleDateString().replace(/\//g, '-')}.xlsx`);
     }
   };
 
