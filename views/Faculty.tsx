@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import * as XLSX from 'xlsx';
+import XLSX from 'xlsx-js-style';
 import { db } from '../services/db';
 import { User, FacultyAssignment, AttendanceRecord, Batch, Subject, Mark, MidSemType } from '../types';
 import { Button, Card, Modal, Input, Select } from '../components/UI';
@@ -1337,8 +1337,14 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
          []
       ];
 
+      const isDetailed = exportFormat === 'DETAILED';
+
       // --- 2. Data Rows ---
-      const dataHeaders = ['Roll No', 'Name', 'Enrollment', 'Status', 'Total', 'Present', 'Percentage (%)', ...sortedSlots.map(s => `${s.date} (L${s.slot})`)];
+      const dataHeaders = ['Roll No', 'Name', 'Enrollment', 'Status', 'Total', 'Present', 'Percentage (%)'];
+      if (isDetailed) {
+         dataHeaders.push(...sortedSlots.map(s => `${s.date} (L${s.slot})`));
+      }
+
       const dataRows = sortedStudents.map(s => {
          const studentRecs = recordsToExport.filter(r => r.studentId === s.uid);
          const presentCount = studentRecs.filter(r => r.isPresent).length;
@@ -1351,10 +1357,12 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
          else if (pct < 90) status = '✅ Good';
 
          const row = [s.studentData?.rollNo || '', s.displayName, s.studentData?.enrollmentId || '', status, totalSessions.toString(), presentCount.toString(), `${pct}%`];
-         sortedSlots.forEach(slotInfo => {
-            const rec = lookupMap.get(`${s.uid}_${slotInfo.date}_${slotInfo.slot}`);
-            row.push(rec ? (rec.isPresent ? 'P' : 'A') : '-');
-         });
+         if (isDetailed) {
+            sortedSlots.forEach(slotInfo => {
+               const rec = lookupMap.get(`${s.uid}_${slotInfo.date}_${slotInfo.slot}`);
+               row.push(rec ? (rec.isPresent ? 'P' : 'A') : '-');
+            });
+         }
          return row;
       });
 
@@ -1391,11 +1399,12 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
       const ws = XLSX.utils.aoa_to_sheet(excelRows);
 
       // Merges
+      const mergeEndCol = dataHeaders.length - 1;
       ws['!merges'] = [
-         { s: { r: 0, c: 0 }, e: { r: 0, c: dataHeaders.length - 1 } },
-         { s: { r: 1, c: 0 }, e: { r: 1, c: dataHeaders.length - 1 } },
-         { s: { r: 2, c: 0 }, e: { r: 2, c: dataHeaders.length - 1 } },
-         { s: { r: 3, c: 0 }, e: { r: 3, c: dataHeaders.length - 1 } }
+         { s: { r: 0, c: 0 }, e: { r: 0, c: mergeEndCol } },
+         { s: { r: 1, c: 0 }, e: { r: 1, c: mergeEndCol } },
+         { s: { r: 2, c: 0 }, e: { r: 2, c: mergeEndCol } },
+         { s: { r: 3, c: 0 }, e: { r: 3, c: mergeEndCol } }
       ];
 
       // Auto Width
@@ -1414,6 +1423,64 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
 
       // Frozen Panes
       ws['!views'] = [{ state: 'frozen', xSplit: 2, ySplit: 13 }];
+
+      // --- 5. Apply Colors & Styles ---
+      const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+      for (let R = range.s.r; R <= range.e.r; ++R) {
+         for (let C = range.s.c; C <= range.e.c; ++C) {
+            const addr = XLSX.utils.encode_cell({ r: R, c: C });
+            if (!ws[addr]) continue;
+
+            // Base Style
+            ws[addr].s = {
+               font: { name: "Calibri", sz: 11 },
+               alignment: { vertical: "center", horizontal: "left", wrapText: true },
+               border: {
+                  top: { style: "thin", color: { rgb: "E2E8F0" } },
+                  bottom: { style: "thin", color: { rgb: "E2E8F0" } },
+                  left: { style: "thin", color: { rgb: "E2E8F0" } },
+                  right: { style: "thin", color: { rgb: "E2E8F0" } }
+               }
+            };
+
+            // Header Branding (Rows 0-3)
+            if (R >= 0 && R <= 3) {
+               ws[addr].s.fill = { fgColor: { rgb: "002D62" } };
+               ws[addr].s.font = { color: { rgb: "FFFFFF" }, bold: true, sz: 14 };
+               ws[addr].s.alignment.horizontal = "center";
+            }
+
+            // Stats Headers
+            if (R >= 8 && R <= 12 && C === 0) {
+               ws[addr].s.font.bold = true;
+               ws[addr].s.fill = { fgColor: { rgb: "F8FAFC" } };
+            }
+
+            // Table Header (Row 19)
+            if (R === 19) {
+               ws[addr].s.fill = { fgColor: { rgb: "1E293B" } };
+               ws[addr].s.font = { color: { rgb: "FFFFFF" }, bold: true };
+               ws[addr].s.alignment.horizontal = "center";
+            }
+
+            // Status Column Colors (Col 3)
+            if (R > 20 && C === 3) {
+               const val = ws[addr].v;
+               if (val?.includes('Excellent')) ws[addr].s.fill = { fgColor: { rgb: "DCFCE7" } };
+               else if (val?.includes('Good')) ws[addr].s.fill = { fgColor: { rgb: "DBEAFE" } };
+               else if (val?.includes('Shortage')) ws[addr].s.fill = { fgColor: { rgb: "FEF3C7" } };
+               else if (val?.includes('Critical')) ws[addr].s.fill = { fgColor: { rgb: "FEE2E2" } };
+            }
+
+            // Attendance % Column Colors (Col 6)
+            if (R > 20 && C === 6) {
+               const val = parseInt(ws[addr].v);
+               if (val >= 90) ws[addr].s.font.color = { rgb: "059669" };
+               else if (val < 75) ws[addr].s.font.color = { rgb: "DC2626" };
+               ws[addr].s.font.bold = true;
+            }
+         }
+      }
 
       XLSX.utils.book_append_sheet(wb, ws, "Attendance Report");
       XLSX.writeFile(wb, `${subjectCode}_${branchName}_Report.xlsx`);
@@ -2769,11 +2836,60 @@ const CoordinatorReport: React.FC<{ branchId: string; branchName: string; studen
       });
       ws['!cols'] = colWidths;
 
-      // 3. Freeze Panes (Freeze top 15 rows and first 2 columns)
-      ws['!views'] = [{ state: 'frozen', xSplit: 2, ySplit: 15 }];
+      // 3. Frozen Panes
+      ws['!views'] = [{ state: 'frozen', xSplit: 4, ySplit: 15 }];
+
+      // --- 5. Apply Colors & Styles ---
+      const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+      for (let R = range.s.r; R <= range.e.r; ++R) {
+         for (let C = range.s.c; C <= range.e.c; ++C) {
+            const addr = XLSX.utils.encode_cell({ r: R, c: C });
+            if (!ws[addr]) continue;
+
+            ws[addr].s = {
+               font: { name: "Calibri", sz: 10 },
+               alignment: { vertical: "center", horizontal: "left", wrapText: true },
+               border: {
+                  top: { style: "thin", color: { rgb: "CBD5E1" } },
+                  bottom: { style: "thin", color: { rgb: "CBD5E1" } },
+                  left: { style: "thin", color: { rgb: "CBD5E1" } },
+                  right: { style: "thin", color: { rgb: "CBD5E1" } }
+               }
+            };
+
+            // Main Headers
+            if (R >= 0 && R <= 2) {
+               ws[addr].s.fill = { fgColor: { rgb: "0F172A" } };
+               ws[addr].s.font = { color: { rgb: "FFFFFF" }, bold: true, sz: 12 };
+               ws[addr].s.alignment.horizontal = "center";
+            }
+
+            // Table Header (Row 14)
+            if (R === 14) {
+               ws[addr].s.fill = { fgColor: { rgb: "334155" } };
+               ws[addr].s.font = { color: { rgb: "FFFFFF" }, bold: true };
+               ws[addr].s.alignment.horizontal = "center";
+            }
+
+            // Totals Row (Row 15)
+            if (R === 15) {
+               ws[addr].s.fill = { fgColor: { rgb: "F1F5F9" } };
+               ws[addr].s.font.bold = true;
+            }
+
+            // Status Column Colors (Col 3)
+            if (R > 15 && C === 3) {
+               const val = ws[addr].v;
+               if (val?.includes('Excellent')) ws[addr].s.fill = { fgColor: { rgb: "DCFCE7" } };
+               else if (val?.includes('Good')) ws[addr].s.fill = { fgColor: { rgb: "DBEAFE" } };
+               else if (val?.includes('Shortage')) ws[addr].s.fill = { fgColor: { rgb: "FEF3C7" } };
+               else if (val?.includes('Critical')) ws[addr].s.fill = { fgColor: { rgb: "FEE2E2" } };
+            }
+         }
+      }
 
       XLSX.utils.book_append_sheet(wb, ws, "Attendance Report");
-      XLSX.writeFile(wb, `Report_${branchName}_${new Date().toLocaleDateString().replace(/\//g, '-')}.xlsx`);
+      XLSX.writeFile(wb, `${branchName}_Summary_Report.xlsx`);
    };
 
    return (
