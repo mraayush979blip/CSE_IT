@@ -1476,24 +1476,54 @@ const ReportManagement: React.FC = () => {
     const branchName = branches.find(b => b.id === selectedBranchId)?.name || 'Branch';
 
     if (exportFormat === 'COMPATIBLE') {
-      const csvRows = [['Student Name', 'Enrollment', 'Total Sessions (Regular)', 'Present (Regular)', 'Extra Lectures', 'Percentage (%)']];
+      const regularRecs = recordsToExport.filter(r => r.subjectId !== 'sub_extra');
+      const uniqueSubjectIds = Array.from(new Set(regularRecs.map(r => r.subjectId))).sort((a, b) => {
+        const nameA = subjects.find(s => s.id === a)?.code || '';
+        const nameB = subjects.find(s => s.id === b)?.code || '';
+        return nameA.localeCompare(nameB);
+      });
+
+      const subjectSessionCounts: Record<string, number> = {};
+      uniqueSubjectIds.forEach(sid => {
+        const subjectSessions = new Set(regularRecs.filter(r => r.subjectId === sid).map(r => `${r.date}_${r.lectureSlot}`)).size;
+        subjectSessionCounts[sid] = subjectSessions;
+      });
+
+      const totalRegularSessions = new Set(regularRecs.map(r => `${r.date}_${r.lectureSlot}_${r.subjectId}`)).size;
+
+      const subjectHeaders = uniqueSubjectIds.map(sid => subjects.find(s => s.id === sid)?.code || sid);
+      const csvRows = [
+        ["ACROPOLIS INSTITUTE OF RESEARCH AND TECHNOLOGY"],
+        ["DEPT OF COMPUTER SCIENCE AND ENGINEERING"],
+        [`Attendance Summary Report: ${branchName}`],
+        [`Period: ${exportRange === 'TILL_TODAY' ? 'Full Session' : `${exportStartDate} to ${exportEndDate}`}`],
+        [],
+        ["Serial No", "Name", "Enrollment", ...subjectHeaders, "Extra", "Total lectures", "Attendance %"],
+        ["", "Total lectures held", "", ...uniqueSubjectIds.map(sid => subjectSessionCounts[sid].toString()), "", totalRegularSessions.toString(), ""]
+      ];
+
       const sortedStudents = [...students].sort((a, b) => (a.studentData?.rollNo || '').localeCompare(b.studentData?.rollNo || '', undefined, { numeric: true }));
 
       sortedStudents.forEach(s => {
-        const myRecs = recordsToExport.filter(r => r.studentId === s.uid);
-        const regularRecs = myRecs.filter(r => r.subjectId !== 'sub_extra');
-        const extraCount = myRecs.filter(r => r.subjectId === 'sub_extra' && r.isPresent).length;
+        const studentRecs = recordsToExport.filter(r => r.studentId === s.uid);
+        const studentRegularRecs = studentRecs.filter(r => r.subjectId !== 'sub_extra' && r.isPresent);
+        const extraCount = studentRecs.filter(r => r.subjectId === 'sub_extra' && r.isPresent).length;
 
-        const total = regularRecs.length;
-        const present = regularRecs.filter(r => r.isPresent).length;
-        const pct = total === 0 ? 0 : Math.round((present / total) * 100);
+        const subjectAttendance = uniqueSubjectIds.map(sid => {
+          return studentRegularRecs.filter(r => r.subjectId === sid).length.toString();
+        });
+
+        const totalAttended = studentRegularRecs.length;
+        const pct = totalRegularSessions === 0 ? 0 : Math.round((totalAttended / totalRegularSessions) * 100);
+
         csvRows.push([
+          s.studentData?.rollNo || '',
           `"${s.displayName}"`,
           `="${s.studentData?.enrollmentId || ''}"`,
-          total.toString(),
-          present.toString(),
+          ...subjectAttendance,
           extraCount.toString(),
-          pct.toString()
+          totalAttended.toString(),
+          `${pct}%`
         ]);
       });
       downloadCSV(csvRows, `Attendance_Summary_${branchName}.csv`);

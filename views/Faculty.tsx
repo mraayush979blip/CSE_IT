@@ -740,7 +740,7 @@ const CoordinatorView: React.FC<{ branchId: string; facultyUser: User; metaData:
          )}
 
          {activeTab === 'MONITOR' && <CoordinatorMarkingMonitor branchId={branchId} metaData={metaData} />}
-         {activeTab === 'REPORTS' && <CoordinatorReport branchId={branchId} branchName={metaData.branches[branchId] || branchId} students={students} />}
+         {activeTab === 'REPORTS' && <CoordinatorReport branchId={branchId} branchName={metaData.branches[branchId] || branchId} students={students} metaData={metaData} />}
       </div >
    );
 };
@@ -2528,7 +2528,7 @@ const CoordinatorMarkingMonitor: React.FC<{ branchId: string; metaData: any }> =
    );
 };
 
-const CoordinatorReport: React.FC<{ branchId: string; branchName: string; students: User[] }> = ({ branchId, branchName, students }) => {
+const CoordinatorReport: React.FC<{ branchId: string; branchName: string; students: User[]; metaData: any }> = ({ branchId, branchName, students, metaData }) => {
    const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
    const [loading, setLoading] = useState(false);
    const [exportRange, setExportRange] = useState<'TILL_TODAY' | 'CUSTOM'>('TILL_TODAY');
@@ -2595,32 +2595,62 @@ const CoordinatorReport: React.FC<{ branchId: string; branchName: string; studen
    }, [filteredStudents, previewRecords, previewStats.sessions]);
 
    const executeExport = () => {
+      // 1. Identify relevant subjects (those with at least one record in this branch/period)
+      const regularRecs = previewRecords.filter(r => r.subjectId !== 'sub_extra');
+      const uniqueSubjectIds = Array.from(new Set(regularRecs.map(r => r.subjectId))).sort((a, b) => {
+         const nameA = metaData.subjects[a]?.code || metaData.subjects[a]?.name || '';
+         const nameB = metaData.subjects[b]?.code || metaData.subjects[b]?.name || '';
+         return nameA.localeCompare(nameB);
+      });
+
+      // Calculate total sessions per subject
+      const subjectSessionCounts: Record<string, number> = {};
+      uniqueSubjectIds.forEach(sid => {
+         const subjectSessions = new Set(regularRecs.filter(r => r.subjectId === sid).map(r => `${r.date}_${r.lectureSlot}`)).size;
+         subjectSessionCounts[sid] = subjectSessions;
+      });
+
+      const totalRegularSessions = previewStats.sessions;
+
+      // Header row
+      const subjectHeaders = uniqueSubjectIds.map(sid => metaData.subjects[sid]?.code || metaData.subjects[sid]?.name || sid);
+      const mainHeader = ["Serial No", "Name", "Enrollment ID", ...subjectHeaders, "Extra Lectures", "Total Lectures", "Attendance %"];
+
+      // Totals row (Row below subjects)
+      const totalsRow = ["", "Total Lectures Held", "", ...uniqueSubjectIds.map(sid => subjectSessionCounts[sid].toString()), "", totalRegularSessions.toString(), ""];
+
       const headerInfo = [
          ["ACROPOLIS INSTITUTE OF RESEARCH AND TECHNOLOGY"],
+         ["DEPT OF COMPUTER SCIENCE AND ENGINEERING"],
          [`Attendance Report: ${branchName}`],
          [`Type: ${exportRange === 'TILL_TODAY' ? 'Till Date' : 'Custom Range'}`],
          [`Period: ${exportRange === 'TILL_TODAY' ? 'Full Session' : `${exportStartDate} to ${exportEndDate}`}`],
          [`Generated: ${new Date().toLocaleString()}`],
          [], // Spacer
-         ["Serial No", "Name", "Enrollment ID", "Total Lectures", "Attended", "Extra Lectures", "Percentage"]
+         mainHeader,
+         totalsRow
       ];
 
       const dataRows = filteredStudents.map(s => {
-         const regularAtt = previewRecords.filter(r => r.studentId === s.uid && r.subjectId !== 'sub_extra');
-         const extraAtt = previewRecords.filter(r => r.studentId === s.uid && r.subjectId === 'sub_extra' && r.isPresent);
+         const studentRecs = previewRecords.filter(r => r.studentId === s.uid);
+         const studentRegularRecs = studentRecs.filter(r => r.subjectId !== 'sub_extra' && r.isPresent);
+         const extraCount = studentRecs.filter(r => r.subjectId === 'sub_extra' && r.isPresent).length;
 
-         const total = previewStats.sessions;
-         const present = regularAtt.filter(r => r.isPresent).length;
-         const extra = extraAtt.length;
-         const pct = total === 0 ? 0 : Math.round((present / total) * 100);
+         // Subject-wise attendance
+         const subjectAttendance = uniqueSubjectIds.map(sid => {
+            return studentRegularRecs.filter(r => r.subjectId === sid).length.toString();
+         });
+
+         const totalAttended = studentRegularRecs.length;
+         const pct = totalRegularSessions === 0 ? 0 : Math.round((totalAttended / totalRegularSessions) * 100);
 
          return [
             s.studentData?.rollNo || '',
             s.displayName,
             s.studentData?.enrollmentId || '',
-            total.toString(),
-            present.toString(),
-            extra.toString(),
+            ...subjectAttendance,
+            extraCount.toString(),
+            totalAttended.toString(),
             `${pct}%`
          ];
       });
