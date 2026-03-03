@@ -1292,7 +1292,7 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
       recordsToExport = allClassRecords.filter(r => {
          const inStart = !start || r.date >= start;
          const inEnd = !end || r.date <= end;
-         return inStart && inEnd;
+         return r.subjectId === selSubjectId && inStart && inEnd; // Fix: Explicitly filter by current subject
       });
 
       if (recordsToExport.length === 0) {
@@ -1324,7 +1324,6 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
          return a.slot - b.slot;
       });
 
-      const totalSessions = sortedSlots.length;
       const sortedStudents = [...visibleStudents].sort((a, b) => (a.studentData?.rollNo || '').localeCompare(b.studentData?.rollNo || '', undefined, { numeric: true }));
 
       // --- 1. Headers ---
@@ -1334,17 +1333,24 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
          [`Attendance Report: ${subjectName} (${subjectCode})`],
          [`Faculty: ${facultyName} | Class: ${branchName}`],
          [`Period: ${exportRange === 'TILL_TODAY' ? 'Full Session' : `${exportStartDate} to ${exportEndDate}`}`],
+         [`Report Grade: EXECUTIVE PREMIUM | Generated: ${new Date().toLocaleString()}`],
          []
       ];
 
       // --- 2. Data Rows ---
-      const dataHeaders = ['Roll No', 'Name', 'Enrollment', 'Total', 'Present', 'Percentage (%)', ...sortedSlots.map(s => `${s.date} (L${s.slot})`)];
+      const dataHeaders = ['Roll No', 'Name', 'Enrollment', 'Status', 'Total', 'Present', 'Percentage (%)', ...sortedSlots.map(s => `${s.date} (L${s.slot})`)];
       const dataRows = sortedStudents.map(s => {
-         const myRecs = recordsToExport.filter(r => r.studentId === s.uid);
-         const total = myRecs.length;
-         const present = myRecs.filter(r => r.isPresent).length;
-         const pct = total === 0 ? 0 : Math.round((present / total) * 100);
-         const row = [s.studentData?.rollNo || '', s.displayName, s.studentData?.enrollmentId || '', total.toString(), present.toString(), `${pct}%`];
+         const studentRecs = recordsToExport.filter(r => r.studentId === s.uid);
+         const presentCount = studentRecs.filter(r => r.isPresent).length;
+         const totalSessions = studentRecs.length;
+         const pct = totalSessions === 0 ? 0 : Math.round((presentCount / totalSessions) * 100);
+
+         let status = '🏆 Excellent';
+         if (pct < 60) status = '🚨 Critical';
+         else if (pct < 75) status = '⚠️ Shortage';
+         else if (pct < 90) status = '✅ Good';
+
+         const row = [s.studentData?.rollNo || '', s.displayName, s.studentData?.enrollmentId || '', status, totalSessions.toString(), presentCount.toString(), `${pct}%`];
          sortedSlots.forEach(slotInfo => {
             const rec = lookupMap.get(`${s.uid}_${slotInfo.date}_${slotInfo.slot}`);
             row.push(rec ? (rec.isPresent ? 'P' : 'A') : '-');
@@ -1370,6 +1376,12 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
          ["Class Average", `${classAvg}%`],
          ["Detention Count (<75%)", detentionCount.toString()],
          ["Highest Attendance", `${Math.round(maxAtt)}% (${highestAttendNames})`],
+         ["", ""],
+         ["REPORT LEGEND", ""],
+         ["🏆 Excellent", "Above 90%"],
+         ["✅ Good", "75% to 90%"],
+         ["⚠️ Shortage", "Shortage (60% - 75%)"],
+         ["🚨 Critical", "Critical (< 60%)"],
          []
       ];
 
@@ -2642,6 +2654,8 @@ const CoordinatorReport: React.FC<{ branchId: string; branchName: string; studen
          return nameA.localeCompare(nameB);
       });
 
+      const subjectHeaders = uniqueSubjectIds.map(sid => metaData.subjects[sid]?.code || metaData.subjects[sid]?.name || sid);
+
       // Calculate total sessions per subject
       const subjectSessionCounts: Record<string, number> = {};
       uniqueSubjectIds.forEach(sid => {
@@ -2650,13 +2664,6 @@ const CoordinatorReport: React.FC<{ branchId: string; branchName: string; studen
       });
 
       const totalRegularSessions = previewStats.sessions;
-
-      // Header row
-      const subjectHeaders = uniqueSubjectIds.map(sid => metaData.subjects[sid]?.code || metaData.subjects[sid]?.name || sid);
-      const mainHeader = ["Serial No", "Name", "Enrollment ID", ...subjectHeaders, "Extra Lectures", "Total Lectures", "Attendance %"];
-
-      // Totals row (Row below subjects)
-      const totalsRow = ["", "Total Lectures Held", "", ...uniqueSubjectIds.map(sid => subjectSessionCounts[sid].toString()), "", totalRegularSessions.toString(), ""];
 
       const headerInfo = [
          ["ACROPOLIS INSTITUTE OF RESEARCH AND TECHNOLOGY"],
@@ -2670,42 +2677,47 @@ const CoordinatorReport: React.FC<{ branchId: string; branchName: string; studen
 
       const dataRows = filteredStudents.map(s => {
          const studentRecs = previewRecords.filter(r => r.studentId === s.uid);
-         const studentRegularRecs = studentRecs.filter(r => r.subjectId !== 'sub_extra' && r.isPresent);
+         const studentRegularRecs = studentRecs.filter(r => r.subjectId !== 'sub_extra');
+         const studentTotalSessions = new Set(studentRegularRecs.map(r => `${r.date}_${r.lectureSlot}_${r.subjectId}`)).size;
+         const presentCount = studentRegularRecs.filter(r => r.isPresent).length;
          const extraCount = studentRecs.filter(r => r.subjectId === 'sub_extra' && r.isPresent).length;
 
          // Subject-wise attendance
          const subjectAttendance = uniqueSubjectIds.map(sid => {
-            return studentRegularRecs.filter(r => r.subjectId === sid).length.toString();
+            return studentRegularRecs.filter(r => r.subjectId === sid && r.isPresent).length.toString();
          });
 
-         const totalAttended = studentRegularRecs.length;
-         const pct = totalRegularSessions === 0 ? 0 : Math.round((totalAttended / totalRegularSessions) * 100);
+         const pct = studentTotalSessions === 0 ? 0 : Math.round((presentCount / studentTotalSessions) * 100);
+
+         let status = '🏆 Excellent';
+         if (pct < 60) status = '🚨 Critical';
+         else if (pct < 75) status = '⚠️ Shortage';
+         else if (pct < 90) status = '✅ Good';
 
          return [
             s.studentData?.rollNo || '',
             s.displayName,
             s.studentData?.enrollmentId || '',
+            status,
             ...subjectAttendance,
             extraCount.toString(),
-            totalAttended.toString(),
+            studentTotalSessions.toString(),
+            presentCount.toString(),
             `${pct}%`
          ];
       });
 
       // --- STATS CALCULATION ---
       const totalStudents = filteredStudents.length;
-      const detentionCount = filteredStudents.filter(s => {
-         const present = previewRecords.filter(r => r.studentId === s.uid && r.subjectId !== 'sub_extra' && r.isPresent).length;
-         const pct = totalRegularSessions === 0 ? 0 : (present / totalRegularSessions) * 100;
-         return pct < 75;
-      }).length;
-
       const studentStats = filteredStudents.map(s => {
-         const present = previewRecords.filter(r => r.studentId === s.uid && r.subjectId !== 'sub_extra' && r.isPresent).length;
-         const pct = totalRegularSessions === 0 ? 0 : (present / totalRegularSessions) * 100;
+         const studentRegularRecs = previewRecords.filter(r => r.studentId === s.uid && r.subjectId !== 'sub_extra');
+         const present = studentRegularRecs.filter(r => r.isPresent).length;
+         const total = studentRegularRecs.length;
+         const pct = total === 0 ? 0 : (present / total) * 100;
          return { name: s.displayName, pct };
       });
 
+      const detentionCount = studentStats.filter(s => s.pct < 75).length;
       const maxAtt = studentStats.length > 0 ? Math.max(...studentStats.map(s => s.pct)) : 0;
       const highestAttendNames = studentStats.filter(s => s.pct === maxAtt).map(s => s.name).join(", ");
       const classAvg = totalStudents === 0 ? 0 : Math.round(studentStats.reduce((acc, curr) => acc + curr.pct, 0) / totalStudents);
@@ -2716,8 +2728,17 @@ const CoordinatorReport: React.FC<{ branchId: string; branchName: string; studen
          ["Class Average", `${classAvg}%`],
          ["Detention Count (<75%)", detentionCount.toString()],
          ["Highest Attendance", `${Math.round(maxAtt)}% (${highestAttendNames})`],
+         ["", ""],
+         ["REPORT LEGEND", ""],
+         ["🏆 Excellent", "Total Avg > 90%"],
+         ["✅ Good", "Total Avg > 75%"],
+         ["⚠️ Shortage", "Shortage (60% - 75%)"],
+         ["🚨 Critical", "Critical (< 60%)"],
          []
       ];
+
+      const mainHeader = ["Serial No", "Name", "Enrollment ID", "Status", ...subjectHeaders, "Extra Lectures", "Total Lectures", "Present Count", "Attendance %"];
+      const totalsRow = ["", "Total Lectures Held", "", "", ...uniqueSubjectIds.map(sid => subjectSessionCounts[sid].toString()), "", "VARIES", "VARIES", ""];
 
       const csvRows = [...headerInfo, ...statsInfo, mainHeader, totalsRow, ...dataRows];
 

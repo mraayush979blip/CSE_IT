@@ -1498,15 +1498,17 @@ const ReportManagement: React.FC = () => {
       ["DEPT OF COMPUTER SCIENCE AND ENGINEERING"],
       [`Attendance Summary Report: ${branchName}`],
       [`Period: ${exportRange === 'TILL_TODAY' ? 'Full Session' : `${exportStartDate} to ${exportEndDate}`}`],
+      [`Report Grade: EXECUTIVE PREMIUM | Generated: ${new Date().toLocaleString()}`],
       []
     ];
 
     const allBranchStudents = [...students].sort((a, b) => (a.studentData?.rollNo || '').localeCompare(b.studentData?.rollNo || '', undefined, { numeric: true }));
 
     const filteredForExport = filterMode === 'FULL' ? allBranchStudents : allBranchStudents.filter(s => {
-      const mine = recordsToExport.filter(r => r.studentId === s.uid && r.subjectId !== 'sub_extra');
-      const present = mine.filter(r => r.isPresent).length;
-      const pct = totalRegularSessions === 0 ? 0 : (present / totalRegularSessions) * 100;
+      const studentRegularRecs = recordsToExport.filter(r => r.studentId === s.uid && r.subjectId !== 'sub_extra');
+      const present = studentRegularRecs.filter(r => r.isPresent).length;
+      const totalSessions = studentRegularRecs.length;
+      const pct = totalSessions === 0 ? 0 : (present / totalSessions) * 100;
       if (attendanceOperator === 'GE') return pct >= attendanceThreshold;
       if (attendanceOperator === 'LE') return pct <= attendanceThreshold;
       if (attendanceOperator === 'GT') return pct > attendanceThreshold;
@@ -1516,30 +1518,40 @@ const ReportManagement: React.FC = () => {
 
     const dataRows = filteredForExport.map(s => {
       const studentRecs = recordsToExport.filter(r => r.studentId === s.uid);
-      const studentRegularRecs = studentRecs.filter(r => r.subjectId !== 'sub_extra' && r.isPresent);
+      const studentRegularRecs = studentRecs.filter(r => r.subjectId !== 'sub_extra');
+      const presentCount = studentRegularRecs.filter(r => r.isPresent).length;
+      const totalSessions = studentRegularRecs.length;
       const extraCount = studentRecs.filter(r => r.subjectId === 'sub_extra' && r.isPresent).length;
 
       const subjectAttendance = uniqueSubjectIds.map(sid => {
-        return studentRegularRecs.filter(r => r.subjectId === sid).length.toString();
+        return studentRegularRecs.filter(r => r.subjectId === sid && r.isPresent).length.toString();
       });
 
-      const totalAttended = studentRegularRecs.length;
-      const pct = totalRegularSessions === 0 ? 0 : Math.round((totalAttended / totalRegularSessions) * 100);
+      const pct = totalSessions === 0 ? 0 : Math.round((presentCount / totalSessions) * 100);
+
+      let status = '🏆 Excellent';
+      if (pct < 60) status = '🚨 Critical';
+      else if (pct < 75) status = '⚠️ Shortage';
+      else if (pct < 90) status = '✅ Good';
 
       return [
         s.studentData?.rollNo || '',
         s.displayName,
         s.studentData?.enrollmentId || '',
+        status,
         ...subjectAttendance,
         extraCount.toString(),
-        totalAttended.toString(),
+        totalSessions.toString(),
+        presentCount.toString(),
         `${pct}%`
       ];
     });
 
     const studentStats = filteredForExport.map(s => {
-      const present = recordsToExport.filter(r => r.studentId === s.uid && r.subjectId !== 'sub_extra' && r.isPresent).length;
-      const pct = totalRegularSessions === 0 ? 0 : (present / totalRegularSessions) * 100;
+      const studentRegularRecs = recordsToExport.filter(r => r.studentId === s.uid && r.subjectId !== 'sub_extra');
+      const present = studentRegularRecs.filter(r => r.isPresent).length;
+      const total = studentRegularRecs.length;
+      const pct = total === 0 ? 0 : (present / total) * 100;
       return { name: s.displayName, pct };
     });
 
@@ -1554,11 +1566,17 @@ const ReportManagement: React.FC = () => {
       ["Class Average", `${classAvg}%`],
       ["Detention Count (<75%)", detentionCount.toString()],
       ["Highest Attendance", `${Math.round(maxAtt)}% (${highestAttendNames})`],
+      ["", ""],
+      ["REPORT LEGEND", ""],
+      ["🏆 Excellent", "Final Attendance > 90%"],
+      ["✅ Good", "Final Attendance > 75%"],
+      ["⚠️ Shortage", "Shortage (60% - 75%)"],
+      ["🚨 Critical", "Critical (< 60%)"],
       []
     ];
 
-    const headerLabels = ["Serial No", "Name", "Enrollment", ...subjectHeaders, "Extra", "Total lectures", "Attendance %"];
-    const totalsLabelRow = ["", "Total lectures held", "", ...uniqueSubjectIds.map(sid => subjectSessionCounts[sid].toString()), "", totalRegularSessions.toString(), ""];
+    const headerLabels = ["Serial No", "Name", "Enrollment", "Status", ...subjectHeaders, "Extra", "Total lectures", "Present Count", "Attendance %"];
+    const totalsLabelRow = ["", "Total lectures held", "", "", ...uniqueSubjectIds.map(sid => subjectSessionCounts[sid].toString()), "", "VARIES", "VARIES", ""];
     const excelRows = [...headerRows, ...statsInfo, headerLabels, totalsLabelRow, ...dataRows];
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.aoa_to_sheet(excelRows);
