@@ -1286,7 +1286,6 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
 
    const executeExport = () => {
       let recordsToExport = allClassRecords;
-
       const start = exportRange === 'CUSTOM' ? exportStartDate : '';
       const end = exportEndDate;
 
@@ -1301,93 +1300,111 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
          return;
       }
 
+      const branchName = metaData.branches[selBranchId] || 'Branch';
+      const subjectDetail = metaData.subjects[selSubjectId];
+      const subjectName = subjectDetail?.name || 'Subject';
+      const subjectCode = subjectDetail?.code || '';
+      const facultyName = user.displayName;
+
       const lookupMap = new Map<string, AttendanceRecord>();
       recordsToExport.forEach(r => {
          const key = `${r.studentId}_${r.date}_${r.lectureSlot || 1}`;
          lookupMap.set(key, r);
       });
 
-      if (exportFormat === 'COMPATIBLE') {
-         const csvRows = [['Student Name', 'Enrollment', 'Total Sessions', 'Present', 'Percentage (%)']];
-         const sortedStudents = [...visibleStudents].sort((a, b) => (a.studentData?.rollNo || '').localeCompare(b.studentData?.rollNo || '', undefined, { numeric: true }));
+      const slotsMap = new Map<string, { date: string, slot: number }>();
+      recordsToExport.forEach(r => {
+         const slot = r.lectureSlot || 1;
+         const key = `${r.date}_L${slot}`;
+         if (!slotsMap.has(key)) slotsMap.set(key, { date: r.date, slot });
+      });
 
-         sortedStudents.forEach(s => {
-            const myRecs = recordsToExport.filter(r => r.studentId === s.uid);
-            const total = myRecs.length;
-            const present = myRecs.filter(r => r.isPresent).length;
-            const pct = total === 0 ? 0 : Math.round((present / total) * 100);
-            csvRows.push([
-               s.displayName,
-               s.studentData?.enrollmentId || '',
-               total.toString(),
-               present.toString(),
-               `${pct}%`
-            ]);
-         });
+      const sortedSlots = Array.from(slotsMap.values()).sort((a, b) => {
+         if (a.date !== b.date) return a.date.localeCompare(b.date);
+         return a.slot - b.slot;
+      });
 
-         const wb = XLSX.utils.book_new();
-         const ws = XLSX.utils.aoa_to_sheet(csvRows);
-         const colWidths = csvRows[0].map((_, colIndex) => {
-            let maxLen = 10;
-            csvRows.forEach(row => {
-               if (row[colIndex]) {
-                  const len = row[colIndex].toString().length;
-                  if (len > maxLen) maxLen = len;
-               }
-            });
-            return { wch: maxLen + 2 };
+      const totalSessions = sortedSlots.length;
+      const sortedStudents = [...visibleStudents].sort((a, b) => (a.studentData?.rollNo || '').localeCompare(b.studentData?.rollNo || '', undefined, { numeric: true }));
+
+      // --- 1. Headers ---
+      const headerRows = [
+         ["ACROPOLIS INSTITUTE OF RESEARCH AND TECHNOLOGY"],
+         ["DEPT OF COMPUTER SCIENCE AND ENGINEERING"],
+         [`Attendance Report: ${subjectName} (${subjectCode})`],
+         [`Faculty: ${facultyName} | Class: ${branchName}`],
+         [`Period: ${exportRange === 'TILL_TODAY' ? 'Full Session' : `${exportStartDate} to ${exportEndDate}`}`],
+         []
+      ];
+
+      // --- 2. Data Rows ---
+      const dataHeaders = ['Roll No', 'Name', 'Enrollment', 'Total', 'Present', 'Percentage (%)', ...sortedSlots.map(s => `${s.date} (L${s.slot})`)];
+      const dataRows = sortedStudents.map(s => {
+         const myRecs = recordsToExport.filter(r => r.studentId === s.uid);
+         const total = myRecs.length;
+         const present = myRecs.filter(r => r.isPresent).length;
+         const pct = total === 0 ? 0 : Math.round((present / total) * 100);
+         const row = [s.studentData?.rollNo || '', s.displayName, s.studentData?.enrollmentId || '', total.toString(), present.toString(), `${pct}%`];
+         sortedSlots.forEach(slotInfo => {
+            const rec = lookupMap.get(`${s.uid}_${slotInfo.date}_${slotInfo.slot}`);
+            row.push(rec ? (rec.isPresent ? 'P' : 'A') : '-');
          });
-         ws['!cols'] = colWidths;
-         XLSX.utils.book_append_sheet(wb, ws, "Summary");
-         XLSX.writeFile(wb, `Summary_${metaData.subjects[selSubjectId]?.name || 'Log'}_${new Date().toLocaleDateString().replace(/\//g, '-')}.xlsx`);
-      } else {
-         const slotsMap = new Map<string, { date: string, slot: number }>();
-         recordsToExport.forEach(r => {
-            const slot = r.lectureSlot || 1;
-            const key = `${r.date}_L${slot}`;
-            if (!slotsMap.has(key)) {
-               slotsMap.set(key, { date: r.date, slot });
+         return row;
+      });
+
+      // --- 3. Stats Calculation ---
+      const stats = sortedStudents.map(s => {
+         const present = recordsToExport.filter(r => r.studentId === s.uid && r.isPresent).length;
+         const total = recordsToExport.filter(r => r.studentId === s.uid).length;
+         const pct = total === 0 ? 0 : (present / total) * 100;
+         return { name: s.displayName, pct };
+      });
+      const maxAtt = stats.length > 0 ? Math.max(...stats.map(s => s.pct)) : 0;
+      const highestAttendNames = stats.filter(s => s.pct === maxAtt).map(s => s.name).join(", ");
+      const classAvg = stats.length === 0 ? 0 : Math.round(stats.reduce((acc, curr) => acc + curr.pct, 0) / stats.length);
+      const detentionCount = stats.filter(s => s.pct < 75).length;
+
+      const statsInfo = [
+         ["EXECUTIVE SUMMARY", ""],
+         ["Total Strength", sortedStudents.length.toString()],
+         ["Class Average", `${classAvg}%`],
+         ["Detention Count (<75%)", detentionCount.toString()],
+         ["Highest Attendance", `${Math.round(maxAtt)}% (${highestAttendNames})`],
+         []
+      ];
+
+      // --- 4. Assembly ---
+      const excelRows = [...headerRows, ...statsInfo, dataHeaders, ...dataRows];
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.aoa_to_sheet(excelRows);
+
+      // Merges
+      ws['!merges'] = [
+         { s: { r: 0, c: 0 }, e: { r: 0, c: dataHeaders.length - 1 } },
+         { s: { r: 1, c: 0 }, e: { r: 1, c: dataHeaders.length - 1 } },
+         { s: { r: 2, c: 0 }, e: { r: 2, c: dataHeaders.length - 1 } },
+         { s: { r: 3, c: 0 }, e: { r: 3, c: dataHeaders.length - 1 } }
+      ];
+
+      // Auto Width
+      const colWidths = dataHeaders.map((_, colIndex) => {
+         let maxLen = 10;
+         excelRows.forEach((row, ri) => {
+            if (ri < 10) return;
+            if (row[colIndex]) {
+               const len = row[colIndex].toString().length;
+               if (len > maxLen) maxLen = len;
             }
          });
+         return { wch: maxLen + 4 };
+      });
+      ws['!cols'] = colWidths;
 
-         const sortedSlots = Array.from(slotsMap.values()).sort((a, b) => {
-            if (a.date !== b.date) return a.date.localeCompare(b.date);
-            return a.slot - b.slot;
-         });
+      // Frozen Panes
+      ws['!views'] = [{ state: 'frozen', xSplit: 2, ySplit: 13 }];
 
-         const headers = ['Student Name', 'Enrollment', 'Total Sessions', 'Present Count', 'Attendance %', ...sortedSlots.map(s => `${s.date} (L${s.slot})`)];
-         const dataRows = [...visibleStudents].sort((a, b) => (a.studentData?.rollNo || '').localeCompare(b.studentData?.rollNo || '', undefined, { numeric: true })).map(s => {
-            const myRecs = recordsToExport.filter(r => r.studentId === s.uid);
-            const total = myRecs.length;
-            const present = myRecs.filter(r => r.isPresent).length;
-            const pct = total === 0 ? 0 : Math.round((present / total) * 100);
-
-            const row = [s.displayName, s.studentData?.enrollmentId || '', total.toString(), present.toString(), `${pct}%`];
-
-            sortedSlots.forEach(slotInfo => {
-               const rec = lookupMap.get(`${s.uid}_${slotInfo.date}_${slotInfo.slot}`);
-               row.push(rec ? (rec.isPresent ? 'P' : 'A') : '-');
-            });
-            return row;
-         });
-
-         const excelRows = [headers, ...dataRows];
-         const wb = XLSX.utils.book_new();
-         const ws = XLSX.utils.aoa_to_sheet(excelRows);
-         const colWidths = excelRows[0].map((_, colIndex) => {
-            let maxLen = 10;
-            excelRows.forEach(row => {
-               if (row[colIndex]) {
-                  const len = row[colIndex].toString().length;
-                  if (len > maxLen) maxLen = len;
-               }
-            });
-            return { wch: maxLen + 2 };
-         });
-         ws['!cols'] = colWidths;
-         XLSX.utils.book_append_sheet(wb, ws, "Detailed");
-         XLSX.writeFile(wb, `Detailed_${metaData.subjects[selSubjectId]?.name || 'Log'}_${new Date().toLocaleDateString().replace(/\//g, '-')}.xlsx`);
-      }
+      XLSX.utils.book_append_sheet(wb, ws, "Attendance Report");
+      XLSX.writeFile(wb, `${subjectCode}_${branchName}_Report.xlsx`);
       setShowExportModal(false);
    };
 
