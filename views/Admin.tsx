@@ -1435,6 +1435,10 @@ const ReportManagement: React.FC = () => {
   const [exportStartDate, setExportStartDate] = useState('');
   const [exportEndDate, setExportEndDate] = useState(new Date().toISOString().split('T')[0]);
   const [showFullPreview, setShowFullPreview] = useState(false);
+  const [filterMode, setFilterMode] = useState<'FULL' | 'FILTERED'>('FULL');
+  const [attendanceThreshold, setAttendanceThreshold] = useState(75);
+  const [attendanceOperator, setAttendanceOperator] = useState<'GE' | 'LE' | 'GT' | 'LT'>('GE');
+  const [showFilters, setShowFilters] = useState(false);
 
   useEffect(() => {
     db.getBranches().then(setBranches);
@@ -1460,12 +1464,9 @@ const ReportManagement: React.FC = () => {
   const executeExport = () => {
     if (!selectedBranchId) return;
 
-    const start = exportRange === 'CUSTOM' ? exportStartDate : '';
-    const end = exportEndDate;
-
     const recordsToExport = attendance.filter(r => {
-      const inStart = !start || r.date >= start;
-      const inEnd = !end || r.date <= end;
+      const inStart = !exportStartDate || r.date >= exportStartDate;
+      const inEnd = !exportEndDate || r.date <= exportEndDate;
       return inStart && inEnd;
     });
 
@@ -1476,160 +1477,114 @@ const ReportManagement: React.FC = () => {
 
     const branchName = branches.find(b => b.id === selectedBranchId)?.name || 'Branch';
 
-    if (exportFormat === 'COMPATIBLE') {
-      const regularRecs = recordsToExport.filter(r => r.subjectId !== 'sub_extra');
-      const uniqueSubjectIds = Array.from(new Set(regularRecs.map(r => r.subjectId))).sort((a, b) => {
-        const nameA = subjects.find(s => s.id === a)?.code || '';
-        const nameB = subjects.find(s => s.id === b)?.code || '';
-        return nameA.localeCompare(nameB);
+    const regularRecs = recordsToExport.filter(r => r.subjectId !== 'sub_extra');
+    const uniqueSubjectIds = Array.from(new Set(regularRecs.map(r => r.subjectId))).sort((a, b) => {
+      const nameA = subjects.find(s => s.id === a)?.code || '';
+      const nameB = subjects.find(s => s.id === b)?.code || '';
+      return nameA.localeCompare(nameB);
+    });
+
+    const subjectSessionCounts: Record<string, number> = {};
+    uniqueSubjectIds.forEach(sid => {
+      const subjectSessions = new Set(regularRecs.filter(r => r.subjectId === sid).map(r => `${r.date}_${r.lectureSlot}`)).size;
+      subjectSessionCounts[sid] = subjectSessions;
+    });
+
+    const totalRegularSessions = new Set(regularRecs.map(r => `${r.date}_${r.lectureSlot}_${r.subjectId}`)).size;
+    const subjectHeaders = uniqueSubjectIds.map(sid => subjects.find(s => s.id === sid)?.code || sid);
+
+    const headerRows = [
+      ["ACROPOLIS INSTITUTE OF RESEARCH AND TECHNOLOGY"],
+      ["DEPT OF COMPUTER SCIENCE AND ENGINEERING"],
+      [`Attendance Summary Report: ${branchName}`],
+      [`Period: ${exportRange === 'TILL_TODAY' ? 'Full Session' : `${exportStartDate} to ${exportEndDate}`}`],
+      []
+    ];
+
+    const allBranchStudents = [...students].sort((a, b) => (a.studentData?.rollNo || '').localeCompare(b.studentData?.rollNo || '', undefined, { numeric: true }));
+
+    const filteredForExport = filterMode === 'FULL' ? allBranchStudents : allBranchStudents.filter(s => {
+      const mine = recordsToExport.filter(r => r.studentId === s.uid && r.subjectId !== 'sub_extra');
+      const present = mine.filter(r => r.isPresent).length;
+      const pct = totalRegularSessions === 0 ? 0 : (present / totalRegularSessions) * 100;
+      if (attendanceOperator === 'GE') return pct >= attendanceThreshold;
+      if (attendanceOperator === 'LE') return pct <= attendanceThreshold;
+      if (attendanceOperator === 'GT') return pct > attendanceThreshold;
+      if (attendanceOperator === 'LT') return pct < attendanceThreshold;
+      return true;
+    });
+
+    const dataRows = filteredForExport.map(s => {
+      const studentRecs = recordsToExport.filter(r => r.studentId === s.uid);
+      const studentRegularRecs = studentRecs.filter(r => r.subjectId !== 'sub_extra' && r.isPresent);
+      const extraCount = studentRecs.filter(r => r.subjectId === 'sub_extra' && r.isPresent).length;
+
+      const subjectAttendance = uniqueSubjectIds.map(sid => {
+        return studentRegularRecs.filter(r => r.subjectId === sid).length.toString();
       });
 
-      const subjectSessionCounts: Record<string, number> = {};
-      uniqueSubjectIds.forEach(sid => {
-        const subjectSessions = new Set(regularRecs.filter(r => r.subjectId === sid).map(r => `${r.date}_${r.lectureSlot}`)).size;
-        subjectSessionCounts[sid] = subjectSessions;
-      });
+      const totalAttended = studentRegularRecs.length;
+      const pct = totalRegularSessions === 0 ? 0 : Math.round((totalAttended / totalRegularSessions) * 100);
 
-      const totalRegularSessions = new Set(regularRecs.map(r => `${r.date}_${r.lectureSlot}_${r.subjectId}`)).size;
-
-      const subjectHeaders = uniqueSubjectIds.map(sid => subjects.find(s => s.id === sid)?.code || sid);
-
-      const headerRows = [
-        ["ACROPOLIS INSTITUTE OF RESEARCH AND TECHNOLOGY"],
-        ["DEPT OF COMPUTER SCIENCE AND ENGINEERING"],
-        [`Attendance Summary Report: ${branchName}`],
-        [`Period: ${exportRange === 'TILL_TODAY' ? 'Full Session' : `${exportStartDate} to ${exportEndDate}`}`],
-        []
+      return [
+        s.studentData?.rollNo || '',
+        s.displayName,
+        s.studentData?.enrollmentId || '',
+        ...subjectAttendance,
+        extraCount.toString(),
+        totalAttended.toString(),
+        `${pct}%`
       ];
+    });
 
-      const sortedStudents = [...students].sort((a, b) => (a.studentData?.rollNo || '').localeCompare(b.studentData?.rollNo || '', undefined, { numeric: true }));
+    const studentStats = filteredForExport.map(s => {
+      const present = recordsToExport.filter(r => r.studentId === s.uid && r.subjectId !== 'sub_extra' && r.isPresent).length;
+      const pct = totalRegularSessions === 0 ? 0 : (present / totalRegularSessions) * 100;
+      return { name: s.displayName, pct };
+    });
 
-      const dataRows = sortedStudents.map(s => {
-        const studentRecs = recordsToExport.filter(r => r.studentId === s.uid);
-        const studentRegularRecs = studentRecs.filter(r => r.subjectId !== 'sub_extra' && r.isPresent);
-        const extraCount = studentRecs.filter(r => r.subjectId === 'sub_extra' && r.isPresent).length;
+    const maxAtt = studentStats.length > 0 ? Math.max(...studentStats.map(s => s.pct)) : 0;
+    const highestAttendNames = studentStats.filter(s => s.pct === maxAtt).map(s => s.name).join(", ");
+    const classAvg = filteredForExport.length === 0 ? 0 : Math.round(studentStats.reduce((acc, curr) => acc + curr.pct, 0) / filteredForExport.length);
+    const detentionCount = studentStats.filter(s => s.pct < 75).length;
 
-        const subjectAttendance = uniqueSubjectIds.map(sid => {
-          return studentRegularRecs.filter(r => r.subjectId === sid).length.toString();
-        });
+    const statsInfo = [
+      ["EXECUTIVE SUMMARY", ""],
+      ["Total Strength", filteredForExport.length.toString()],
+      ["Class Average", `${classAvg}%`],
+      ["Detention Count (<75%)", detentionCount.toString()],
+      ["Highest Attendance", `${Math.round(maxAtt)}% (${highestAttendNames})`],
+      []
+    ];
 
-        const totalAttended = studentRegularRecs.length;
-        const pct = totalRegularSessions === 0 ? 0 : Math.round((totalAttended / totalRegularSessions) * 100);
-
-        return [
-          s.studentData?.rollNo || '',
-          s.displayName,
-          s.studentData?.enrollmentId || '',
-          ...subjectAttendance,
-          extraCount.toString(),
-          totalAttended.toString(),
-          `${pct}%`
-        ];
+    const headerLabels = ["Serial No", "Name", "Enrollment", ...subjectHeaders, "Extra", "Total lectures", "Attendance %"];
+    const totalsLabelRow = ["", "Total lectures held", "", ...uniqueSubjectIds.map(sid => subjectSessionCounts[sid].toString()), "", totalRegularSessions.toString(), ""];
+    const excelRows = [...headerRows, ...statsInfo, headerLabels, totalsLabelRow, ...dataRows];
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(excelRows);
+    ws['!merges'] = [
+      { s: { r: 0, c: 0 }, e: { r: 0, c: headerLabels.length - 1 } },
+      { s: { r: 1, c: 0 }, e: { r: 1, c: headerLabels.length - 1 } },
+      { s: { r: 2, c: 0 }, e: { r: 2, c: headerLabels.length - 1 } }
+    ];
+    const colWidths = headerLabels.map((_, colIndex) => {
+      let maxLen = 10;
+      excelRows.forEach((row, rIdx) => {
+        if (rIdx < 6) return;
+        if (row[colIndex]) {
+          const len = row[colIndex].toString().length;
+          if (len > maxLen) maxLen = len;
+        }
       });
+      return { wch: maxLen + 4 };
+    });
+    ws['!cols'] = colWidths;
+    ws['!views'] = [{ state: 'frozen', xSplit: 2, ySplit: 14 }];
 
-      const studentStats = sortedStudents.map(s => {
-        const present = recordsToExport.filter(r => r.studentId === s.uid && r.subjectId !== 'sub_extra' && r.isPresent).length;
-        const pct = totalRegularSessions === 0 ? 0 : (present / totalRegularSessions) * 100;
-        return { name: s.displayName, pct };
-      });
+    XLSX.utils.book_append_sheet(wb, ws, "Attendance Summary");
 
-      const maxAtt = studentStats.length > 0 ? Math.max(...studentStats.map(s => s.pct)) : 0;
-      const highestAttendNames = studentStats.filter(s => s.pct === maxAtt).map(s => s.name).join(", ");
-      const classAvg = sortedStudents.length === 0 ? 0 : Math.round(studentStats.reduce((acc, curr) => acc + curr.pct, 0) / sortedStudents.length);
-      const detentionCount = studentStats.filter(s => s.pct < 75).length;
-
-      const statsInfo = [
-        ["EXECUTIVE SUMMARY", ""],
-        ["Total Strength", sortedStudents.length.toString()],
-        ["Class Average", `${classAvg}%`],
-        ["Detention Count (<75%)", detentionCount.toString()],
-        ["Highest Attendance", `${Math.round(maxAtt)}% (${highestAttendNames})`],
-        []
-      ];
-
-      const headerLabels = ["Serial No", "Name", "Enrollment", ...subjectHeaders, "Extra", "Total lectures", "Attendance %"];
-      const totalsLabelRow = ["", "Total lectures held", "", ...uniqueSubjectIds.map(sid => subjectSessionCounts[sid].toString()), "", totalRegularSessions.toString(), ""];
-      const excelRows = [...headerRows, ...statsInfo, headerLabels, totalsLabelRow, ...dataRows];
-      const wb = XLSX.utils.book_new();
-      const ws = XLSX.utils.aoa_to_sheet(excelRows);
-      ws['!merges'] = [
-        { s: { r: 0, c: 0 }, e: { r: 0, c: headerLabels.length - 1 } },
-        { s: { r: 1, c: 0 }, e: { r: 1, c: headerLabels.length - 1 } },
-        { s: { r: 2, c: 0 }, e: { r: 2, c: headerLabels.length - 1 } }
-      ];
-      const colWidths = headerLabels.map((_, colIndex) => {
-        let maxLen = 10;
-        excelRows.forEach((row, rIdx) => {
-          if (rIdx < 6) return;
-          if (row[colIndex]) {
-            const len = row[colIndex].toString().length;
-            if (len > maxLen) maxLen = len;
-          }
-        });
-        return { wch: maxLen + 4 };
-      });
-      ws['!cols'] = colWidths;
-      ws['!views'] = [{ state: 'frozen', xSplit: 2, ySplit: 14 }];
-
-      XLSX.utils.book_append_sheet(wb, ws, "Attendance Summary");
-
-      // Write File
-      XLSX.writeFile(wb, `Summary_${branchName}_${new Date().toLocaleDateString().replace(/\//g, '-')}.xlsx`);
-    } else {
-      const slotsMap = new Map<string, { date: string, slot: number, subjectId: string }>();
-      recordsToExport.forEach(r => {
-        const slot = r.lectureSlot || 1;
-        const key = `${r.date}_L${slot}_${r.subjectId}`;
-        if (!slotsMap.has(key)) slotsMap.set(key, { date: r.date, slot, subjectId: r.subjectId });
-      });
-
-      const sortedSlots = Array.from(slotsMap.values()).sort((a, b) => {
-        if (a.date !== b.date) return a.date.localeCompare(b.date);
-        return a.slot - b.slot;
-      });
-
-      const headers = ['Student Name', 'Enrollment', 'Total Sessions', 'Present Count', 'Attendance %', ...sortedSlots.map(s => {
-        const subName = subjects.find(sub => sub.id === s.subjectId)?.name || 'Unknown';
-        return `${s.date} (L${s.slot} - ${subName})`;
-      })];
-      const csvRows = [headers];
-
-      const sortedStudents = [...students].sort((a, b) => (a.studentData?.rollNo || '').localeCompare(b.studentData?.rollNo || '', undefined, { numeric: true }));
-
-      const dataRows = sortedStudents.map(s => {
-        const myRecs = recordsToExport.filter(r => r.studentId === s.uid);
-        const total = myRecs.length;
-        const present = myRecs.filter(r => r.isPresent).length;
-        const pct = total === 0 ? 0 : Math.round((present / total) * 100);
-        const row = [s.displayName, s.studentData?.enrollmentId || '', total.toString(), present.toString(), `${pct}%`];
-
-        sortedSlots.forEach(slotInfo => {
-          const rec = myRecs.find(r => r.date === slotInfo.date && (r.lectureSlot || 1) === slotInfo.slot && r.subjectId === slotInfo.subjectId);
-          row.push(rec ? (rec.isPresent ? 'P' : 'A') : '-');
-        });
-        return row;
-      });
-
-      const excelRows = [headers, ...dataRows];
-      const wb = XLSX.utils.book_new();
-      const ws = XLSX.utils.aoa_to_sheet(excelRows);
-
-      // Auto-adjust column widths
-      const colWidths = excelRows[0].map((_, colIndex) => {
-        let maxLen = 10;
-        excelRows.forEach(row => {
-          if (row[colIndex]) {
-            const len = row[colIndex].toString().length;
-            if (len > maxLen) maxLen = len;
-          }
-        });
-        return { wch: maxLen + 2 };
-      });
-      ws['!cols'] = colWidths;
-
-      XLSX.utils.book_append_sheet(wb, ws, "Detailed Attendance");
-      XLSX.writeFile(wb, `Detailed_${branchName}_${new Date().toLocaleDateString().replace(/\//g, '-')}.xlsx`);
-    }
+    // Write File
+    XLSX.writeFile(wb, `Summary_${branchName}_${new Date().toLocaleDateString().replace(/\//g, '-')}.xlsx`);
   };
 
   const downloadCSV = (rows: string[][], filename: string) => {
@@ -1718,6 +1673,38 @@ const ReportManagement: React.FC = () => {
                     )}
                   </div>
 
+                  <div className="space-y-4 pt-6 border-t border-slate-100">
+                    <label className="text-xs font-black text-slate-400 uppercase tracking-widest">3. Filter Scope</label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <button onClick={() => setFilterMode('FULL')} className={`p-4 rounded-xl border-2 transition-all ${filterMode === 'FULL' ? 'bg-indigo-900 border-indigo-900 text-white font-bold shadow-lg' : 'bg-slate-50 border-slate-50 text-slate-500 hover:bg-slate-100'}`}>Full Class</button>
+                      <button onClick={() => setFilterMode('FILTERED')} className={`p-4 rounded-xl border-2 transition-all ${filterMode === 'FILTERED' ? 'bg-indigo-900 border-indigo-900 text-white font-bold shadow-lg' : 'bg-slate-50 border-slate-50 text-slate-500 hover:bg-slate-100'}`}>Filtered</button>
+                    </div>
+                    {filterMode === 'FILTERED' && (
+                      <div className="flex gap-3 animate-in fade-in zoom-in duration-300">
+                        <select
+                          value={attendanceOperator}
+                          onChange={e => setAttendanceOperator(e.target.value as any)}
+                          className="flex-1 p-4 bg-slate-50 border-none rounded-2xl text-xs font-black text-indigo-900 uppercase outline-none focus:ring-2 focus:ring-indigo-500/20 shadow-sm"
+                        >
+                          <option value="GE">Above or Equal (&ge;)</option>
+                          <option value="LE">Below or Equal (&le;)</option>
+                          <option value="GT">Strictly Above (&gt;)</option>
+                          <option value="LT">Strictly Below (&lt;)</option>
+                        </select>
+                        <div className="flex-1 relative">
+                          <input
+                            type="number"
+                            value={attendanceThreshold}
+                            onChange={e => setAttendanceThreshold(Number(e.target.value))}
+                            className="w-full p-4 bg-slate-50 border-none rounded-2xl text-xs font-black text-indigo-900 outline-none focus:ring-2 focus:ring-indigo-500/20 shadow-sm"
+                            placeholder="Threshold %"
+                          />
+                          <span className="absolute right-4 top-4 text-[10px] text-slate-400 font-black">%</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
                   <div className="pt-6 border-t border-slate-100">
                     <div className="flex gap-4">
                       <Button onClick={() => setShowFullPreview(true)} variant="secondary" className="flex-1 py-4 font-black uppercase tracking-widest h-auto bg-slate-100 text-slate-700 border-2 border-slate-200 hover:bg-slate-200">
@@ -1759,7 +1746,18 @@ const ReportManagement: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 bg-white">
-                    {students.map(s => {
+                    {students.filter(s => {
+                      if (filterMode === 'FULL') return true;
+                      const mine = previewRecords.filter(r => r.studentId === s.uid);
+                      const total = mine.length;
+                      const present = mine.filter(r => r.isPresent).length;
+                      const pct = total === 0 ? 0 : Math.round((present / total) * 100);
+                      if (attendanceOperator === 'GE') return pct >= attendanceThreshold;
+                      if (attendanceOperator === 'LE') return pct <= attendanceThreshold;
+                      if (attendanceOperator === 'GT') return pct > attendanceThreshold;
+                      if (attendanceOperator === 'LT') return pct < attendanceThreshold;
+                      return true;
+                    }).map(s => {
                       const mine = previewRecords.filter(r => r.studentId === s.uid);
                       const total = mine.length;
                       const present = mine.filter(r => r.isPresent).length;

@@ -861,7 +861,7 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
    const [historyTillDate, setHistoryTillDate] = useState('');
    const [attendanceFilter, setAttendanceFilter] = useState<'ALL' | 'CUSTOM'>('ALL');
    const [attendanceThreshold, setAttendanceThreshold] = useState(75);
-   const [attendanceOperator, setAttendanceOperator] = useState<'GE' | 'LE'>('LE'); // GE: >=, LE: <=
+   const [attendanceOperator, setAttendanceOperator] = useState<'GE' | 'LE' | 'GT' | 'LT'>('GE'); // GE: >=, LE: <=, GT: >, LT: <
    const [showFilters, setShowFilters] = useState(false);
    const [showDeleteModal, setShowDeleteModal] = useState(false);
    const [isDeleting, setIsDeleting] = useState(false);
@@ -1930,6 +1930,8 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                                     >
                                        <option value="GE">≥</option>
                                        <option value="LE">≤</option>
+                                       <option value="GT">&gt;</option>
+                                       <option value="LT">&lt;</option>
                                     </select>
                                     <input
                                        type="number"
@@ -1975,6 +1977,8 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                            const pct = total === 0 ? 0 : Math.round((present / total) * 100);
                            if (attendanceOperator === 'GE') return pct >= attendanceThreshold;
                            if (attendanceOperator === 'LE') return pct <= attendanceThreshold;
+                           if (attendanceOperator === 'GT') return pct > attendanceThreshold;
+                           if (attendanceOperator === 'LT') return pct < attendanceThreshold;
                         }
                         return true;
                      }).map(s => {
@@ -2072,6 +2076,8 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                                  const pct = total === 0 ? 0 : Math.round((present / total) * 100);
                                  if (attendanceOperator === 'GE') return pct >= attendanceThreshold;
                                  if (attendanceOperator === 'LE') return pct <= attendanceThreshold;
+                                 if (attendanceOperator === 'GT') return pct > attendanceThreshold;
+                                 if (attendanceOperator === 'LT') return pct < attendanceThreshold;
                               }
                               return true;
                            }).map(s => {
@@ -2549,7 +2555,7 @@ const CoordinatorReport: React.FC<{ branchId: string; branchName: string; studen
    const [exportEndDate, setExportEndDate] = useState(new Date().toISOString().split('T')[0]);
    const [showFullPreview, setShowFullPreview] = useState(false);
    const [filterMode, setFilterMode] = useState<'FULL' | 'FILTERED'>('FULL');
-   const [filterCondition, setFilterCondition] = useState<'<' | '>'>('<');
+   const [filterCondition, setFilterCondition] = useState<'LE' | 'GE' | 'LT' | 'GT'>('LE');
    const [filterValue, setFilterValue] = useState(75);
 
    useEffect(() => {
@@ -2585,8 +2591,11 @@ const CoordinatorReport: React.FC<{ branchId: string; branchName: string; studen
          const relevantRegular = previewRecords.filter(r => r.studentId === s.uid && r.subjectId !== 'sub_extra');
          const present = relevantRegular.filter(r => r.isPresent).length;
          const pct = previewStats.sessions === 0 ? 0 : (present / previewStats.sessions) * 100;
-         if (filterCondition === '<') return pct < filterValue;
-         return pct > filterValue;
+         if (filterCondition === 'LT') return pct < filterValue;
+         if (filterCondition === 'GT') return pct > filterValue;
+         if (filterCondition === 'LE') return pct <= filterValue;
+         if (filterCondition === 'GE') return pct >= filterValue;
+         return true;
       });
    }, [students, previewRecords, previewStats.sessions, filterMode, filterCondition, filterValue]);
 
@@ -2639,9 +2648,7 @@ const CoordinatorReport: React.FC<{ branchId: string; branchName: string; studen
          [`Type: ${exportRange === 'TILL_TODAY' ? 'Till Date' : 'Custom Range'}`],
          [`Period: ${exportRange === 'TILL_TODAY' ? 'Full Session' : `${exportStartDate} to ${exportEndDate}`}`],
          [`Generated: ${new Date().toLocaleString()}`],
-         [], // Spacer
-         mainHeader,
-         totalsRow
+         [] // Spacer
       ];
 
       const dataRows = filteredStudents.map(s => {
@@ -2780,8 +2787,10 @@ const CoordinatorReport: React.FC<{ branchId: string; branchName: string; studen
                   {filterMode === 'FILTERED' && (
                      <div className="grid grid-cols-2 gap-3 animate-in fade-in zoom-in duration-300">
                         <select value={filterCondition} onChange={e => setFilterCondition(e.target.value as any)} className="w-full p-3 bg-slate-50 border-none rounded-2xl text-xs font-black text-indigo-900 uppercase tracking-widest outline-none focus:ring-2 focus:ring-indigo-500/20 shadow-sm">
-                           <option value="<">Below (%)</option>
-                           <option value=">">Above (%)</option>
+                           <option value="GE">Above or Equal (&ge;)</option>
+                           <option value="LE">Below or Equal (&le;)</option>
+                           <option value="GT">Strictly Above (&gt;)</option>
+                           <option value="LT">Strictly Below (&lt;)</option>
                         </select>
                         <div className="relative">
                            <input type="number" value={filterValue} onChange={e => setFilterValue(Number(e.target.value))} className="w-full p-3 bg-slate-50 border-none rounded-2xl text-xs font-black text-indigo-900 uppercase tracking-widest outline-none focus:ring-2 focus:ring-indigo-500/20 shadow-sm" />
@@ -2816,7 +2825,7 @@ const CoordinatorReport: React.FC<{ branchId: string; branchName: string; studen
                      {showFullPreview ? 'Close' : 'Preview'}
                   </Button>
                   <Button onClick={executeExport} className="flex-[2] h-16 bg-indigo-900 text-white rounded-3xl font-black uppercase tracking-widest text-[10px] shadow-xl shadow-indigo-100 hover:scale-[1.02] active:scale-[0.98] transition-all">
-                     <FileDown className="h-4 w-4 mr-2" /> Download CSV
+                     <FileDown className="h-4 w-4 mr-2" /> Download Report
                   </Button>
                </div>
             </div>

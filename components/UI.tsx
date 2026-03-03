@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { X, Upload, Linkedin, Code2 } from 'lucide-react';
+import { X, Upload, Linkedin, Code2, Globe } from 'lucide-react';
 
 export const Card: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className = '' }) => (
   <div className={`bg-white rounded-lg shadow-sm border border-slate-200 p-6 ${className}`}>
@@ -175,6 +175,15 @@ export const AboutDeveloperModal: React.FC<{ isOpen: boolean; onClose: () => voi
           >
             <Linkedin className="h-5 w-5" />
             Connect on LinkedIn
+          </a>
+          <a
+            href="https://aayush-sharma-beige.vercel.app/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full flex items-center justify-center gap-3 bg-slate-900 hover:bg-black text-white py-4 rounded-2xl font-black uppercase tracking-widest text-xs transition-all shadow-lg shadow-slate-200 active:scale-95"
+          >
+            <Globe className="h-5 w-5" />
+            View Portfolio
           </a>
           <button
             onClick={onClose}
