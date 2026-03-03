@@ -13,6 +13,7 @@ import { NotificationsPage } from './views/Notifications';
 import { BugReport } from './views/BugReport';
 import { Modal, Input, Button, AcropolisLogo } from './components/UI';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import { Analytics } from '@vercel/analytics/react';
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -242,6 +243,9 @@ const App: React.FC = () => {
         <Route path="/" element={<Navigate to={user ? getDashboardPath(user.role) : "/login"} replace />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+
+      {/* Vercel Analytics */}
+      <Analytics />
 
       {/* Global Settings Modal - Only render if not student and user is logged in */}
       {user && user.role !== UserRole.STUDENT && (
