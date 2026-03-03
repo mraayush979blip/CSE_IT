@@ -21,6 +21,10 @@
   ],
   "rewrites": [
     {
+      "source": "/api/supabase/:path*",
+      "destination": "https://rgowcovsultizysqwrff.supabase.co/:path*"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }

@@ -1,7 +1,10 @@
 
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://placeholder.supabase.co';
+const isVercel = typeof window !== 'undefined' && (window.location.hostname.includes('vercel.app') || window.location.hostname.includes('localhost'));
+const supabaseUrl = isVercel 
+    ? `${window.location.origin}/api/supabase` 
+    : (import.meta.env.VITE_SUPABASE_URL || 'https://placeholder.supabase.co');
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'placeholder-key';
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
