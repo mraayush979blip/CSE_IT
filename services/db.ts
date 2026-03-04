@@ -882,9 +882,7 @@ class SupabaseService implements IDataService {
       dataBytes += isMB ? val * 1024 * 1024 : val * 1024;
     });
 
-    // Supabase projects have ~30MB of base overhead for Auth, Realtime, and System schemas
-    const SYSTEM_OVERHEAD_BYTES = 30.18 * 1024 * 1024;
-    const totalBytes = dataBytes + SYSTEM_OVERHEAD_BYTES;
+    const totalBytes = dataBytes;
 
     const consumedMB = (totalBytes / (1024 * 1024)).toFixed(2);
     const limitMB = 500;
