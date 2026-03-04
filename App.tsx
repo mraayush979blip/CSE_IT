@@ -11,7 +11,7 @@ import { StudentDashboard } from './views/Student';
 import { DeveloperDashboard } from './views/Developer';
 import { NotificationsPage } from './views/Notifications';
 import { BugReport } from './views/BugReport';
-import { Modal, Input, Button, AcropolisLogo } from './components/UI';
+import { Modal, Input, Button, AcropolisLogo, Banner } from './components/UI';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { Analytics } from '@vercel/analytics/react';
 
@@ -23,6 +23,7 @@ const App: React.FC = () => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [passForm, setPassForm] = useState({ current: '', new: '', confirm: '' });
   const [settingsLoading, setSettingsLoading] = useState(false);
+  const [showStatusBanner, setShowStatusBanner] = useState(true); // Temporary for the incident
 
   useEffect(() => {
     const handleChunkError = (e: any) => {
@@ -143,6 +144,13 @@ const App: React.FC = () => {
 
   return (
     <>
+      {showStatusBanner && (
+        <Banner
+          message="Supabase is recovering from a regional connectivity issue in India. If you face issues, please refresh the page."
+          variant="info"
+          onClose={() => setShowStatusBanner(false)}
+        />
+      )}
       <Routes>
         <Route path="/login" element={
           user ? <Navigate to={getDashboardPath(user.role)} replace /> : <Login onLogin={handleLogin} />

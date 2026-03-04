@@ -1,6 +1,32 @@
 
 import React from 'react';
-import { X, Upload, Linkedin, Code2, Globe } from 'lucide-react';
+import { X, Upload, Linkedin, Code2, Globe, AlertCircle } from 'lucide-react';
+
+export const Banner: React.FC<{
+  message: string;
+  variant?: 'info' | 'warning' | 'error';
+  onClose?: () => void;
+}> = ({ message, variant = 'info', onClose }) => {
+  const styles = {
+    info: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+    warning: 'bg-amber-50 text-amber-700 border-amber-200',
+    error: 'bg-red-50 text-red-700 border-red-200'
+  };
+
+  return (
+    <div className={`flex items-center justify-between px-4 py-2 border-b text-sm font-medium ${styles[variant]} animate-in slide-in-from-top duration-300`}>
+      <div className="flex items-center gap-2">
+        <AlertCircle className="h-4 w-4" />
+        {message}
+      </div>
+      {onClose && (
+        <button onClick={onClose} className="p-1 hover:bg-black/5 rounded-full transition">
+          <X className="h-4 w-4" />
+        </button>
+      )}
+    </div>
+  );
+};
 
 export const Card: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className = '' }) => (
   <div className={`bg-white rounded-lg shadow-sm border border-slate-200 p-6 ${className}`}>

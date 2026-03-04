@@ -84,6 +84,68 @@ interface IDataService {
 
 // --- Supabase Implementation ---
 class SupabaseService implements IDataService {
+  private _cache: Record<string, { data: any, ts: number }> = {};
+  private readonly DEFAULT_TTL = 1000 * 60 * 10; // 10 minutes
+
+  private async _withCache<T>(key: string, fetcher: () => Promise<T>, ttl = this.DEFAULT_TTL): Promise<T> {
+    const now = Date.now();
+    // 1. Memory Check
+    if (this._cache[key] && (now - this._cache[key].ts < ttl)) {
+      return this._cache[key].data;
+    }
+
+    // 2. Session Storage Check (only for meta-data to keep it fast across refreshes)
+    const isMeta = key.startsWith('meta_');
+    if (isMeta) {
+      const stored = sessionStorage.getItem(`acro_cache_${key}`);
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          if (now - parsed.ts < ttl) {
+            this._cache[key] = parsed;
+            return parsed.data;
+          }
+        } catch (e) {
+          sessionStorage.removeItem(`acro_cache_${key}`);
+        }
+      }
+    }
+
+    // 3. Fetch Fresh
+    const data = await fetcher();
+    const entry = { data, ts: now };
+    this._cache[key] = entry;
+
+    if (isMeta) {
+      try {
+        sessionStorage.setItem(`acro_cache_${key}`, JSON.stringify(entry));
+      } catch (e) {
+        // Session storage full or disabled
+      }
+    }
+    return data;
+  }
+
+  private _invalidate(pattern: string) {
+    const keys = Object.keys(this._cache);
+    for (const k of keys) {
+      if (k === pattern || (pattern.endsWith('*') && k.startsWith(pattern.slice(0, -1)))) {
+        delete this._cache[k];
+        sessionStorage.removeItem(`acro_cache_${k}`);
+      }
+    }
+    // Also scan SS directly for the pattern
+    for (let i = 0; i < sessionStorage.length; i++) {
+      const k = sessionStorage.key(i);
+      if (k && k.startsWith('acro_cache_')) {
+        const actualKey = k.replace('acro_cache_', '');
+        if (actualKey === pattern || (pattern.endsWith('*') && actualKey.startsWith(pattern.slice(0, -1)))) {
+          sessionStorage.removeItem(k);
+        }
+      }
+    }
+  }
+
 
   private mapProfile(p: any): User {
     return {
@@ -207,50 +269,87 @@ class SupabaseService implements IDataService {
 
   // --- Hierarchy ---
   async getBranches(): Promise<Branch[]> {
-    const { data, error } = await supabase.from('branches').select('*');
-    if (error) throw error;
-    return data as Branch[];
+    return this._withCache('meta_branches', async () => {
+      const { data, error } = await supabase.from('branches').select('*');
+      if (error) throw error;
+      return data as Branch[];
+    });
   }
   async addBranch(name: string): Promise<void> {
     const id = `b_${Date.now()}`;
     const { error } = await supabase.from('branches').insert([{ id, name }]);
     if (error) throw error;
+    this._invalidate('meta_branches');
   }
   async deleteBranch(id: string): Promise<void> {
     const { error } = await supabase.from('branches').delete().eq('id', id);
     if (error) throw error;
+    this._invalidate('meta_branches');
   }
 
   async getBatches(branchId: string): Promise<Batch[]> {
-    const { data, error } = await supabase.from('batches').select('*').eq('branch_id', branchId);
-    if (error) throw error;
-    return data.map(b => ({
-      id: b.id,
-      name: b.name,
-      branchId: b.branch_id
-    }));
+    return this._withCache(`meta_batches_${branchId}`, async () => {
+      const { data, error } = await supabase.from('batches').select('*').eq('branch_id', branchId);
+      if (error) throw error;
+      return data.map(b => ({
+        id: b.id,
+        name: b.name,
+        branchId: b.branch_id
+      }));
+    });
   }
   async addBatch(name: string, branchId: string): Promise<void> {
     const id = `batch_${Date.now()}`;
     const { error } = await supabase.from('batches').insert([{ id, name, branch_id: branchId }]);
     if (error) throw error;
+    this._invalidate(`meta_batches_${branchId}`);
   }
   async deleteBatch(id: string): Promise<void> {
     const { error } = await supabase.from('batches').delete().eq('id', id);
     if (error) throw error;
+    this._invalidate('meta_batches_*');
+  }
+
+  async updateStudent(uid: string, data: Partial<User>): Promise<void> {
+    const mobileNo = data.studentData?.mobileNo;
+    const { error } = await supabase.from('profiles').update({
+      display_name: data.displayName,
+      enrollment_id: data.studentData?.enrollmentId,
+      roll_no: data.studentData?.rollNo,
+      mobile_no: mobileNo,
+      branch_id: data.studentData?.branchId,
+      batch_id: data.studentData?.batchId,
+      password: mobileNo
+    }).eq('id', uid);
+
+    if (error) throw error;
+    this._invalidate('students_*');
+    if (mobileNo) {
+      try {
+        await supabase.rpc('admin_reset_password', {
+          target_user_id: uid,
+          new_password: mobileNo
+        });
+      } catch (e) {
+        console.error("Failed to sync password:", e);
+      }
+    }
   }
 
   // --- Users ---
   async getStudents(branchId: string, batchId?: string): Promise<User[]> {
-    let query = supabase.from('profiles').select('*').eq('role', UserRole.STUDENT).eq('branch_id', branchId);
-    if (batchId && batchId !== 'ALL') {
-      query = query.eq('batch_id', batchId);
-    }
-    const { data, error } = await query;
-    if (error) throw error;
+    const cacheKey = `students_${branchId}_${batchId || 'ALL'}`;
+    return this._withCache(cacheKey, async () => {
+      let query = supabase.from('profiles').select('*').eq('role', UserRole.STUDENT).eq('branch_id', branchId);
+      if (batchId && batchId !== 'ALL') {
+        query = query.eq('batch_id', batchId);
+      }
+      const { data, error } = await query;
+      if (error) throw error;
 
-    return data.map(p => this.mapProfile(p))
-      .sort((a, b) => (a.studentData?.rollNo || '').localeCompare(b.studentData?.rollNo || '', undefined, { numeric: true }));
+      return data.map(p => this.mapProfile(p))
+        .sort((a, b) => (a.studentData?.rollNo || '').localeCompare(b.studentData?.rollNo || '', undefined, { numeric: true }));
+    }, 1000 * 60 * 5);
   }
 
   async getStudentsByBranch(branchId: string): Promise<User[]> {
@@ -266,39 +365,24 @@ class SupabaseService implements IDataService {
 
   async createStudent(data: Partial<User>): Promise<void> {
     const enrollmentId = data.studentData?.enrollmentId;
-    if (!enrollmentId) throw new Error("Enrollment ID is required");
-
-    // Auto-generate email from Enrollment ID if not provided
+    if (!enrollmentId) throw new Error("Enrollment ID required");
     const email = `${enrollmentId.toLowerCase()}@acropolis.in`;
-
-    // Password set to Mobile No or Enrollment ID fallback
     const password = data.studentData?.mobileNo || enrollmentId;
 
-    // 1. ADD TO WHITELIST FIRST (Requirement: Whitelist before creation)
-    const { error: wlError } = await supabase.from('whitelist').upsert([{
-      email: email,
-      role: UserRole.STUDENT
-    }]);
-    if (wlError) throw new Error("Whitelist error: " + wlError.message);
+    const { error: wlError } = await supabase.from('whitelist').upsert([{ email, role: UserRole.STUDENT }]);
+    if (wlError) throw wlError;
 
     const { data: authData, error } = await authClient.auth.signUp({
-      email: email,
-      password: password,
-      options: {
-        data: {
-          display_name: data.displayName,
-          role: UserRole.STUDENT
-        }
-      }
+      email,
+      password,
+      options: { data: { display_name: data.displayName, role: UserRole.STUDENT } }
     });
-
     if (error) throw error;
-    if (!authData.user) throw new Error("Could not create user");
+    if (!authData.user) throw new Error("User creation failed");
 
-    // Create profile
     const { error: profError } = await supabase.from('profiles').insert([{
       id: authData.user.id,
-      email: email,
+      email,
       display_name: data.displayName,
       role: UserRole.STUDENT,
       branch_id: data.studentData?.branchId,
@@ -306,41 +390,11 @@ class SupabaseService implements IDataService {
       enrollment_id: enrollmentId,
       roll_no: data.studentData?.rollNo,
       mobile_no: data.studentData?.mobileNo,
-      password: password
+      password
     }]);
 
     if (profError) throw profError;
-  }
-
-  async updateStudent(uid: string, data: Partial<User>): Promise<void> {
-    const mobileNo = data.studentData?.mobileNo;
-
-    // Update profile data including the administrative password reference
-    const { error } = await supabase.from('profiles').update({
-      display_name: data.displayName,
-      enrollment_id: data.studentData?.enrollmentId,
-      roll_no: data.studentData?.rollNo,
-      mobile_no: mobileNo,
-      branch_id: data.studentData?.branchId,
-      batch_id: data.studentData?.batchId,
-      password: mobileNo // Keep reference password in sync with mobile no
-    }).eq('id', uid);
-
-    if (error) throw error;
-
-    // Also update the actual login password in auth.users if mobile number is provided
-    if (mobileNo) {
-      try {
-        await supabase.rpc('admin_reset_password', {
-          target_user_id: uid,
-          new_password: mobileNo
-        });
-      } catch (e) {
-        console.error("Failed to sync auth password with mobile number:", e);
-        // We don't throw here to avoid blocking the profile update, 
-        // but the password will be out of sync if the RPC fails.
-      }
-    }
+    this._invalidate('students_*');
   }
 
   async importStudents(students: Partial<User>[]): Promise<{ success: number; failed: number; errors: string[] }> {
@@ -354,56 +408,38 @@ class SupabaseService implements IDataService {
         success++;
       } catch (e: any) {
         failed++;
-        const msg = e.message || "Unknown error";
-        errors.push(`${s.displayName} (${s.studentData?.enrollmentId}): ${msg}`);
-        console.error(`Import failed for ${s.displayName}`, e);
+        errors.push(`${s.displayName}: ${e.message}`);
       }
     }
     return { success, failed, errors };
   }
 
   async deleteUser(uid: string): Promise<void> {
-    try {
-      // Defensive cleanup: Manually clear references in case constraints are missing or restrictive
-      await supabase.from('assignments').delete().eq('faculty_id', uid);
-      await supabase.from('attendance').update({ marked_by: null }).eq('marked_by', uid);
-      await supabase.from('notifications').update({ from_user_id: null }).eq('from_user_id', uid);
-    } catch (e) {
-      console.warn("Manual cleanup encountered an issue, proceeding to profile deletion", e);
-    }
-
+    await supabase.from('assignments').delete().eq('faculty_id', uid);
     const { error } = await supabase.from('profiles').delete().eq('id', uid);
     if (error) throw error;
+    this._invalidate('students_*');
+    this._invalidate('meta_faculty');
   }
 
   async getFaculty(): Promise<User[]> {
-    const { data, error } = await supabase.from('profiles').select('*').eq('role', UserRole.FACULTY);
-    if (error) throw error;
-    return data.map(p => this.mapProfile(p));
+    return this._withCache('meta_faculty', async () => {
+      const { data, error } = await supabase.from('profiles').select('*').eq('role', UserRole.FACULTY);
+      if (error) throw error;
+      return data.map(p => this.mapProfile(p));
+    });
   }
 
   async createFaculty(data: Partial<User>, password?: string): Promise<void> {
-    if (!data.email) throw new Error("Email is required");
+    if (!data.email) throw new Error("Email required");
     const pass = password || "password123";
 
-    // 1. ADD TO WHITELIST FIRST (Requirement: Whitelist before creation)
-    const { error: wlError } = await supabase.from('whitelist').upsert([{
-      email: data.email,
-      role: UserRole.FACULTY
-    }]);
-    if (wlError) throw new Error("Whitelist error: " + wlError.message);
-
+    await supabase.from('whitelist').upsert([{ email: data.email, role: UserRole.FACULTY }]);
     const { data: authData, error } = await authClient.auth.signUp({
       email: data.email,
       password: pass,
-      options: {
-        data: {
-          display_name: data.displayName,
-          role: UserRole.FACULTY
-        }
-      }
+      options: { data: { display_name: data.displayName, role: UserRole.FACULTY } }
     });
-
     if (error) throw error;
     if (!authData.user) throw new Error("User creation failed");
 
@@ -415,8 +451,8 @@ class SupabaseService implements IDataService {
       roll_no: data.facultyData?.serialNo,
       password: pass
     }]);
-
     if (profError) throw profError;
+    this._invalidate('meta_faculty');
   }
 
   async updateFaculty(uid: string, data: Partial<User>): Promise<void> {
@@ -426,50 +462,57 @@ class SupabaseService implements IDataService {
       roll_no: data.facultyData?.serialNo
     }).eq('id', uid);
     if (error) throw error;
+    this._invalidate('meta_faculty');
   }
 
   async resetFacultyPassword(uid: string, newPass: string): Promise<void> {
-    // Calling the secure RPC function to update auth.users and profiles table
     const { error } = await supabase.rpc('admin_reset_password', {
       target_user_id: uid,
       new_password: newPass
     });
-
     if (error) throw error;
   }
 
   // --- Subjects & Assignments ---
   async getSubjects(): Promise<Subject[]> {
-    const { data, error } = await supabase.from('subjects').select('*');
-    if (error) throw error;
-    return data as Subject[];
+    return this._withCache('meta_subjects', async () => {
+      const { data, error } = await supabase.from('subjects').select('*');
+      if (error) throw error;
+      return data as Subject[];
+    });
   }
   async addSubject(name: string, code: string): Promise<void> {
     const id = `sub_${Date.now()}`;
     const { error } = await supabase.from('subjects').insert([{ id, name, code }]);
     if (error) throw error;
+    this._invalidate('meta_subjects');
   }
   async updateSubject(id: string, name: string, code: string): Promise<void> {
     const { error } = await supabase.from('subjects').update({ name, code }).eq('id', id);
     if (error) throw error;
+    this._invalidate('meta_subjects');
   }
   async deleteSubject(id: string): Promise<void> {
     const { error } = await supabase.from('subjects').delete().eq('id', id);
     if (error) throw error;
+    this._invalidate('meta_subjects');
   }
 
   async getAssignments(facultyId?: string): Promise<FacultyAssignment[]> {
-    let q = supabase.from('assignments').select('*');
-    if (facultyId) q = q.eq('faculty_id', facultyId);
-    const { data, error } = await q;
-    if (error) throw error;
-    return data.map(a => ({
-      id: a.id,
-      facultyId: a.faculty_id,
-      branchId: a.branch_id,
-      batchId: a.batch_id,
-      subjectId: a.subject_id
-    }));
+    const key = facultyId ? `meta_assignments_${facultyId}` : 'meta_assignments_ALL';
+    return this._withCache(key, async () => {
+      let q = supabase.from('assignments').select('*');
+      if (facultyId) q = q.eq('faculty_id', facultyId);
+      const { data, error } = await q;
+      if (error) throw error;
+      return data.map(a => ({
+        id: a.id,
+        facultyId: a.faculty_id,
+        branchId: a.branch_id,
+        batchId: a.batch_id,
+        subjectId: a.subject_id
+      }));
+    });
   }
   async assignFaculty(data: any): Promise<void> {
     const obj = {
@@ -481,10 +524,12 @@ class SupabaseService implements IDataService {
     };
     const { error } = await supabase.from('assignments').upsert([obj]);
     if (error) throw error;
+    this._invalidate('meta_assignments_*');
   }
   async removeAssignment(id: string): Promise<void> {
     const { error } = await supabase.from('assignments').delete().eq('id', id);
     if (error) throw error;
+    this._invalidate('meta_assignments_*');
   }
 
   async getCoordinators(): Promise<CoordinatorAssignment[]> {
@@ -498,30 +543,17 @@ class SupabaseService implements IDataService {
   }
 
   async getCoordinatorByFaculty(facultyId: string): Promise<CoordinatorAssignment | null> {
-    const { data, error } = await supabase
-      .from('coordinators')
-      .select('*')
-      .eq('faculty_id', facultyId)
-      .maybeSingle();
+    const { data, error } = await supabase.from('coordinators').select('*').eq('faculty_id', facultyId).maybeSingle();
     if (error) throw error;
     if (!data) return null;
-    return {
-      id: data.id,
-      facultyId: data.faculty_id,
-      branchId: data.branch_id
-    };
+    return { id: data.id, facultyId: data.faculty_id, branchId: data.branch_id };
   }
 
   async assignCoordinator(data: Omit<CoordinatorAssignment, 'id'>): Promise<void> {
-    const obj = {
-      id: `coord_${Date.now()}`,
-      faculty_id: data.facultyId,
-      branch_id: data.branchId
-    };
+    const obj = { id: `coord_${Date.now()}`, faculty_id: data.facultyId, branch_id: data.branchId };
     const { error } = await supabase.from('coordinators').upsert([obj]);
     if (error) throw error;
   }
-
   async removeCoordinator(id: string): Promise<void> {
     const { error } = await supabase.from('coordinators').delete().eq('id', id);
     if (error) throw error;
@@ -529,21 +561,12 @@ class SupabaseService implements IDataService {
 
   // --- Attendance ---
   async getAttendance(branchId: string, batchId: string, subjectId: string, date?: string): Promise<AttendanceRecord[]> {
-    let q = supabase.from('attendance')
-      .select('*')
-      .eq('branch_id', branchId)
-      .eq('subject_id', subjectId);
-
-    if (batchId !== 'ALL') {
-      q = q.eq('batch_id', batchId);
-    }
-    if (date) {
-      q = q.eq('date', date);
-    }
+    let q = supabase.from('attendance').select('*').eq('branch_id', branchId).eq('subject_id', subjectId);
+    if (batchId !== 'ALL') q = q.eq('batch_id', batchId);
+    if (date) q = q.eq('date', date);
 
     const { data, error } = await q;
     if (error) throw error;
-
     return data.map(r => ({
       id: r.id,
       date: r.date,
@@ -560,16 +583,9 @@ class SupabaseService implements IDataService {
   }
 
   async getBranchAttendance(branchId: string, date?: string): Promise<AttendanceRecord[]> {
-    let q = supabase.from('attendance')
-      .select('*')
-      .eq('branch_id', branchId);
-
-    if (date) {
-      q = q.eq('date', date);
-    }
-
+    let q = supabase.from('attendance').select('*').eq('branch_id', branchId);
+    if (date) q = q.eq('date', date);
     const { data, error } = await q;
-
     if (error) throw error;
     return data.map(r => ({
       id: r.id,
@@ -587,10 +603,7 @@ class SupabaseService implements IDataService {
   }
 
   async getDateAttendance(date: string): Promise<AttendanceRecord[]> {
-    const { data, error } = await supabase.from('attendance')
-      .select('*')
-      .eq('date', date);
-
+    const { data, error } = await supabase.from('attendance').select('*').eq('date', date);
     if (error) throw error;
     return data.map(r => ({
       id: r.id,
@@ -608,10 +621,7 @@ class SupabaseService implements IDataService {
   }
 
   async getStudentAttendance(studentId: string): Promise<AttendanceRecord[]> {
-    const { data, error } = await supabase.from('attendance')
-      .select('*')
-      .eq('student_id', studentId);
-
+    const { data, error } = await supabase.from('attendance').select('*').eq('student_id', studentId);
     if (error) throw error;
     return data.map(r => ({
       id: r.id,
@@ -642,29 +652,22 @@ class SupabaseService implements IDataService {
       lecture_slot: r.lectureSlot,
       reason: r.reason
     }));
-    const { error } = await supabase.from('attendance').upsert(rows);
-    if (error) throw error;
+    await supabase.from('attendance').upsert(rows);
   }
 
   async deleteAttendanceRecords(ids: string[]): Promise<void> {
     if (ids.length === 0) return;
-    const { error } = await supabase.from('attendance').delete().in('id', ids);
-    if (error) throw error;
+    await supabase.from('attendance').delete().in('id', ids);
   }
 
   async deleteAttendanceForOverwrite(date: string, branchId: string, slot: number): Promise<void> {
-    const { error } = await supabase.from('attendance')
-      .delete()
-      .eq('date', date)
-      .eq('branch_id', branchId)
-      .eq('lecture_slot', slot);
-    if (error) throw error;
+    await supabase.from('attendance').delete().eq('date', date).eq('branch_id', branchId).eq('lecture_slot', slot);
   }
 
   // --- Notifications ---
   async createNotification(data: Omit<Notification, 'id'>): Promise<void> {
     const id = `notif_${Date.now()}`;
-    const { error } = await supabase.from('notifications').insert([{
+    await supabase.from('notifications').insert([{
       id,
       to_user_id: data.toUserId,
       from_user_id: data.fromUserId,
@@ -674,15 +677,10 @@ class SupabaseService implements IDataService {
       data: data.data,
       timestamp: data.timestamp
     }]);
-    if (error) throw error;
   }
 
   async getNotifications(userId: string): Promise<Notification[]> {
-    const { data, error } = await supabase.from('notifications')
-      .select('*')
-      .eq('to_user_id', userId)
-      .order('timestamp', { ascending: false });
-
+    const { data, error } = await supabase.from('notifications').select('*').eq('to_user_id', userId).order('timestamp', { ascending: false });
     if (error) throw error;
     return data.map(n => ({
       id: n.id,
@@ -696,59 +694,35 @@ class SupabaseService implements IDataService {
     }));
   }
 
-  async updateNotificationStatus(id: string, status: 'READ' | 'ACTIONED' | 'APPROVED' | 'DENIED'): Promise<void> {
-    const { error } = await supabase.from('notifications').update({ status }).eq('id', id);
-    if (error) throw error;
+  async updateNotificationStatus(id: string, status: string): Promise<void> {
+    await supabase.from('notifications').update({ status }).eq('id', id);
   }
 
   async deleteNotification(id: string): Promise<void> {
-    const { error } = await supabase.from('notifications').delete().eq('id', id);
-    if (error) throw error;
+    await supabase.from('notifications').delete().eq('id', id);
   }
 
   async deleteAllNotifications(userId: string): Promise<void> {
-    const { error } = await supabase.from('notifications').delete().eq('to_user_id', userId);
-    if (error) throw error;
+    await supabase.from('notifications').delete().eq('to_user_id', userId);
   }
 
-
   async searchStudents(query: string): Promise<User[]> {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('role', UserRole.STUDENT)
-      .or(`display_name.ilike.%${query}%,enrollment_id.ilike.%${query}%,mobile_no.ilike.%${query}%`)
-      .limit(50);
+    const { data, error } = await supabase.from('profiles').select('*').eq('role', UserRole.STUDENT).or(`display_name.ilike.%${query}%,enrollment_id.ilike.%${query}%,mobile_no.ilike.%${query}%`).limit(50);
     if (error) throw error;
     return data.map(p => this.mapProfile(p));
   }
 
   // --- Marks ---
   async getMarks(branchId: string, batchId: string, subjectId: string, midSemType: MidSemType): Promise<Mark[]> {
-    // Fetch students in this branch/batch first
-    let studentQuery = supabase.from('profiles')
-      .select('id')
-      .eq('role', UserRole.STUDENT)
-      .eq('branch_id', branchId);
-
-    if (batchId !== 'ALL') {
-      studentQuery = studentQuery.eq('batch_id', batchId);
-    }
-
+    let studentQuery = supabase.from('profiles').select('id').eq('role', UserRole.STUDENT).eq('branch_id', branchId);
+    if (batchId !== 'ALL') studentQuery = studentQuery.eq('batch_id', batchId);
     const { data: students, error: studentError } = await studentQuery;
     if (studentError) throw studentError;
-
     const studentIds = students.map(s => s.id);
     if (studentIds.length === 0) return [];
 
-    const { data, error } = await supabase.from('marks')
-      .select('*')
-      .in('student_id', studentIds)
-      .eq('subject_id', subjectId)
-      .eq('mid_sem_type', midSemType);
-
+    const { data, error } = await supabase.from('marks').select('*').in('student_id', studentIds).eq('subject_id', subjectId).eq('mid_sem_type', midSemType);
     if (error) throw error;
-
     return data.map(m => ({
       id: m.id,
       studentId: m.student_id,
@@ -763,9 +737,7 @@ class SupabaseService implements IDataService {
   }
 
   async getStudentMarks(studentId: string): Promise<Mark[]> {
-    const { data, error } = await supabase.from('marks')
-      .select('*')
-      .eq('student_id', studentId);
+    const { data, error } = await supabase.from('marks').select('*').eq('student_id', studentId);
     if (error) throw error;
     return data.map(m => ({
       id: m.id,
@@ -773,44 +745,34 @@ class SupabaseService implements IDataService {
       subjectId: m.subject_id,
       facultyId: m.faculty_id,
       midSemType: m.mid_sem_type as MidSemType,
-      marksObtained: Number(m.marks_obtained),
-      maxMarks: Number(m.max_marks),
+      marksObtained: Number(m.marks_obtained) || 0,
+      maxMarks: Number(m.max_marks) || 0,
       createdAt: m.created_at,
       updatedAt: m.updated_at
     }));
   }
 
   async getBranchMarks(branchId: string, midSemType: MidSemType): Promise<Mark[]> {
-    const { data: students, error: studentError } = await supabase.from('profiles')
-      .select('id')
-      .eq('role', UserRole.STUDENT)
-      .eq('branch_id', branchId);
-
+    const { data: students, error: studentError } = await supabase.from('profiles').select('id').eq('role', UserRole.STUDENT).eq('branch_id', branchId);
     if (studentError) throw studentError;
     const studentIds = students.map(s => s.id);
     if (studentIds.length === 0) return [];
-
-    const { data, error } = await supabase.from('marks')
-      .select('*')
-      .in('student_id', studentIds)
-      .eq('mid_sem_type', midSemType);
-
+    const { data, error } = await supabase.from('marks').select('*').in('student_id', studentIds).eq('mid_sem_type', midSemType);
     if (error) throw error;
-
     return data.map(m => ({
       id: m.id,
       studentId: m.student_id,
       subjectId: m.subject_id,
       facultyId: m.faculty_id,
       midSemType: m.mid_sem_type as MidSemType,
-      marksObtained: Number(m.marks_obtained),
-      maxMarks: Number(m.max_marks),
+      marksObtained: Number(m.marks_obtained) || 0,
+      maxMarks: Number(m.max_marks) || 0,
       createdAt: m.created_at,
       updatedAt: m.updated_at
     }));
   }
 
-  async saveMarks(marks: Omit<Mark, 'id' | 'createdAt' | 'updatedAt'>[]): Promise<void> {
+  async saveMarks(marks: any[]): Promise<void> {
     const rows = marks.map(m => ({
       student_id: m.studentId,
       subject_id: m.subjectId,
@@ -820,96 +782,52 @@ class SupabaseService implements IDataService {
       max_marks: m.maxMarks,
       updated_at: new Date().toISOString()
     }));
-
-    const { error } = await supabase.from('marks').upsert(rows, {
-      onConflict: 'student_id,subject_id,mid_sem_type'
-    });
-    if (error) throw error;
+    await supabase.from('marks').upsert(rows, { onConflict: 'student_id,subject_id,mid_sem_type' });
   }
 
   async getSystemSettings(): Promise<SystemSettings> {
     const { data, error } = await supabase.from('system_settings').select('*');
     if (error) throw error;
-
-    const settings: SystemSettings = {
-      studentLoginEnabled: true // Default
-    };
-
+    const settings: SystemSettings = { studentLoginEnabled: true };
     data?.forEach(row => {
-      if (row.key === 'student_login_enabled') {
-        settings.studentLoginEnabled = row.value === true || row.value === 'true' || row.value === JSON.parse('true');
-      }
+      if (row.key === 'student_login_enabled') settings.studentLoginEnabled = row.value === true || row.value === 'true';
     });
-
     return settings;
   }
 
   async updateSystemSettings(settings: SystemSettings): Promise<void> {
-    const { error } = await supabase.from('system_settings').upsert({
-      key: 'student_login_enabled',
-      value: settings.studentLoginEnabled
-    });
-    if (error) throw error;
+    await supabase.from('system_settings').upsert({ key: 'student_login_enabled', value: settings.studentLoginEnabled });
   }
 
   async getUsersCount(): Promise<number> {
-    const { count, error } = await supabase
-      .from('profiles')
-      .select('*', { count: 'exact', head: true });
-    if (error) throw error;
+    const { count } = await supabase.from('profiles').select('*', { count: 'exact', head: true });
     return count || 0;
   }
 
   async getAttendanceCount(): Promise<number> {
-    const { count, error } = await supabase
-      .from('attendance')
-      .select('*', { count: 'exact', head: true });
-    if (error) throw error;
+    const { count } = await supabase.from('attendance').select('*', { count: 'exact', head: true });
     return count || 0;
   }
 
   async getNotificationsCount(): Promise<number> {
-    const { count, error } = await supabase
-      .from('notifications')
-      .select('*', { count: 'exact', head: true });
-    if (error) throw error;
+    const { count } = await supabase.from('notifications').select('*', { count: 'exact', head: true });
     return count || 0;
   }
 
   async searchUsers(query: string): Promise<User[]> {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .or(`display_name.ilike.%${query}%,email.ilike.%${query}%,enrollment_id.ilike.%${query}%,mobile_no.ilike.%${query}%`)
-      .limit(50);
+    const { data, error } = await supabase.from('profiles').select('*').or(`display_name.ilike.%${query}%,email.ilike.%${query}%,enrollment_id.ilike.%${query}%,mobile_no.ilike.%${query}%`).limit(50);
     if (error) throw error;
     return data.map(p => this.mapProfile(p));
   }
 
   async seedDatabase(): Promise<void> {
-    // Populate Branches
-    const { data: existingBranches } = await supabase.from('branches').select('id');
-    if (!existingBranches || existingBranches.length === 0) {
-      await supabase.from('branches').insert(SEED_BRANCHES);
-    }
-
-    // Populate Batches
-    const { data: existingBatches } = await supabase.from('batches').select('id');
-    if (!existingBatches || existingBatches.length === 0) {
-      await supabase.from('batches').insert(SEED_BATCHES);
-    }
-
-    // Populate Subjects
-    const { data: existingSubjects } = await supabase.from('subjects').select('id');
-    if (!existingSubjects || existingSubjects.length === 0) {
-      await supabase.from('subjects').insert(SEED_SUBJECTS);
-    }
-
-    // Populate System Settings
-    const { data: existingSettings } = await supabase.from('system_settings').select('key');
-    if (!existingSettings || existingSettings.length === 0) {
-      await supabase.from('system_settings').insert([{ key: 'student_login_enabled', value: true }]);
-    }
+    const { data: b } = await supabase.from('branches').select('id').limit(1);
+    if (!b || b.length === 0) await supabase.from('branches').insert(SEED_BRANCHES);
+    const { data: bt } = await supabase.from('batches').select('id').limit(1);
+    if (!bt || bt.length === 0) await supabase.from('batches').insert(SEED_BATCHES);
+    const { data: s } = await supabase.from('subjects').select('id').limit(1);
+    if (!s || s.length === 0) await supabase.from('subjects').insert(SEED_SUBJECTS);
+    await supabase.from('system_settings').upsert([{ key: 'student_login_enabled', value: true }]);
   }
 }
 
