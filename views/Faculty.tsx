@@ -746,6 +746,9 @@ const CoordinatorView: React.FC<{ branchId: string; facultyUser: User; metaData:
    );
 };
 
+
+import { useParallelRouting } from '../services/routing';
+
 export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinatorView = false }) => {
    const navigate = useNavigate();
    const location = useLocation();
@@ -763,11 +766,9 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
    const [loadingInit, setLoadingInit] = useState(true);
    const [loadingStudents, setLoadingStudents] = useState(false);
 
-   // Derived state from URL
-   const activeTab = forceCoordinatorView ? 'CO-ORDINATOR' :
-      (location.pathname.includes('/history') ? 'HISTORY' :
-         location.pathname.includes('/marks') ? 'MARKS' :
-            location.pathname.includes('/coordinator') ? 'CO-ORDINATOR' : 'MARK');
+   const tabs = ['mark', 'history', 'marks', 'coordinator'];
+   const { activeTab: rawTab, handleTabClick, goBack } = useParallelRouting('faculty', tabs);
+   const activeTab = forceCoordinatorView ? 'CO-ORDINATOR' : rawTab.toUpperCase();
 
    // URL Masking: We use indices to keep URLs short in the browser
    const { branchId: urlBranchId, subjectId: urlID2 } = params;
@@ -1651,6 +1652,9 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
          {!forceCoordinatorView && (
             <div className="bg-gradient-to-br from-indigo-900 to-indigo-800 p-4 rounded-b-2xl -mx-4 -mt-6 mb-2 shadow-xl shadow-indigo-200/50">
                <div className="flex items-center gap-3 mb-4">
+                  <button onClick={goBack} className="h-10 w-10 bg-white/10 rounded-xl flex items-center justify-center backdrop-blur-md active:scale-90 transition-transform">
+                     <ArrowLeft className="h-6 w-6 text-indigo-100" />
+                  </button>
                   <div className="h-10 w-10 bg-white/10 rounded-xl flex items-center justify-center backdrop-blur-md">
                      <Layers className="h-6 w-6 text-indigo-100" />
                   </div>
@@ -1694,19 +1698,19 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
          {!forceCoordinatorView && (
             <div className="flex bg-slate-100/50 p-1 rounded-xl mb-4">
                <button
-                  onClick={() => setActiveTab('MARK')}
+                  onClick={() => handleTabClick('mark')}
                   className={`flex-1 py-2.5 font-bold text-xs transition-all flex items-center justify-center rounded-lg ${activeTab === 'MARK' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                >
                   <CheckCircle2 className="w-3.5 h-3.5 mr-2" /> Mark
                </button>
                <button
-                  onClick={() => setActiveTab('HISTORY')}
+                  onClick={() => handleTabClick('history')}
                   className={`flex-1 py-2.5 font-bold text-xs transition-all flex items-center justify-center rounded-lg ${activeTab === 'HISTORY' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                >
                   <History className="w-3.5 h-3.5 mr-2" /> History
                </button>
                <button
-                  onClick={() => setActiveTab('MARKS')}
+                  onClick={() => handleTabClick('marks')}
                   className={`flex-1 py-2.5 font-bold text-xs transition-all flex items-center justify-center rounded-lg ${activeTab === 'MARKS' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                >
                   <Trophy className="w-3.5 h-3.5 mr-2" /> MST Marks
