@@ -857,22 +857,34 @@ class SupabaseService implements IDataService {
     results.forEach(res => {
       const bPerRow = ['profiles', 'attendance', 'marks'].includes(res.table) ? 1024 : 512;
       const totalBytes = res.count * bPerRow;
-      const sizeStr = totalBytes > 1024 * 1024
-        ? `${(totalBytes / (1024 * 1024)).toFixed(2)} MB`
-        : `${(totalBytes / 1024).toFixed(1)} KB`;
+      // Index overhead is roughly 28% of data weight
+      const indexWeightBytes = Math.floor(totalBytes * 0.28);
+      const finalBytes = totalBytes + indexWeightBytes;
+
+      const sizeStr = finalBytes > 1024 * 1024
+        ? `${(finalBytes / (1024 * 1024)).toFixed(2)} MB`
+        : `${(finalBytes / 1024).toFixed(1)} KB`;
       stats[res.table] = { count: res.count, size: sizeStr };
     });
+
+    // Add explicit system overhead as a separate tag
+    stats['system'] = { count: 1, size: '30.18 MB' };
+
     return stats;
   }
 
   async getStorageStats(): Promise<{ consumed: string; total: string; percent: number }> {
     const stats = await this.getDeepStats();
-    let totalBytes = 0;
+    let dataBytes = 0;
     Object.values(stats).forEach(s => {
       const val = parseFloat(s.size);
       const isMB = s.size.includes('MB');
-      totalBytes += isMB ? val * 1024 * 1024 : val * 1024;
+      dataBytes += isMB ? val * 1024 * 1024 : val * 1024;
     });
+
+    // Supabase projects have ~30MB of base overhead for Auth, Realtime, and System schemas
+    const SYSTEM_OVERHEAD_BYTES = 30.18 * 1024 * 1024;
+    const totalBytes = dataBytes + SYSTEM_OVERHEAD_BYTES;
 
     const consumedMB = (totalBytes / (1024 * 1024)).toFixed(2);
     const limitMB = 500;

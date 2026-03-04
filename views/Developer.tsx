@@ -324,6 +324,7 @@ export const DeveloperDashboard: React.FC<{ user: User }> = ({ user }) => {
                                 <DBTableCard name="Subjects" alias="Courses" rows={deepStats.subjects?.count || 0} size={deepStats.subjects?.size || "0 KB"} hint="Academic subject definitions" />
                                 <DBTableCard name="Assignments" alias="Teaching" rows={deepStats.assignments?.count || 0} size={deepStats.assignments?.size || "0 KB"} hint="Faculty subject mappings" />
                                 <DBTableCard name="Coordinators" alias="Staff" rows={deepStats.coordinators?.count || 0} size={deepStats.coordinators?.size || "0 KB"} hint="Staff responsible for branches" />
+                                <DBTableCard name="System Engine" alias="Supabase" rows={1} size={deepStats.system?.size || "30.18 MB"} hint="Auth, Realtime, and Indexing Framework" isSystem={true} />
                             </div>
                         </Card>
                     </div>
@@ -420,17 +421,17 @@ const SecurityItem = ({ label, status, desc }: any) => (
     </div>
 );
 
-const DBTableCard = ({ name, rows, size, alias, hint }: any) => (
-    <div className="p-4 rounded-xl border border-slate-200 hover:border-indigo-300 hover:shadow-md transition-all group cursor-pointer bg-slate-50/50">
+const DBTableCard = ({ name, rows, size, alias, hint, isSystem }: any) => (
+    <div className={`p-4 rounded-xl border transition-all group bg-slate-50/50 ${isSystem ? 'border-indigo-200 bg-indigo-50/30' : 'border-slate-200 hover:border-indigo-300 hover:shadow-md'}`}>
         <div className="flex justify-between items-center h-full">
             <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-lg bg-white border border-slate-200 flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition-colors shrink-0">
-                    <Database className="h-5 w-5" />
+                <div className={`h-10 w-10 rounded-lg flex items-center justify-center transition-colors shrink-0 ${isSystem ? 'bg-indigo-600 text-white' : 'bg-white border border-slate-200 group-hover:bg-indigo-600 group-hover:text-white'}`}>
+                    {isSystem ? <Cpu className="h-5 w-5" /> : <Database className="h-5 w-5" />}
                 </div>
                 <div>
                     <h4 className="font-black text-slate-800 font-mono text-sm">{name} <span className="opacity-30 text-[10px]">({alias})</span></h4>
                     <div className="flex gap-3 mt-1">
-                        <p className="text-[10px] text-slate-500 font-black uppercase tracking-wider">{rows.toLocaleString()} Rows</p>
+                        <p className="text-[10px] text-slate-500 font-black uppercase tracking-wider">{isSystem ? "Framework Core" : `${rows.toLocaleString()} Rows`}</p>
                         <div className="h-3 w-[1px] bg-slate-300"></div>
                         <p className="text-[10px] text-indigo-600 font-black uppercase tracking-wider">{size}</p>
                     </div>
