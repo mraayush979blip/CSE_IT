@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, User as UserIcon, Menu, X, ChevronDown, Settings, Bell, Check, ExternalLink, Trash2, Heart, Download, Smartphone, Activity, AlertCircle, Bug, Linkedin, Code2, Globe, ArrowLeft } from 'lucide-react';
+import { LogOut, User as UserIcon, Menu, X, ChevronDown, Settings, Bell, Check, ExternalLink, Trash2, Heart, Download, Smartphone, Activity, AlertCircle, Bug, Linkedin, Code2, Globe } from 'lucide-react';
 import { User, UserRole, Notification } from '../types';
 import { db } from '../services/db';
 import { AcropolisLogo, Modal, Button, AboutDeveloperModal } from './UI';
@@ -12,7 +12,6 @@ interface LayoutProps {
   onLogout: () => void;
   onOpenSettings: () => void;
   title: string;
-  onBack?: () => void;
 }
 
 const InstallAppModal: React.FC<{ isOpen: boolean; onClose: () => void; onInstall: () => void; canInstall: boolean }> = ({ isOpen, onClose, onInstall, canInstall }) => {
@@ -101,7 +100,7 @@ const InstallAppModal: React.FC<{ isOpen: boolean; onClose: () => void; onInstal
 };
 
 
-export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpenSettings, title, onBack }) => {
+export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpenSettings, title }) => {
   const navigate = useNavigate();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isInstallModalOpen, setIsInstallModalOpen] = useState(false);
@@ -269,33 +268,22 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpen
     <div className="min-h-screen bg-slate-100 flex flex-col">
       <header className="bg-indigo-900 text-white shadow-md relative z-20">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            {onBack && (
-              <button
-                onClick={onBack}
-                className="p-2 -ml-2 rounded-full hover:bg-indigo-800 transition-colors focus:ring-2 focus:ring-indigo-500"
-                aria-label="Go back"
-              >
-                <ArrowLeft className="h-5 w-5" />
-              </button>
-            )}
-            <div
-              className="flex items-center space-x-3 cursor-pointer group"
-              onClick={() => {
-                const target = getRolePath();
-                const targetStrict = getRolePath(true);
-                if (location.pathname !== target && location.pathname !== targetStrict) {
-                  navigate(target, { replace: true });
-                }
-              }}
-            >
-              <div className="h-10 w-10 bg-white rounded-md p-1 flex items-center justify-center flex-shrink-0 transition-transform group-hover:scale-110">
-                <AcropolisLogo className="h-full w-full" variant="dashboard" />
-              </div>
-              <div className="hidden sm:block">
-                <h1 className="text-xl font-bold tracking-tight group-hover:text-indigo-100 transition-colors">Acropolis AMS</h1>
-                <p className="text-xs text-indigo-200">Attendance Management System</p>
-              </div>
+          <div
+            className="flex items-center space-x-3 cursor-pointer group"
+            onClick={() => {
+              const target = getRolePath();
+              const targetStrict = getRolePath(true);
+              if (location.pathname !== target && location.pathname !== targetStrict) {
+                navigate(target, { replace: true });
+              }
+            }}
+          >
+            <div className="h-10 w-10 bg-white rounded-md p-1 flex items-center justify-center flex-shrink-0 transition-transform group-hover:scale-110">
+              <AcropolisLogo className="h-full w-full" variant="dashboard" />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold tracking-tight group-hover:text-indigo-100 transition-colors">Acropolis AMS</h1>
+              <p className="text-xs text-indigo-200 hidden sm:block">Attendance Management System</p>
             </div>
           </div>
 

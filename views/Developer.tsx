@@ -2,18 +2,14 @@
 import React, { useState, useEffect } from 'react';
 import {
     Terminal, Database, Activity, Users, Settings, ShieldAlert, Cpu, Server, Zap, RefreshCw,
-    Search, Eye, Lock, Unlock, AlertCircle, Code, Info, HelpCircle, HardDrive, ArrowLeft
+    Search, Eye, Lock, Unlock, AlertCircle, Code, Info, HelpCircle, HardDrive
 } from 'lucide-react';
 import { Card, Button, Input, Modal } from '../components/UI';
 import { db } from '../services/db';
 import { User, SystemSettings } from '../types';
 
-
-import { useParallelRouting } from '../services/routing';
-
 export const DeveloperDashboard: React.FC<{ user: User }> = ({ user }) => {
-    const tabs = ['overview', 'users', 'logs', 'database', 'settings'];
-    const { activeTab, handleTabClick, goBack } = useParallelRouting('developer', tabs);
+    const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'logs' | 'database' | 'settings'>('overview');
     const [deepStats, setDeepStats] = useState<Record<string, { count: number, size: string }>>({});
     const [storage, setStorage] = useState({ consumed: '0 MB', total: '0 MB', percent: 0 });
     const [latency, setLatency] = useState(0);
@@ -100,9 +96,6 @@ export const DeveloperDashboard: React.FC<{ user: User }> = ({ user }) => {
             <div className="bg-gradient-to-r from-slate-900 to-indigo-900 rounded-2xl p-8 text-white shadow-2xl relative overflow-hidden">
                 <div className="relative z-10">
                     <div className="flex items-center gap-3 mb-4">
-                        <button onClick={goBack} className="h-10 w-10 rounded-xl bg-slate-800/50 backdrop-blur-md flex items-center justify-center border border-slate-700 hover:bg-slate-700 transition-all active:scale-95">
-                            <ArrowLeft className="h-5 w-5 text-indigo-400" />
-                        </button>
                         <div className="h-10 w-10 rounded-xl bg-indigo-500/20 backdrop-blur-md flex items-center justify-center border border-indigo-400/30">
                             <Terminal className="h-6 w-6 text-indigo-400" />
                         </div>
@@ -129,7 +122,7 @@ export const DeveloperDashboard: React.FC<{ user: User }> = ({ user }) => {
                 ].map(tab => (
                     <button
                         key={tab.id}
-                        onClick={() => handleTabClick(tab.id)}
+                        onClick={() => setActiveTab(tab.id as any)}
                         className={`flex flex-col items-start gap-0.5 px-4 py-3 rounded-xl transition-all ${activeTab === tab.id
                             ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200'
                             : 'text-slate-500 hover:bg-slate-100'
