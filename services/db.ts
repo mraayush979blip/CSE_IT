@@ -82,7 +82,7 @@ interface IDataService {
   searchUsers: (query: string) => Promise<User[]>;
   getRawProfile: (userId: string) => Promise<any>;
   ping: () => Promise<number>;
-  getDeepStats: () => Promise<Record<string, number>>;
+  getDeepStats: () => Promise<Record<string, { count: number; size: string }>>;
   getStorageStats: () => Promise<{ consumed: string; total: string; percent: number }>;
 }
 
@@ -846,25 +846,35 @@ class SupabaseService implements IDataService {
     return Date.now() - start;
   }
 
-  async getDeepStats(): Promise<Record<string, number>> {
+  async getDeepStats(): Promise<Record<string, { count: number; size: string }>> {
     const tables = ['profiles', 'attendance', 'marks', 'notifications', 'branches', 'batches', 'subjects', 'assignments', 'coordinators'];
-    const counts: Record<string, number> = {};
-
-    await Promise.all(tables.map(async (t) => {
+    const results = await Promise.all(tables.map(async (t) => {
       const { count } = await supabase.from(t).select('*', { count: 'exact', head: true });
-      counts[t] = count || 0;
+      return { table: t, count: count || 0 };
     }));
 
-    return counts;
+    const stats: Record<string, { count: number; size: string }> = {};
+    results.forEach(res => {
+      const bPerRow = ['profiles', 'attendance', 'marks'].includes(res.table) ? 1024 : 512;
+      const totalBytes = res.count * bPerRow;
+      const sizeStr = totalBytes > 1024 * 1024
+        ? `${(totalBytes / (1024 * 1024)).toFixed(2)} MB`
+        : `${(totalBytes / 1024).toFixed(1)} KB`;
+      stats[res.table] = { count: res.count, size: sizeStr };
+    });
+    return stats;
   }
 
   async getStorageStats(): Promise<{ consumed: string; total: string; percent: number }> {
-    // Estimating based on row counts since direct DB size requires specific RPCs
-    // 500MB is common free tier limit for many managed DBs
     const stats = await this.getDeepStats();
-    const totalRows = Object.values(stats).reduce((a, b) => a + b, 0);
-    const estimatedBytes = totalRows * 1024; // Roughly 1KB per row average
-    const consumedMB = (estimatedBytes / (1024 * 1024)).toFixed(2);
+    let totalBytes = 0;
+    Object.values(stats).forEach(s => {
+      const val = parseFloat(s.size);
+      const isMB = s.size.includes('MB');
+      totalBytes += isMB ? val * 1024 * 1024 : val * 1024;
+    });
+
+    const consumedMB = (totalBytes / (1024 * 1024)).toFixed(2);
     const limitMB = 500;
     const percent = Math.min(99, (Number(consumedMB) / limitMB) * 100);
 
@@ -1292,28 +1302,33 @@ class MockService implements IDataService {
     return Math.floor(Math.random() * 5) + 1; // 1-5ms for mock
   }
 
-  async getDeepStats(): Promise<Record<string, number>> {
-    return {
-      profiles: (this.load('ams_users', SEED_USERS)).length,
-      attendance: (this.load('ams_attendance', [])).length,
-      marks: (this.load('ams_marks', [])).length,
-      notifications: (this.load('ams_notifications', [])).length,
-      branches: (this.load('ams_branches', SEED_BRANCHES)).length,
-      batches: (this.load('ams_batches', SEED_BATCHES)).length,
-      subjects: (this.load('ams_subjects', SEED_SUBJECTS)).length,
-      assignments: (this.load('ams_assignments', SEED_ASSIGNMENTS)).length,
-      coordinators: (this.load('ams_coordinators', [])).length,
+  async getDeepStats(): Promise<Record<string, { count: number; size: string }>> {
+    const tableKeys = ['profiles', 'attendance', 'marks', 'notifications', 'branches', 'batches', 'subjects', 'assignments', 'coordinators'];
+    const amsNames: Record<string, string> = {
+      profiles: 'ams_users', attendance: 'ams_attendance', marks: 'ams_marks', notifications: 'ams_notifications',
+      branches: 'ams_branches', batches: 'ams_batches', subjects: 'ams_subjects', assignments: 'ams_assignments', coordinators: 'ams_coordinators'
     };
+    const stats: Record<string, { count: number; size: string }> = {};
+    tableKeys.forEach(k => {
+      const rows = this.load(amsNames[k], []);
+      const count = rows.length;
+      const sizeKB = (count * 0.8).toFixed(1);
+      stats[k] = { count, size: `${sizeKB} KB` };
+    });
+    return stats;
   }
 
   async getStorageStats(): Promise<{ consumed: string; total: string; percent: number }> {
     const stats = await this.getDeepStats();
-    const totalRows = Object.values(stats).reduce((a, b) => a + b, 0);
-    const consumedMB = (totalRows * 0.01).toFixed(2); // 10KB per row in mock
+    let totalKB = 0;
+    Object.values(stats).forEach(s => {
+      totalKB += parseFloat(s.size);
+    });
+    const consumedMB = (totalKB / 1024).toFixed(2);
     return {
       consumed: `${consumedMB} MB`,
       total: "512 MB",
-      percent: Number(consumedMB) / 5.12
+      percent: parseFloat((Number(consumedMB) / 5.12).toFixed(1))
     };
   }
 }

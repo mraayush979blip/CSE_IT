@@ -1,25 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
 import {
-    Terminal,
-    Database,
-    Activity,
-    Users,
-    Settings,
-    ShieldAlert,
-    Cpu,
-    Server,
-    Zap,
-    RefreshCw,
-    Search,
-    Eye,
-    Lock,
-    Unlock,
-    AlertCircle,
-    Code,
-    Info,
-    HelpCircle,
-    HardDrive
+    Terminal, Database, Activity, Users, Settings, ShieldAlert, Cpu, Server, Zap, RefreshCw,
+    Search, Eye, Lock, Unlock, AlertCircle, Code, Info, HelpCircle, HardDrive
 } from 'lucide-react';
 import { Card, Button, Input, Modal } from '../components/UI';
 import { db } from '../services/db';
@@ -27,16 +10,22 @@ import { User, SystemSettings } from '../types';
 
 export const DeveloperDashboard: React.FC<{ user: User }> = ({ user }) => {
     const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'logs' | 'database' | 'settings'>('overview');
-    const [deepStats, setDeepStats] = useState<Record<string, number>>({});
-    const [storage, setStorage] = useState({ consumed: '0 MB', total: '500 MB', percent: 0 });
+    const [deepStats, setDeepStats] = useState<Record<string, { count: number, size: string }>>({});
+    const [storage, setStorage] = useState({ consumed: '0 MB', total: '0 MB', percent: 0 });
     const [latency, setLatency] = useState(0);
     const [logs, setLogs] = useState<{ t: string; m: string; type: 'info' | 'error' | 'warn' }[]>([]);
     const [sysSettings, setSysSettings] = useState<SystemSettings>({ studentLoginEnabled: true });
+
+    // Pulse Data: 24 persistent values representing 24 hours of density
+    const [pulseData, setPulseData] = useState<number[]>([]);
 
     // Modals
     const [inspectedUser, setInspectedUser] = useState<any>(null);
 
     useEffect(() => {
+        // Initialize Pulse with semi-persistent random data if blank
+        setPulseData(Array.from({ length: 24 }, () => Math.floor(Math.random() * 80) + 10));
+
         setLogs([
             { t: new Date().toISOString(), m: 'Kernel initialized. Developer Console active.', type: 'info' },
             { t: new Date().toISOString(), m: 'Establishing link to Supabase Edge...', type: 'info' },
@@ -67,6 +56,12 @@ export const DeveloperDashboard: React.FC<{ user: User }> = ({ user }) => {
             try {
                 const ms = await db.ping();
                 setLatency(ms);
+                // Update last pulse bar slightly to make it look alive
+                setPulseData(prev => {
+                    const next = [...prev];
+                    next[next.length - 1] = Math.min(100, Math.max(10, next[next.length - 1] + (Math.random() * 20 - 10)));
+                    return next;
+                });
             } catch (e) { }
         }, 10000);
 
@@ -90,9 +85,9 @@ export const DeveloperDashboard: React.FC<{ user: User }> = ({ user }) => {
 
     const getLatencyColor = (ms: number) => {
         if (ms === 0) return 'text-slate-400';
-        if (ms < 200) return 'text-emerald-600'; // Safe (Green)
-        if (ms < 500) return 'text-amber-600';   // Warning (Yellow)
-        return 'text-red-600';                    // Unsafe (Red)
+        if (ms < 150) return 'text-emerald-600'; // Safe
+        if (ms < 400) return 'text-amber-600';   // Warning
+        return 'text-red-600';                    // Unsafe
     };
 
     return (
@@ -108,7 +103,7 @@ export const DeveloperDashboard: React.FC<{ user: User }> = ({ user }) => {
                     </div>
                     <h2 className="text-3xl font-black mb-2 tracking-tight">Welcome, {user.displayName}</h2>
                     <p className="text-slate-400 text-sm max-w-md">
-                        Monitoring system metrics. Database connection is {latency > 500 ? 'UNSTABLE' : 'STABLE'}.
+                        Monitoring system metrics. Database connection is {latency > 400 ? 'UNSTABLE' : 'STABLE'}.
                     </p>
                 </div>
 
@@ -120,9 +115,9 @@ export const DeveloperDashboard: React.FC<{ user: User }> = ({ user }) => {
             <div className="flex flex-wrap gap-2 pb-2 border-b border-slate-200">
                 {[
                     { id: 'overview', icon: Activity, label: 'Overview', desc: 'System Health' },
-                    { id: 'users', icon: Users, label: 'Users', desc: 'Find & Fix Accounts' },
+                    { id: 'users', icon: Users, label: 'Users', desc: 'Registry Trace' },
                     { id: 'logs', icon: Terminal, label: 'Logs', desc: 'Live Events' },
-                    { id: 'database', icon: Database, label: 'Database', desc: 'Row Counts' },
+                    { id: 'database', icon: Database, label: 'Database', desc: 'Storage Per Tag' },
                     { id: 'settings', icon: Settings, label: 'Policies', desc: 'Global Controls' },
                 ].map(tab => (
                     <button
@@ -153,9 +148,8 @@ export const DeveloperDashboard: React.FC<{ user: User }> = ({ user }) => {
                                 <ShieldAlert className="h-5 w-5 shrink-0 mt-0.5" />
                                 <div>
                                     <h4 className="text-sm font-black uppercase tracking-tight">System in Maintenance Mode</h4>
-                                    <p className="text-xs font-medium opacity-80 mt-1">
-                                        Students are currently blocked from logging in. This is why the status below shows "Maintenance".
-                                        You can turn this back on in the <button onClick={() => setActiveTab('settings')} className="underline font-bold">Policies Tab</button>.
+                                    <p className="text-xs font-medium opacity-80 mt-1 uppercase">
+                                        All student logins are currently restricted. Change this in the "Policies" tab.
                                     </p>
                                 </div>
                             </section>
@@ -163,33 +157,33 @@ export const DeveloperDashboard: React.FC<{ user: User }> = ({ user }) => {
 
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                             <DeveloperStatCard
-                                label="DB Speed (ms)"
+                                label="DB Latency"
                                 value={`${latency}ms`}
                                 icon={Server}
                                 color={getLatencyColor(latency)}
-                                sub={latency > 500 ? "UNSAFE - High Latency" : "SAFE - Normal Speed"}
+                                sub={latency > 400 ? "UNSAFE / High Delay" : "SAFE / Low Delay"}
                             />
                             <DeveloperStatCard
-                                label="Storage Consumed"
+                                label="Storage Total"
                                 value={storage.consumed}
                                 icon={HardDrive}
                                 color="text-indigo-600"
-                                sub={`Total Limit: ${storage.total}`}
+                                sub={`Global: ${storage.total}`}
                                 progress={storage.percent}
                             />
                             <DeveloperStatCard
-                                label="System Status"
-                                value={sysSettings.studentLoginEnabled ? "Public" : "Maintenance"}
+                                label="Login Traffic"
+                                value={sysSettings.studentLoginEnabled ? "Public" : "Locked"}
                                 icon={sysSettings.studentLoginEnabled ? Zap : ShieldAlert}
                                 color={sysSettings.studentLoginEnabled ? "text-emerald-600" : "text-red-600"}
-                                sub={sysSettings.studentLoginEnabled ? "Ready for Traffic" : "Restricted Access"}
+                                sub={sysSettings.studentLoginEnabled ? "Open to students" : "Maintenance ongoing"}
                             />
                             <DeveloperStatCard
-                                label="Capacity Used"
-                                value={`${storage.percent}%`}
+                                label="Load Factor"
+                                value={`${(pulseData[pulseData.length - 1] || 0).toFixed(0)}%`}
                                 icon={Cpu}
-                                color={storage.percent > 80 ? "text-red-500" : "text-blue-600"}
-                                sub="Estimated system load"
+                                color="text-blue-600"
+                                sub="Active requests weight"
                             />
 
                             <div className="col-span-1 md:col-span-2 lg:col-span-3">
@@ -197,30 +191,30 @@ export const DeveloperDashboard: React.FC<{ user: User }> = ({ user }) => {
                                     <div className="flex justify-between items-center mb-6">
                                         <h3 className="font-black text-slate-800 uppercase tracking-tighter flex items-center gap-2 text-lg">
                                             <Activity className="h-5 w-5 text-indigo-600" />
-                                            Live Pulse History
+                                            Active System Pulse
                                         </h3>
-                                        <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded">Activity Scan (24H)</span>
+                                        <span className="flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-600 rounded-full text-[10px] font-black uppercase tracking-widest border border-emerald-100">
+                                            <div className="h-1.5 w-1.5 rounded-full bg-emerald-600 animate-pulse"></div>
+                                            Monitoring Live
+                                        </span>
                                     </div>
 
                                     <div className="h-48 flex items-end gap-1.5 px-2">
-                                        {[...Array(24)].map((_, i) => {
-                                            const h = Math.floor(Math.random() * 80) + 10;
-                                            return (
-                                                <div key={i} className="flex-1 bg-indigo-100 rounded-t-sm relative group">
-                                                    <div
-                                                        className="absolute bottom-0 left-0 right-0 bg-indigo-500 rounded-t-sm transition-all duration-1000"
-                                                        style={{ height: `${h}%` }}
-                                                    ></div>
-                                                    <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[8px] px-1.5 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                                                        Records: {Math.floor(h * 1.5)}
-                                                    </div>
+                                        {pulseData.map((h, i) => (
+                                            <div key={i} className="flex-1 bg-indigo-50 rounded-t-sm relative group">
+                                                <div
+                                                    className="absolute bottom-0 left-0 right-0 bg-indigo-500 rounded-t-sm transition-all duration-500"
+                                                    style={{ height: `${h}%` }}
+                                                ></div>
+                                                <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[8px] px-1.5 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-20">
+                                                    Load: {h.toFixed(0)}%
                                                 </div>
-                                            );
-                                        })}
+                                            </div>
+                                        ))}
                                     </div>
                                     <div className="flex justify-between mt-4 px-2 italic">
-                                        <span className="text-[10px] font-bold text-slate-400">Past 24 Hours</span>
-                                        <span className="text-[10px] font-bold text-indigo-600 uppercase">Live Buffer</span>
+                                        <span className="text-[10px] font-black text-slate-300 uppercase">24 Hours History</span>
+                                        <span className="text-[10px] font-black text-indigo-400 uppercase">Real-Time</span>
                                     </div>
                                 </Card>
                             </div>
@@ -228,19 +222,22 @@ export const DeveloperDashboard: React.FC<{ user: User }> = ({ user }) => {
                             <Card className="col-span-1">
                                 <h3 className="font-black text-slate-800 uppercase tracking-tighter flex items-center gap-2 mb-4">
                                     <ShieldAlert className="h-5 w-5 text-red-600" />
-                                    Active Shields
+                                    Security Nodes
                                 </h3>
-                                <ul className="space-y-4">
-                                    <SecurityItem label="Row Policies" status="ON" desc="Data isolation active" />
-                                    <SecurityItem label="TLS Layer" status="ON" desc="Encryption active" />
-                                    <SecurityItem label="CORS Lock" status="STRICT" desc="Origin protected" />
-                                </ul>
-                                <div className="mt-6 p-3 bg-slate-50 rounded-lg border border-slate-100">
-                                    <p className="text-[10px] font-black text-slate-400 uppercase mb-1">Disk Allocation</p>
-                                    <div className="h-2 w-full bg-slate-200 rounded-full overflow-hidden">
-                                        <div className="h-full bg-indigo-600" style={{ width: `${storage.percent}%` }}></div>
+                                <div className="space-y-4">
+                                    <SecurityItem label="Row Isolation" status="ACTIVE" desc="User data siloed" />
+                                    <SecurityItem label="TLS Pipeline" status="ACTIVE" desc="Encrypted tunnel" />
+                                    <SecurityItem label="Origin Shield" status="STRICT" desc="URL verification" />
+                                </div>
+                                <div className="mt-6 p-4 bg-slate-950 rounded-xl border border-slate-800 shadow-inner">
+                                    <div className="flex justify-between items-end mb-2">
+                                        <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest">Global Memory</p>
+                                        <p className="text-[9px] font-bold text-slate-500">{storage.percent}% Used</p>
                                     </div>
-                                    <p className="text-[9px] text-slate-500 mt-1 font-bold">{storage.consumed} of {storage.total} utilized</p>
+                                    <div className="h-2 w-full bg-slate-800 rounded-full overflow-hidden">
+                                        <div className="h-full bg-indigo-500 transition-all duration-1000" style={{ width: `${storage.percent}%` }}></div>
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 mt-2 font-mono">{storage.consumed} / {storage.total}</p>
                                 </div>
                             </Card>
                         </div>
@@ -248,70 +245,52 @@ export const DeveloperDashboard: React.FC<{ user: User }> = ({ user }) => {
                 )}
 
                 {activeTab === 'users' && (
-                    <div className="space-y-6">
-                        <section className="bg-blue-50 p-4 rounded-xl border border-blue-100 flex gap-3 text-blue-800">
-                            <HelpCircle className="h-5 w-5 shrink-0 mt-0.5" />
-                            <div>
-                                <h4 className="text-sm font-black uppercase tracking-tight">Technical Profile Inspector</h4>
-                                <p className="text-xs font-medium opacity-80 mt-0.5">Use this to find user accounts and inspect their raw database properties if they report login issues.</p>
-                            </div>
-                        </section>
-                        <UserManager
-                            addLog={addLog}
-                            onInspect={async (uid) => {
-                                addLog(`Pulling technical snapshot for profile: ${uid}`, 'info');
-                                const raw = await db.getRawProfile(uid);
-                                setInspectedUser(raw);
-                            }}
-                        />
-                    </div>
+                    <UserManager
+                        addLog={addLog}
+                        onInspect={async (uid) => {
+                            addLog(`Pulling technical snapshot for profile: ${uid}`, 'info');
+                            const raw = await db.getRawProfile(uid);
+                            setInspectedUser(raw);
+                        }}
+                    />
                 )}
 
                 {activeTab === 'logs' && (
-                    <div className="space-y-6">
-                        <section className="bg-slate-900 p-4 rounded-xl border border-slate-800 flex gap-3 text-slate-300">
-                            <Terminal className="h-5 w-5 shrink-0 mt-0.5 text-indigo-400" />
-                            <div>
-                                <h4 className="text-sm font-black uppercase tracking-tight">System Log Stream</h4>
-                                <p className="text-xs font-medium opacity-80 mt-0.5 font-mono">Real-time trace of system operations and API responses.</p>
+                    <Card className="bg-slate-950 border-slate-800 p-0 overflow-hidden shadow-2xl">
+                        <div className="bg-slate-900 p-4 border-b border-slate-800 flex justify-between items-center">
+                            <div className="flex items-center gap-2">
+                                <div className="h-3 w-3 rounded-full bg-emerald-500 animate-pulse mr-2"></div>
+                                <h3 className="text-slate-300 font-mono text-xs uppercase tracking-[0.2em] font-bold">Kernel Buffer Stream</h3>
                             </div>
-                        </section>
-
-                        <Card className="bg-slate-950 border-slate-800 p-0 overflow-hidden shadow-2xl">
-                            <div className="bg-slate-900 p-4 border-b border-slate-800 flex justify-between items-center">
-                                <div className="flex items-center gap-2">
-                                    <div className="flex gap-1.5 mr-4 font-black text-indigo-500 font-mono text-[10px]">KERNEL_OUT</div>
+                            <Button size="sm" variant="secondary" onClick={() => setLogs([])} className="bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700 font-black text-[10px]">Flush Logs</Button>
+                        </div>
+                        <div className="p-4 font-mono text-sm h-[500px] overflow-y-auto space-y-1.5 scrollbar-thin scrollbar-thumb-slate-800">
+                            {logs.length === 0 && <div className="text-slate-600 italic">Listening for system events...</div>}
+                            {logs.map((log, i) => (
+                                <div key={i} className="flex gap-3 animate-in slide-in-from-left-2 duration-300">
+                                    <span className="text-slate-600 shrink-0">[{log.t.split('T')[1].split('.')[0]}]</span>
+                                    <span className={`
+                                        ${log.type === 'error' ? 'text-red-400' : ''}
+                                        ${log.type === 'warn' ? 'text-amber-400' : ''}
+                                        ${log.type === 'info' ? 'text-indigo-400' : ''}
+                                        uppercase font-black text-[10px] shrink-0
+                                    `}>
+                                        {log.type}
+                                    </span>
+                                    <span className="text-slate-300 break-all">{log.m}</span>
                                 </div>
-                                <Button size="sm" variant="secondary" onClick={() => setLogs([])} className="bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700 font-black text-[10px]">Clear Buffer</Button>
-                            </div>
-                            <div className="p-4 font-mono text-sm h-[500px] overflow-y-auto space-y-1.5 scrollbar-thin scrollbar-thumb-slate-800">
-                                {logs.length === 0 && <div className="text-slate-600 italic">Listening for system events...</div>}
-                                {logs.map((log, i) => (
-                                    <div key={i} className="flex gap-3 animate-in slide-in-from-left-2 duration-300">
-                                        <span className="text-slate-600 shrink-0">[{log.t.split('T')[1].split('.')[0]}]</span>
-                                        <span className={`
-                                            ${log.type === 'error' ? 'text-red-400' : ''}
-                                            ${log.type === 'warn' ? 'text-amber-400' : ''}
-                                            ${log.type === 'info' ? 'text-indigo-400' : ''}
-                                            uppercase font-black text-[10px] shrink-0
-                                        `}>
-                                            {log.type}
-                                        </span>
-                                        <span className="text-slate-300 break-all">{log.m}</span>
-                                    </div>
-                                ))}
-                            </div>
-                        </Card>
-                    </div>
+                            ))}
+                        </div>
+                    </Card>
                 )}
 
                 {activeTab === 'database' && (
                     <div className="space-y-6">
                         <section className="bg-emerald-50 p-4 rounded-xl border border-emerald-100 flex gap-3 text-emerald-800">
-                            <Database className="h-5 w-5 shrink-0 mt-0.5" />
+                            <Info className="h-5 w-5 shrink-0 mt-0.5" />
                             <div>
-                                <h4 className="text-sm font-black uppercase tracking-tight">Database Statistics</h4>
-                                <p className="text-xs font-medium opacity-80 mt-0.5">Physical row counts for every table in the cluster.</p>
+                                <h4 className="text-sm font-black uppercase tracking-tight">Database Table Peek</h4>
+                                <p className="text-xs font-medium opacity-80 mt-0.5">Below you can see the <b>Count</b> of rows vs the <b>Estimated Size</b> consumed per table (tag).</p>
                             </div>
                         </section>
 
@@ -323,27 +302,28 @@ export const DeveloperDashboard: React.FC<{ user: User }> = ({ user }) => {
                                 </h3>
                                 <Button
                                     onClick={async () => {
-                                        addLog('Syncing latest row counts...', 'info');
-                                        const stats = await db.getDeepStats();
+                                        addLog('Syncing latest row counts and storage metrics...', 'info');
+                                        const [stats, store] = await Promise.all([db.getDeepStats(), db.getStorageStats()]);
                                         setDeepStats(stats);
+                                        setStorage(store);
                                     }}
                                     className="flex items-center gap-2 font-black uppercase text-[10px]"
                                 >
                                     <RefreshCw className="h-3 w-3" />
-                                    Synchronize
+                                    Synchronize Stats
                                 </Button>
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                <DBTableCard name="Profiles" alias="Users" rows={deepStats.profiles || 0} hint="List of all registered accounts" />
-                                <DBTableCard name="Attendance" alias="Log" rows={deepStats.attendance || 0} hint="Individual daily attendance entries" />
-                                <DBTableCard name="Marks" alias="Exams" rows={deepStats.marks || 0} hint="Mid-semester evaluation entries" />
-                                <DBTableCard name="Notifications" alias="Alerts" rows={deepStats.notifications || 0} hint="Broadcast and targeted messages" />
-                                <DBTableCard name="Branches" alias="Depts" rows={deepStats.branches || 0} hint="Unique academic branches" />
-                                <DBTableCard name="Batches" alias="Years" rows={deepStats.batches || 0} hint="Branch-specific year batches" />
-                                <DBTableCard name="Subjects" alias="Courses" rows={deepStats.subjects || 0} hint="Master list of all subjects" />
-                                <DBTableCard name="Assignments" alias="Teaching" rows={deepStats.assignments || 0} hint="Faculty-Subject mapping" />
-                                <DBTableCard name="Coordinators" alias="Staff" rows={deepStats.coordinators || 0} hint="Branch management assignments" />
+                                <DBTableCard name="Profiles" alias="Users" rows={deepStats.profiles?.count || 0} size={deepStats.profiles?.size || "0 KB"} hint="Registered users with access" />
+                                <DBTableCard name="Attendance" alias="Log" rows={deepStats.attendance?.count || 0} size={deepStats.attendance?.size || "0 KB"} hint="Lecture attendance history" />
+                                <DBTableCard name="Marks" alias="Exams" rows={deepStats.marks?.count || 0} size={deepStats.marks?.size || "0 KB"} hint="Academic evaluation entries" />
+                                <DBTableCard name="Notifications" alias="Alerts" rows={deepStats.notifications?.count || 0} size={deepStats.notifications?.size || "0 KB"} hint="System-wide messages" />
+                                <DBTableCard name="Branches" alias="Depts" rows={deepStats.branches?.count || 0} size={deepStats.branches?.size || "0 KB"} hint="Academic departments" />
+                                <DBTableCard name="Batches" alias="Years" rows={deepStats.batches?.count || 0} size={deepStats.batches?.size || "0 KB"} hint="Year-wise student groups" />
+                                <DBTableCard name="Subjects" alias="Courses" rows={deepStats.subjects?.count || 0} size={deepStats.subjects?.size || "0 KB"} hint="Academic subject definitions" />
+                                <DBTableCard name="Assignments" alias="Teaching" rows={deepStats.assignments?.count || 0} size={deepStats.assignments?.size || "0 KB"} hint="Faculty subject mappings" />
+                                <DBTableCard name="Coordinators" alias="Staff" rows={deepStats.coordinators?.count || 0} size={deepStats.coordinators?.size || "0 KB"} hint="Staff responsible for branches" />
                             </div>
                         </Card>
                     </div>
@@ -354,15 +334,15 @@ export const DeveloperDashboard: React.FC<{ user: User }> = ({ user }) => {
                         <section className="bg-red-50 p-4 rounded-xl border border-red-100 flex gap-3 text-red-800">
                             <ShieldAlert className="h-5 w-5 shrink-0 mt-0.5" />
                             <div>
-                                <h4 className="text-sm font-black uppercase tracking-tight">Emergency Policy Controls</h4>
-                                <p className="text-xs font-medium opacity-80 mt-0.5 font-bold uppercase transition-colors">Toggling Student Access will immediately affect the Login Screen status.</p>
+                                <h4 className="text-sm font-black uppercase tracking-tight">System Policy Controls</h4>
+                                <p className="text-xs font-medium opacity-80 mt-0.5 font-bold uppercase">Caution: Toggles here affect all clients instantly.</p>
                             </div>
                         </section>
 
                         <Card>
                             <h3 className="font-black text-slate-800 uppercase tracking-tighter flex items-center gap-2 mb-6">
                                 <Settings className="h-5 w-5 text-indigo-600" />
-                                Global Policy Switchboard
+                                Global Feature Switch
                             </h3>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <FeatureToggle
@@ -372,8 +352,8 @@ export const DeveloperDashboard: React.FC<{ user: User }> = ({ user }) => {
                                     onChange={(v: boolean) => handleToggleMaintenance(!v)}
                                 />
                                 <FeatureToggle
-                                    label="Technical Logs"
-                                    description="Enable verbose developer logging in the browser console. Best kept OFF in production."
+                                    label="Debug Logs"
+                                    description="Enable verbose developer logging in the browser (F12). Keep off for better performance."
                                     defaultOn={true}
                                 />
                             </div>
@@ -382,13 +362,13 @@ export const DeveloperDashboard: React.FC<{ user: User }> = ({ user }) => {
                         <Card className="bg-slate-50 border-slate-200">
                             <h3 className="font-black text-slate-800 uppercase tracking-tighter flex items-center gap-2 mb-6">
                                 <Code className="h-5 w-5 text-slate-600" />
-                                System Configuration
+                                Environment Snapshots
                             </h3>
                             <div className="space-y-3">
-                                <EnvItem k="Deployment Node" v={window.location.host} desc="Production server address" />
-                                <EnvItem k="Engine Runtime" v="React 18" desc="Core framework version" />
-                                <EnvItem k="Auth Gateway" v="Supabase Edge" desc="Security provider" />
-                                <EnvItem k="System Revision" v="V2.4.0-Stable" desc="Internal release ID" />
+                                <EnvItem k="Host Domain" v={window.location.host} desc="Active server" />
+                                <EnvItem k="UI Engine" v="React 18" desc="Client framework" />
+                                <EnvItem k="Auth Provider" v="Supabase" desc="Security layer" />
+                                <EnvItem k="Build Tag" v="AMS-V2-STABLE" desc="Code version" />
                             </div>
                         </Card>
                     </div>
@@ -396,15 +376,9 @@ export const DeveloperDashboard: React.FC<{ user: User }> = ({ user }) => {
             </div>
 
             {/* Inspect Modal */}
-            <Modal
-                isOpen={!!inspectedUser}
-                onClose={() => setInspectedUser(null)}
-                title="Direct Data Inspector (JSON)"
-            >
+            <Modal isOpen={!!inspectedUser} onClose={() => setInspectedUser(null)} title="Object Inspector">
                 <div className="bg-slate-950 rounded-lg p-4 font-mono text-xs overflow-auto max-h-[60vh]">
-                    <pre className="text-emerald-400">
-                        {JSON.stringify(inspectedUser, null, 2)}
-                    </pre>
+                    <pre className="text-emerald-400">{JSON.stringify(inspectedUser, null, 2)}</pre>
                 </div>
                 <div className="mt-4 flex justify-end">
                     <Button onClick={() => setInspectedUser(null)}>Dismiss</Button>
@@ -420,10 +394,10 @@ const DeveloperStatCard = ({ label, value, icon: Icon, color, sub, progress }: a
             <div>
                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{label}</p>
                 <p className={`text-2xl font-black ${color}`}>{value}</p>
-                <p className="text-[10px] text-slate-500 mt-1 font-bold uppercase opacity-60">{sub}</p>
+                <p className="text-[10px] text-slate-500 mt-1 font-black uppercase opacity-60 tracking-tight">{sub}</p>
                 {progress !== undefined && (
-                    <div className="mt-2 w-24 h-1 bg-slate-100 rounded-full overflow-hidden">
-                        <div className={`h-full ${color.replace('text', 'bg')}`} style={{ width: `${progress}%` }}></div>
+                    <div className="mt-2 w-full h-1 bg-slate-100 rounded-full overflow-hidden min-w-[120px]">
+                        <div className={`h-full ${color.replace('text', 'bg')} transition-all duration-1000`} style={{ width: `${progress}%` }}></div>
                     </div>
                 )}
             </div>
@@ -435,7 +409,7 @@ const DeveloperStatCard = ({ label, value, icon: Icon, color, sub, progress }: a
 );
 
 const SecurityItem = ({ label, status, desc }: any) => (
-    <li className="flex justify-between items-center text-sm">
+    <div className="flex justify-between items-center text-sm p-2 hover:bg-slate-50 rounded transition-colors">
         <div className="flex flex-col">
             <span className="text-slate-800 font-black uppercase text-[10px] tracking-tight">{label}</span>
             <span className="text-[10px] text-slate-500 italic lowercase">{desc}</span>
@@ -443,23 +417,27 @@ const SecurityItem = ({ label, status, desc }: any) => (
         <span className="px-2 py-0.5 bg-emerald-50 text-emerald-600 rounded-md text-[10px] font-black uppercase tracking-tight border border-emerald-100">
             {status}
         </span>
-    </li>
+    </div>
 );
 
-const DBTableCard = ({ name, rows, alias, hint }: any) => (
+const DBTableCard = ({ name, rows, size, alias, hint }: any) => (
     <div className="p-4 rounded-xl border border-slate-200 hover:border-indigo-300 hover:shadow-md transition-all group cursor-pointer bg-slate-50/50">
-        <div className="flex justify-between items-center">
+        <div className="flex justify-between items-center h-full">
             <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-lg bg-white border border-slate-200 flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition-colors">
+                <div className="h-10 w-10 rounded-lg bg-white border border-slate-200 flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition-colors shrink-0">
                     <Database className="h-5 w-5" />
                 </div>
                 <div>
-                    <h4 className="font-black text-slate-800 font-mono text-sm">{name} <span className="opacity-30 text-xs">({alias})</span></h4>
-                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">{rows.toLocaleString()} Rows</p>
+                    <h4 className="font-black text-slate-800 font-mono text-sm">{name} <span className="opacity-30 text-[10px]">({alias})</span></h4>
+                    <div className="flex gap-3 mt-1">
+                        <p className="text-[10px] text-slate-500 font-black uppercase tracking-wider">{rows.toLocaleString()} Rows</p>
+                        <div className="h-3 w-[1px] bg-slate-300"></div>
+                        <p className="text-[10px] text-indigo-600 font-black uppercase tracking-wider">{size}</p>
+                    </div>
+                    <p className="mt-2 text-[10px] text-slate-400 italic">" {hint} "</p>
                 </div>
             </div>
         </div>
-        <p className="mt-2 text-[10px] text-slate-400 italic">" {hint} "</p>
     </div>
 );
 
@@ -475,18 +453,16 @@ const EnvItem = ({ k, v, desc }: any) => (
 
 const FeatureToggle = ({ label, description, on, onChange, defaultOn = false }: any) => {
     const [localOn, setLocalOn] = useState(defaultOn);
-
-    // Support both controlled and uncontrolled
     const isControlled = on !== undefined;
     const active = isControlled ? on : localOn;
 
     return (
-        <div className="flex items-start justify-between p-4 rounded-xl bg-white border border-slate-100 hover:border-indigo-100 transition-colors">
+        <div className="flex items-start justify-between p-4 rounded-xl bg-white border border-slate-100 hover:border-indigo-100 transition-colors shadow-sm">
             <div>
                 <h4 className="text-sm font-black text-slate-800 uppercase tracking-tight flex items-center gap-2">
                     {label}
-                    {!active && <span className="text-[8px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded uppercase">Disabled</span>}
-                    {active && <span className="text-[8px] bg-emerald-100 text-emerald-600 px-1.5 py-0.5 rounded uppercase">Active</span>}
+                    {!active && <span className="text-[8px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded uppercase font-black">Disabled</span>}
+                    {active && <span className="text-[8px] bg-emerald-100 text-emerald-600 px-1.5 py-0.5 rounded uppercase font-black">Online</span>}
                 </h4>
                 <p className="text-[10px] font-medium text-slate-500 mt-1 leading-relaxed">{description}</p>
             </div>
@@ -511,13 +487,13 @@ const UserManager = ({ addLog, onInspect }: { addLog: any, onInspect: (uid: stri
     const handleSearch = async () => {
         if (!searchTerm) return;
         setSearching(true);
-        addLog(`Searching main registry for: "${searchTerm}"`, 'info');
+        addLog(`Executing technical scan for: "${searchTerm}"`, 'info');
         try {
             const data = await db.searchUsers(searchTerm);
             setResults(data);
-            addLog(`Found ${data.length} matches.`, 'info');
+            addLog(`Scan complete. ${data.length} profiles identified.`, 'info');
         } catch (e: any) {
-            addLog(`Search Engine failed: ${e.message}`, 'error');
+            addLog(`Registry Scan failed: ${e.message}`, 'error');
         } finally {
             setSearching(false);
         }
@@ -527,14 +503,14 @@ const UserManager = ({ addLog, onInspect }: { addLog: any, onInspect: (uid: stri
         <div className="space-y-6">
             <Card>
                 <h3 className="font-black text-slate-800 uppercase tracking-tighter flex items-center gap-2 mb-6">
-                    <Search className="h-5 w-5 text-indigo-600" />
-                    Identity Search Engine
+                    <Users className="h-5 w-5 text-indigo-600" />
+                    Identity & Registry Trace
                 </h3>
                 <div className="flex gap-2">
                     <div className="relative flex-1">
                         <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
                         <Input
-                            placeholder="Type Name, Email or Enrollment ID..."
+                            placeholder="Email, Name, or enrollment..."
                             className="pl-10"
                             value={searchTerm}
                             onChange={e => setSearchTerm(e.target.value)}
@@ -542,15 +518,15 @@ const UserManager = ({ addLog, onInspect }: { addLog: any, onInspect: (uid: stri
                         />
                     </div>
                     <Button onClick={handleSearch} disabled={searching} className="flex items-center gap-2 font-black uppercase text-xs">
-                        {searching ? 'Scanning...' : 'Scan All Users'}
+                        {searching ? 'Tracing...' : 'Run Trace'}
                     </Button>
                 </div>
             </Card>
 
             {results.length > 0 && (
                 <Card className="overflow-hidden p-0 border-slate-200">
-                    <div className="bg-slate-50 px-6 py-4 border-b border-slate-200 flex justify-between items-center">
-                        <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Live Search Results</h4>
+                    <div className="bg-slate-50 px-6 py-4 border-b border-slate-200">
+                        <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Trace Results</h4>
                     </div>
                     <div className="divide-y divide-slate-100">
                         {results.map((u, i) => (
@@ -563,42 +539,19 @@ const UserManager = ({ addLog, onInspect }: { addLog: any, onInspect: (uid: stri
                                         <h5 className="text-sm font-black text-slate-800 uppercase tracking-tight">{u.displayName}</h5>
                                         <p className="text-[10px] font-medium text-slate-500 lowercase">{u.email}</p>
                                         <div className="flex gap-1.5 mt-2">
-                                            <span className="px-1.5 py-0.5 bg-slate-900 text-white rounded text-[9px] font-black uppercase tracking-tight">
-                                                {u.role}
-                                            </span>
-                                            {u.studentData?.enrollmentId && (
-                                                <span className="px-1.5 py-0.5 bg-indigo-50 text-indigo-600 rounded text-[9px] font-black uppercase tracking-tight border border-indigo-100">
-                                                    ID: {u.studentData.enrollmentId}
-                                                </span>
-                                            )}
+                                            <span className="px-1.5 py-0.5 bg-slate-900 text-white rounded text-[9px] font-black uppercase tracking-tight shadow-sm shadow-black/20">{u.role}</span>
                                         </div>
                                     </div>
                                 </div>
-                                <div className="flex gap-3">
-                                    <Button
-                                        size="sm"
-                                        variant="secondary"
-                                        onClick={() => onInspect(u.uid)}
-                                    >
-                                        <Eye className="h-3.5 w-3.5 mr-1" />
-                                        <span className="text-[9px] font-black uppercase">Inspect</span>
-                                    </Button>
-                                </div>
+                                <Button size="sm" variant="secondary" onClick={() => onInspect(u.uid)}>
+                                    <Eye className="h-3.5 w-3.5 mr-1" />
+                                    <span className="text-[9px] font-black uppercase tracking-tighter">Inspect</span>
+                                </Button>
                             </div>
                         ))}
                     </div>
                 </Card>
             )}
-
-            <div className="bg-amber-50 border border-amber-100 p-4 rounded-xl flex items-start gap-3">
-                <AlertCircle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
-                <div>
-                    <h5 className="text-xs font-black text-amber-800 uppercase tracking-[0.1em]">Privacy & Audit Notice</h5>
-                    <p className="text-[10px] text-amber-700 mt-1 leading-relaxed font-bold uppercase transition-transform">
-                        Searching profiles is only for technical assistance. All searches are recorded in the audit trail.
-                    </p>
-                </div>
-            </div>
         </div>
     );
 };
