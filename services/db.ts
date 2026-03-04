@@ -80,6 +80,9 @@ interface IDataService {
   // Developer / System
   getUsersCount: () => Promise<number>;
   searchUsers: (query: string) => Promise<User[]>;
+  getRawProfile: (userId: string) => Promise<any>;
+  ping: () => Promise<number>;
+  getDeepStats: () => Promise<Record<string, number>>;
 }
 
 // --- Supabase Implementation ---
@@ -829,6 +832,30 @@ class SupabaseService implements IDataService {
     if (!s || s.length === 0) await supabase.from('subjects').insert(SEED_SUBJECTS);
     await supabase.from('system_settings').upsert([{ key: 'student_login_enabled', value: true }]);
   }
+
+  async getRawProfile(userId: string): Promise<any> {
+    const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).single();
+    if (error) throw error;
+    return data;
+  }
+
+  async ping(): Promise<number> {
+    const start = Date.now();
+    await supabase.from('profiles').select('id').limit(1);
+    return Date.now() - start;
+  }
+
+  async getDeepStats(): Promise<Record<string, number>> {
+    const tables = ['profiles', 'attendance', 'marks', 'notifications', 'branches', 'batches', 'subjects', 'assignments', 'coordinators'];
+    const counts: Record<string, number> = {};
+
+    await Promise.all(tables.map(async (t) => {
+      const { count } = await supabase.from(t).select('*', { count: 'exact', head: true });
+      counts[t] = count || 0;
+    }));
+
+    return counts;
+  }
 }
 
 // --- MOCK Implementation (Unchanged) ---
@@ -1236,6 +1263,29 @@ class MockService implements IDataService {
         u.studentData?.enrollmentId?.toLowerCase().includes(q) ||
         u.studentData?.mobileNo?.includes(q);
     }).slice(0, 50);
+  }
+
+  async getRawProfile(userId: string): Promise<any> {
+    const users = this.load('ams_users', SEED_USERS);
+    return users.find((u: any) => u.uid === userId || u.id === userId);
+  }
+
+  async ping(): Promise<number> {
+    return Math.floor(Math.random() * 5) + 1; // 1-5ms for mock
+  }
+
+  async getDeepStats(): Promise<Record<string, number>> {
+    return {
+      profiles: (this.load('ams_users', SEED_USERS)).length,
+      attendance: (this.load('ams_attendance', [])).length,
+      marks: (this.load('ams_marks', [])).length,
+      notifications: (this.load('ams_notifications', [])).length,
+      branches: (this.load('ams_branches', SEED_BRANCHES)).length,
+      batches: (this.load('ams_batches', SEED_BATCHES)).length,
+      subjects: (this.load('ams_subjects', SEED_SUBJECTS)).length,
+      assignments: (this.load('ams_assignments', SEED_ASSIGNMENTS)).length,
+      coordinators: (this.load('ams_coordinators', [])).length,
+    };
   }
 }
 
