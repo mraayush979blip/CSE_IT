@@ -2756,10 +2756,10 @@ const CoordinatorReport: React.FC<{ branchId: string; branchName: string; studen
 
          const pct = studentTotalSessions === 0 ? 0 : Math.round((presentCount / studentTotalSessions) * 100);
 
-         let status = '🏆 Excellent';
-         if (pct < 60) status = '🚨 Critical';
-         else if (pct < 75) status = '⚠️ Shortage';
-         else if (pct < 90) status = '✅ Good';
+         let status = 'Excellent';
+         if (pct < 60) status = 'Critical';
+         else if (pct < 75) status = 'Shortage';
+         else if (pct < 90) status = 'Good';
 
          return [
             s.studentData?.rollNo || '',
@@ -2795,13 +2795,7 @@ const CoordinatorReport: React.FC<{ branchId: string; branchName: string; studen
          ["Class Average", `${classAvg}%`],
          ["Detention Count (<75%)", detentionCount.toString()],
          ["Highest Attendance", `${Math.round(maxAtt)}% (${highestAttendNames})`],
-         ["", ""],
-         ["REPORT LEGEND", ""],
-         ["🏆 Excellent", "Total Avg > 90%"],
-         ["✅ Good", "Total Avg > 75%"],
-         ["⚠️ Shortage", "Shortage (60% - 75%)"],
-         ["🚨 Critical", "Critical (< 60%)"],
-         []
+         ["", ""]
       ];
 
       const mainHeader = ["Serial No", "Name", "Enrollment ID", "Status", ...subjectHeaders, "Extra Lectures", "Total Lectures", "Present Count", "Attendance %"];
@@ -2837,7 +2831,7 @@ const CoordinatorReport: React.FC<{ branchId: string; branchName: string; studen
       ws['!cols'] = colWidths;
 
       // 3. Frozen Panes
-      ws['!views'] = [{ state: 'frozen', xSplit: 4, ySplit: 15 }];
+      ws['!views'] = [{ state: 'frozen', xSplit: 4, ySplit: 14 }];
 
       // --- 5. Apply Colors & Styles ---
       const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
@@ -2864,21 +2858,21 @@ const CoordinatorReport: React.FC<{ branchId: string; branchName: string; studen
                ws[addr].s.alignment.horizontal = "center";
             }
 
-            // Table Header (Row 14)
-            if (R === 14) {
+            // Table Header (Row 13)
+            if (R === 13) {
                ws[addr].s.fill = { fgColor: { rgb: "334155" } };
                ws[addr].s.font = { color: { rgb: "FFFFFF" }, bold: true };
                ws[addr].s.alignment.horizontal = "center";
             }
 
-            // Totals Row (Row 15)
-            if (R === 15) {
+            // Totals Row (Row 14)
+            if (R === 14) {
                ws[addr].s.fill = { fgColor: { rgb: "F1F5F9" } };
                ws[addr].s.font.bold = true;
             }
 
             // Status Column Colors (Col 3)
-            if (R > 15 && C === 3) {
+            if (R > 14 && C === 3) {
                const val = ws[addr].v;
                if (val?.includes('Excellent')) ws[addr].s.fill = { fgColor: { rgb: "DCFCE7" } };
                else if (val?.includes('Good')) ws[addr].s.fill = { fgColor: { rgb: "DBEAFE" } };

@@ -1499,7 +1499,7 @@ const ReportManagement: React.FC = () => {
       ["DEPT OF COMPUTER SCIENCE AND ENGINEERING"],
       [`Attendance Summary Report: ${branchName}`],
       [`Period: ${exportRange === 'TILL_TODAY' ? 'Full Session' : `${exportStartDate} to ${exportEndDate}`}`],
-      [`Report Grade: EXECUTIVE PREMIUM | Generated: ${new Date().toLocaleString()}`],
+      [`Generated: ${new Date().toLocaleString()}`],
       []
     ];
 
@@ -1530,10 +1530,10 @@ const ReportManagement: React.FC = () => {
 
       const pct = totalSessions === 0 ? 0 : Math.round((presentCount / totalSessions) * 100);
 
-      let status = '🏆 Excellent';
-      if (pct < 60) status = '🚨 Critical';
-      else if (pct < 75) status = '⚠️ Shortage';
-      else if (pct < 90) status = '✅ Good';
+      let status = 'Excellent';
+      if (pct < 60) status = 'Critical';
+      else if (pct < 75) status = 'Shortage';
+      else if (pct < 90) status = 'Good';
 
       return [
         s.studentData?.rollNo || '',
@@ -1567,13 +1567,7 @@ const ReportManagement: React.FC = () => {
       ["Class Average", `${classAvg}%`],
       ["Detention Count (<75%)", detentionCount.toString()],
       ["Highest Attendance", `${Math.round(maxAtt)}% (${highestAttendNames})`],
-      ["", ""],
-      ["REPORT LEGEND", ""],
-      ["🏆 Excellent", "Final Attendance > 90%"],
-      ["✅ Good", "Final Attendance > 75%"],
-      ["⚠️ Shortage", "Shortage (60% - 75%)"],
-      ["🚨 Critical", "Critical (< 60%)"],
-      []
+      ["", ""]
     ];
 
     const headerLabels = ["Serial No", "Name", "Enrollment", "Status", ...subjectHeaders, "Extra", "Total lectures", "Present Count", "Attendance %"];
@@ -1601,7 +1595,7 @@ const ReportManagement: React.FC = () => {
     ws['!cols'] = colWidths;
 
     // Frozen Panes
-    ws['!views'] = [{ state: 'frozen', xSplit: 2, ySplit: 16 }];
+    ws['!views'] = [{ state: 'frozen', xSplit: 2, ySplit: 13 }];
 
     // --- 5. Apply Colors & Styles ---
     const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
@@ -1628,21 +1622,21 @@ const ReportManagement: React.FC = () => {
           ws[addr].s.alignment.horizontal = "center";
         }
 
-        // Table Header (Row 15)
-        if (R === 15) {
+        // Table Header (Row 12)
+        if (R === 12) {
           ws[addr].s.fill = { fgColor: { rgb: "334155" } };
           ws[addr].s.font = { color: { rgb: "FFFFFF" }, bold: true };
           ws[addr].s.alignment.horizontal = "center";
         }
 
-        // Totals Row (Row 16)
-        if (R === 16) {
+        // Totals Row (Row 13)
+        if (R === 13) {
           ws[addr].s.fill = { fgColor: { rgb: "F1F5F9" } };
           ws[addr].s.font.bold = true;
         }
 
         // Status Column Colors (Col 3)
-        if (R > 16 && C === 3) {
+        if (R > 13 && C === 3) {
           const val = ws[addr].v;
           if (val?.includes('Excellent')) ws[addr].s.fill = { fgColor: { rgb: "DCFCE7" } };
           else if (val?.includes('Good')) ws[addr].s.fill = { fgColor: { rgb: "DBEAFE" } };
