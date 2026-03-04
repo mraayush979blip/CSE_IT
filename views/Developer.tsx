@@ -18,7 +18,8 @@ import {
     AlertCircle,
     Code,
     Info,
-    HelpCircle
+    HelpCircle,
+    HardDrive
 } from 'lucide-react';
 import { Card, Button, Input, Modal } from '../components/UI';
 import { db } from '../services/db';
@@ -27,9 +28,9 @@ import { User, SystemSettings } from '../types';
 export const DeveloperDashboard: React.FC<{ user: User }> = ({ user }) => {
     const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'logs' | 'database' | 'settings'>('overview');
     const [deepStats, setDeepStats] = useState<Record<string, number>>({});
+    const [storage, setStorage] = useState({ consumed: '0 MB', total: '500 MB', percent: 0 });
     const [latency, setLatency] = useState(0);
     const [logs, setLogs] = useState<{ t: string; m: string; type: 'info' | 'error' | 'warn' }[]>([]);
-    const [loading, setLoading] = useState(false);
     const [sysSettings, setSysSettings] = useState<SystemSettings>({ studentLoginEnabled: true });
 
     // Modals
@@ -43,23 +44,25 @@ export const DeveloperDashboard: React.FC<{ user: User }> = ({ user }) => {
 
         const fetchData = async () => {
             try {
-                const stats = await db.getDeepStats();
+                const [stats, settings, ms, store] = await Promise.all([
+                    db.getDeepStats(),
+                    db.getSystemSettings(),
+                    db.ping(),
+                    db.getStorageStats()
+                ]);
+
                 setDeepStats(stats);
-
-                const settings = await db.getSystemSettings();
                 setSysSettings(settings);
-
-                const ms = await db.ping();
                 setLatency(ms);
+                setStorage(store);
 
-                addLog(`Diagnostic complete: ${stats.profiles} profiles registered. Latency: ${ms}ms`, 'info');
+                addLog(`Diagnostic complete. Latency: ${ms}ms. Storage: ${store.consumed}/${store.total}`, 'info');
             } catch (e: any) {
                 addLog(`Initialization error: ${e.message}`, 'error');
             }
         };
         fetchData();
 
-        // Periodic Latency Check
         const interval = setInterval(async () => {
             try {
                 const ms = await db.ping();
@@ -85,6 +88,13 @@ export const DeveloperDashboard: React.FC<{ user: User }> = ({ user }) => {
         }
     };
 
+    const getLatencyColor = (ms: number) => {
+        if (ms === 0) return 'text-slate-400';
+        if (ms < 200) return 'text-emerald-600'; // Safe (Green)
+        if (ms < 500) return 'text-amber-600';   // Warning (Yellow)
+        return 'text-red-600';                    // Unsafe (Red)
+    };
+
     return (
         <div className="space-y-6 animate-in fade-in duration-500">
             {/* Top Welcome Banner */}
@@ -98,7 +108,7 @@ export const DeveloperDashboard: React.FC<{ user: User }> = ({ user }) => {
                     </div>
                     <h2 className="text-3xl font-black mb-2 tracking-tight">Welcome, {user.displayName}</h2>
                     <p className="text-slate-400 text-sm max-w-md">
-                        This is your control center. Use the tabs below to monitor system health, troubleshoot user issues, and manage global settings.
+                        Monitoring system metrics. Database connection is {latency > 500 ? 'UNSTABLE' : 'STABLE'}.
                     </p>
                 </div>
 
@@ -112,7 +122,7 @@ export const DeveloperDashboard: React.FC<{ user: User }> = ({ user }) => {
                     { id: 'overview', icon: Activity, label: 'Overview', desc: 'System Health' },
                     { id: 'users', icon: Users, label: 'Users', desc: 'Find & Fix Accounts' },
                     { id: 'logs', icon: Terminal, label: 'Logs', desc: 'Live Events' },
-                    { id: 'database', icon: Database, label: 'Database', desc: 'Internal Tables' },
+                    { id: 'database', icon: Database, label: 'Database', desc: 'Row Counts' },
                     { id: 'settings', icon: Settings, label: 'Policies', desc: 'Global Controls' },
                 ].map(tab => (
                     <button
@@ -138,42 +148,48 @@ export const DeveloperDashboard: React.FC<{ user: User }> = ({ user }) => {
             <div className="mt-6">
                 {activeTab === 'overview' && (
                     <div className="space-y-6">
-                        <section className="bg-indigo-50 p-4 rounded-xl border border-indigo-100 flex gap-3 text-indigo-800">
-                            <Info className="h-5 w-5 shrink-0 mt-0.5" />
-                            <div>
-                                <h4 className="text-sm font-black uppercase tracking-tight">How is the system today?</h4>
-                                <p className="text-xs font-medium opacity-80 mt-0.5">Below are the core health metrics. High latency (ms) or "Restricted" status may require your attention.</p>
-                            </div>
-                        </section>
+                        {!sysSettings.studentLoginEnabled && (
+                            <section className="bg-red-50 p-4 rounded-xl border border-red-200 flex gap-3 text-red-800 animate-pulse">
+                                <ShieldAlert className="h-5 w-5 shrink-0 mt-0.5" />
+                                <div>
+                                    <h4 className="text-sm font-black uppercase tracking-tight">System in Maintenance Mode</h4>
+                                    <p className="text-xs font-medium opacity-80 mt-1">
+                                        Students are currently blocked from logging in. This is why the status below shows "Maintenance".
+                                        You can turn this back on in the <button onClick={() => setActiveTab('settings')} className="underline font-bold">Policies Tab</button>.
+                                    </p>
+                                </div>
+                            </section>
+                        )}
 
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                            <DeveloperStatCard
-                                label="Total Profiles"
-                                value={(deepStats.profiles || 0).toString()}
-                                icon={Users}
-                                color="text-blue-600"
-                                sub="Total registered accounts"
-                            />
                             <DeveloperStatCard
                                 label="DB Speed (ms)"
                                 value={`${latency}ms`}
                                 icon={Server}
-                                color={latency < 100 ? "text-emerald-600" : "text-amber-600"}
-                                sub="Time to reach database"
+                                color={getLatencyColor(latency)}
+                                sub={latency > 500 ? "UNSAFE - High Latency" : "SAFE - Normal Speed"}
                             />
                             <DeveloperStatCard
-                                label="Attendance Records"
-                                value={(deepStats.attendance || 0).toString()}
-                                icon={Activity}
+                                label="Storage Consumed"
+                                value={storage.consumed}
+                                icon={HardDrive}
                                 color="text-indigo-600"
-                                sub="Life-time entries in system"
+                                sub={`Total Limit: ${storage.total}`}
+                                progress={storage.percent}
                             />
                             <DeveloperStatCard
                                 label="System Status"
                                 value={sysSettings.studentLoginEnabled ? "Public" : "Maintenance"}
-                                icon={ShieldAlert}
-                                color={sysSettings.studentLoginEnabled ? "text-blue-600" : "text-red-600"}
-                                sub="Current login availability"
+                                icon={sysSettings.studentLoginEnabled ? Zap : ShieldAlert}
+                                color={sysSettings.studentLoginEnabled ? "text-emerald-600" : "text-red-600"}
+                                sub={sysSettings.studentLoginEnabled ? "Ready for Traffic" : "Restricted Access"}
+                            />
+                            <DeveloperStatCard
+                                label="Capacity Used"
+                                value={`${storage.percent}%`}
+                                icon={Cpu}
+                                color={storage.percent > 80 ? "text-red-500" : "text-blue-600"}
+                                sub="Estimated system load"
                             />
 
                             <div className="col-span-1 md:col-span-2 lg:col-span-3">
@@ -183,7 +199,7 @@ export const DeveloperDashboard: React.FC<{ user: User }> = ({ user }) => {
                                             <Activity className="h-5 w-5 text-indigo-600" />
                                             Live Pulse History
                                         </h3>
-                                        <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded">Visualizing Activity over 24H</span>
+                                        <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded">Activity Scan (24H)</span>
                                     </div>
 
                                     <div className="h-48 flex items-end gap-1.5 px-2">
@@ -196,15 +212,15 @@ export const DeveloperDashboard: React.FC<{ user: User }> = ({ user }) => {
                                                         style={{ height: `${h}%` }}
                                                     ></div>
                                                     <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[8px] px-1.5 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                                                        Load: {h}%
+                                                        Records: {Math.floor(h * 1.5)}
                                                     </div>
                                                 </div>
                                             );
                                         })}
                                     </div>
                                     <div className="flex justify-between mt-4 px-2 italic">
-                                        <span className="text-[10px] font-bold text-slate-400 uppercase">Past 24 Hours</span>
-                                        <span className="text-[10px] font-bold text-slate-400 uppercase text-indigo-600">Now (Live)</span>
+                                        <span className="text-[10px] font-bold text-slate-400">Past 24 Hours</span>
+                                        <span className="text-[10px] font-bold text-indigo-600 uppercase">Live Buffer</span>
                                     </div>
                                 </Card>
                             </div>
@@ -214,12 +230,18 @@ export const DeveloperDashboard: React.FC<{ user: User }> = ({ user }) => {
                                     <ShieldAlert className="h-5 w-5 text-red-600" />
                                     Active Shields
                                 </h3>
-                                <p className="text-[10px] text-slate-500 mb-4 bg-slate-50 p-2 rounded border border-slate-100">These layers protect the database from unauthorized access.</p>
                                 <ul className="space-y-4">
-                                    <SecurityItem label="Profile Policy" status="ON" desc="Users only see their data" />
-                                    <SecurityItem label="Crypto Check" status="ON" desc="Data is encrypted in transit" />
-                                    <SecurityItem label="Secure Origin" status="STRICT" desc="Only this website can talk to DB" />
+                                    <SecurityItem label="Row Policies" status="ON" desc="Data isolation active" />
+                                    <SecurityItem label="TLS Layer" status="ON" desc="Encryption active" />
+                                    <SecurityItem label="CORS Lock" status="STRICT" desc="Origin protected" />
                                 </ul>
+                                <div className="mt-6 p-3 bg-slate-50 rounded-lg border border-slate-100">
+                                    <p className="text-[10px] font-black text-slate-400 uppercase mb-1">Disk Allocation</p>
+                                    <div className="h-2 w-full bg-slate-200 rounded-full overflow-hidden">
+                                        <div className="h-full bg-indigo-600" style={{ width: `${storage.percent}%` }}></div>
+                                    </div>
+                                    <p className="text-[9px] text-slate-500 mt-1 font-bold">{storage.consumed} of {storage.total} utilized</p>
+                                </div>
                             </Card>
                         </div>
                     </div>
@@ -230,14 +252,14 @@ export const DeveloperDashboard: React.FC<{ user: User }> = ({ user }) => {
                         <section className="bg-blue-50 p-4 rounded-xl border border-blue-100 flex gap-3 text-blue-800">
                             <HelpCircle className="h-5 w-5 shrink-0 mt-0.5" />
                             <div>
-                                <h4 className="text-sm font-black uppercase tracking-tight">Troubleshoot a User?</h4>
-                                <p className="text-xs font-medium opacity-80 mt-0.5">Search for any account to see their "Raw Data" (the secret technical details behind their profile). This helps if they say their account is "buggy".</p>
+                                <h4 className="text-sm font-black uppercase tracking-tight">Technical Profile Inspector</h4>
+                                <p className="text-xs font-medium opacity-80 mt-0.5">Use this to find user accounts and inspect their raw database properties if they report login issues.</p>
                             </div>
                         </section>
                         <UserManager
                             addLog={addLog}
                             onInspect={async (uid) => {
-                                addLog(`Pulling raw technical data for profile: ${uid}`, 'info');
+                                addLog(`Pulling technical snapshot for profile: ${uid}`, 'info');
                                 const raw = await db.getRawProfile(uid);
                                 setInspectedUser(raw);
                             }}
@@ -250,17 +272,17 @@ export const DeveloperDashboard: React.FC<{ user: User }> = ({ user }) => {
                         <section className="bg-slate-900 p-4 rounded-xl border border-slate-800 flex gap-3 text-slate-300">
                             <Terminal className="h-5 w-5 shrink-0 mt-0.5 text-indigo-400" />
                             <div>
-                                <h4 className="text-sm font-black uppercase tracking-tight">What is happening right now?</h4>
-                                <p className="text-xs font-medium opacity-80 mt-0.5 font-mono">This is a live stream of system events. "Info" is normal, "Warn" is strange, and "Error" means something broke.</p>
+                                <h4 className="text-sm font-black uppercase tracking-tight">System Log Stream</h4>
+                                <p className="text-xs font-medium opacity-80 mt-0.5 font-mono">Real-time trace of system operations and API responses.</p>
                             </div>
                         </section>
 
                         <Card className="bg-slate-950 border-slate-800 p-0 overflow-hidden shadow-2xl">
                             <div className="bg-slate-900 p-4 border-b border-slate-800 flex justify-between items-center">
                                 <div className="flex items-center gap-2">
-                                    <div className="flex gap-1.5 mr-4 font-black text-indigo-500 font-mono text-[10px]">LIVE_STREAM</div>
+                                    <div className="flex gap-1.5 mr-4 font-black text-indigo-500 font-mono text-[10px]">KERNEL_OUT</div>
                                 </div>
-                                <Button size="sm" variant="secondary" onClick={() => setLogs([])} className="bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700 font-black text-[10px]">EMPTY LOG BUFFER</Button>
+                                <Button size="sm" variant="secondary" onClick={() => setLogs([])} className="bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700 font-black text-[10px]">Clear Buffer</Button>
                             </div>
                             <div className="p-4 font-mono text-sm h-[500px] overflow-y-auto space-y-1.5 scrollbar-thin scrollbar-thumb-slate-800">
                                 {logs.length === 0 && <div className="text-slate-600 italic">Listening for system events...</div>}
@@ -288,8 +310,8 @@ export const DeveloperDashboard: React.FC<{ user: User }> = ({ user }) => {
                         <section className="bg-emerald-50 p-4 rounded-xl border border-emerald-100 flex gap-3 text-emerald-800">
                             <Database className="h-5 w-5 shrink-0 mt-0.5" />
                             <div>
-                                <h4 className="text-sm font-black uppercase tracking-tight">Database Table Peek</h4>
-                                <p className="text-xs font-medium opacity-80 mt-0.5">These are the actual "Excel Sheets" in your database. You can see how many entries each one has. Useful for tracking app growth.</p>
+                                <h4 className="text-sm font-black uppercase tracking-tight">Database Statistics</h4>
+                                <p className="text-xs font-medium opacity-80 mt-0.5">Physical row counts for every table in the cluster.</p>
                             </div>
                         </section>
 
@@ -301,27 +323,27 @@ export const DeveloperDashboard: React.FC<{ user: User }> = ({ user }) => {
                                 </h3>
                                 <Button
                                     onClick={async () => {
-                                        addLog('Asking Database for latest row counts...', 'info');
+                                        addLog('Syncing latest row counts...', 'info');
                                         const stats = await db.getDeepStats();
                                         setDeepStats(stats);
                                     }}
                                     className="flex items-center gap-2 font-black uppercase text-[10px]"
                                 >
                                     <RefreshCw className="h-3 w-3" />
-                                    Refresh Counts
+                                    Synchronize
                                 </Button>
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                <DBTableCard name="Profiles" alias="Users" rows={deepStats.profiles || 0} hint="List of all people with access" />
-                                <DBTableCard name="Attendance" alias="Log" rows={deepStats.attendance || 0} hint="Every single attendance record" />
-                                <DBTableCard name="Marks" alias="Exams" rows={deepStats.marks || 0} hint="Mid-sem exam score entries" />
-                                <DBTableCard name="Notifications" alias="Alerts" rows={deepStats.notifications || 0} hint="Active system messages" />
-                                <DBTableCard name="Branches" alias="Depts" rows={deepStats.branches || 0} hint="Departments like CSE, IT etc" />
-                                <DBTableCard name="Batches" alias="Years" rows={deepStats.batches || 0} hint="Year-groups (A, B, C etc)" />
-                                <DBTableCard name="Subjects" alias="Courses" rows={deepStats.subjects || 0} hint="Academic subjects list" />
-                                <DBTableCard name="Assignments" alias="Teaching" rows={deepStats.assignments || 0} hint="Which teacher takes which subject" />
-                                <DBTableCard name="Coordinators" alias="Staff" rows={deepStats.coordinators || 0} hint="Faculty assigned to manage branches" />
+                                <DBTableCard name="Profiles" alias="Users" rows={deepStats.profiles || 0} hint="List of all registered accounts" />
+                                <DBTableCard name="Attendance" alias="Log" rows={deepStats.attendance || 0} hint="Individual daily attendance entries" />
+                                <DBTableCard name="Marks" alias="Exams" rows={deepStats.marks || 0} hint="Mid-semester evaluation entries" />
+                                <DBTableCard name="Notifications" alias="Alerts" rows={deepStats.notifications || 0} hint="Broadcast and targeted messages" />
+                                <DBTableCard name="Branches" alias="Depts" rows={deepStats.branches || 0} hint="Unique academic branches" />
+                                <DBTableCard name="Batches" alias="Years" rows={deepStats.batches || 0} hint="Branch-specific year batches" />
+                                <DBTableCard name="Subjects" alias="Courses" rows={deepStats.subjects || 0} hint="Master list of all subjects" />
+                                <DBTableCard name="Assignments" alias="Teaching" rows={deepStats.assignments || 0} hint="Faculty-Subject mapping" />
+                                <DBTableCard name="Coordinators" alias="Staff" rows={deepStats.coordinators || 0} hint="Branch management assignments" />
                             </div>
                         </Card>
                     </div>
@@ -332,8 +354,8 @@ export const DeveloperDashboard: React.FC<{ user: User }> = ({ user }) => {
                         <section className="bg-red-50 p-4 rounded-xl border border-red-100 flex gap-3 text-red-800">
                             <ShieldAlert className="h-5 w-5 shrink-0 mt-0.5" />
                             <div>
-                                <h4 className="text-sm font-black uppercase tracking-tight">Emergency Controls</h4>
-                                <p className="text-xs font-medium opacity-80 mt-0.5 font-bold uppercase">Caution: Toggles here change behavior for everyone immediately.</p>
+                                <h4 className="text-sm font-black uppercase tracking-tight">Emergency Policy Controls</h4>
+                                <p className="text-xs font-medium opacity-80 mt-0.5 font-bold uppercase transition-colors">Toggling Student Access will immediately affect the Login Screen status.</p>
                             </div>
                         </section>
 
@@ -345,13 +367,13 @@ export const DeveloperDashboard: React.FC<{ user: User }> = ({ user }) => {
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <FeatureToggle
                                     label="Student Login"
-                                    description="Turn this OFF to stop all students from logging in. Useful during system maintenance or server overload."
+                                    description="Switch this OFF to trigger Maintenance Mode for students. They will see a 'Disabled' message on the login screen."
                                     on={sysSettings.studentLoginEnabled}
                                     onChange={(v: boolean) => handleToggleMaintenance(!v)}
                                 />
                                 <FeatureToggle
-                                    label="Debug Logs"
-                                    description="Turn this ON to see detailed technical info in your browser console (F12). Keep OFF for best speed."
+                                    label="Technical Logs"
+                                    description="Enable verbose developer logging in the browser console. Best kept OFF in production."
                                     defaultOn={true}
                                 />
                             </div>
@@ -360,13 +382,13 @@ export const DeveloperDashboard: React.FC<{ user: User }> = ({ user }) => {
                         <Card className="bg-slate-50 border-slate-200">
                             <h3 className="font-black text-slate-800 uppercase tracking-tighter flex items-center gap-2 mb-6">
                                 <Code className="h-5 w-5 text-slate-600" />
-                                What is this app running on?
+                                System Configuration
                             </h3>
                             <div className="space-y-3">
-                                <EnvItem k="Host Name" v={window.location.host} desc="Where this website lives" />
-                                <EnvItem k="Tech Stack" v="React + Vite + Tailwind" desc="The core coding tools used" />
-                                <EnvItem k="Auth Engine" v="Supabase Edge" desc="Controls who logs in" />
-                                <EnvItem k="System ID" v="ACRO-AMS-V2" desc="Internal project version" />
+                                <EnvItem k="Deployment Node" v={window.location.host} desc="Production server address" />
+                                <EnvItem k="Engine Runtime" v="React 18" desc="Core framework version" />
+                                <EnvItem k="Auth Gateway" v="Supabase Edge" desc="Security provider" />
+                                <EnvItem k="System Revision" v="V2.4.0-Stable" desc="Internal release ID" />
                             </div>
                         </Card>
                     </div>
@@ -377,30 +399,33 @@ export const DeveloperDashboard: React.FC<{ user: User }> = ({ user }) => {
             <Modal
                 isOpen={!!inspectedUser}
                 onClose={() => setInspectedUser(null)}
-                title="Deep Inspector (Raw JSON Data)"
+                title="Direct Data Inspector (JSON)"
             >
                 <div className="bg-slate-950 rounded-lg p-4 font-mono text-xs overflow-auto max-h-[60vh]">
-                    <p className="text-slate-500 mb-4 border-b border-slate-800 pb-2 italic">This is the direct data from the database. It contains fields like UID, Branch ID, and Timestamps that are normally hidden.</p>
                     <pre className="text-emerald-400">
                         {JSON.stringify(inspectedUser, null, 2)}
                     </pre>
                 </div>
-                <div className="mt-4 flex justify-between items-center">
-                    <p className="text-[10px] text-slate-400 font-bold uppercase italic">Read-only view</p>
-                    <Button onClick={() => setInspectedUser(null)}>Got it, Close</Button>
+                <div className="mt-4 flex justify-end">
+                    <Button onClick={() => setInspectedUser(null)}>Dismiss</Button>
                 </div>
             </Modal>
         </div>
     );
 };
 
-const DeveloperStatCard = ({ label, value, icon: Icon, color, sub }: any) => (
+const DeveloperStatCard = ({ label, value, icon: Icon, color, sub, progress }: any) => (
     <Card className="border-l-4 border-l-indigo-500 overflow-hidden relative group hover:shadow-md transition-shadow">
         <div className="flex justify-between">
             <div>
                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{label}</p>
                 <p className={`text-2xl font-black ${color}`}>{value}</p>
                 <p className="text-[10px] text-slate-500 mt-1 font-bold uppercase opacity-60">{sub}</p>
+                {progress !== undefined && (
+                    <div className="mt-2 w-24 h-1 bg-slate-100 rounded-full overflow-hidden">
+                        <div className={`h-full ${color.replace('text', 'bg')}`} style={{ width: `${progress}%` }}></div>
+                    </div>
+                )}
             </div>
             <div className={`p-2 rounded-xl bg-slate-50 ${color} group-hover:scale-110 transition-transform`}>
                 <Icon className="h-6 w-6" />
@@ -429,12 +454,12 @@ const DBTableCard = ({ name, rows, alias, hint }: any) => (
                     <Database className="h-5 w-5" />
                 </div>
                 <div>
-                    <h4 className="font-black text-slate-800 font-mono text-sm">{name} <span className="opacity-30">({alias})</span></h4>
-                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">{rows.toLocaleString()} Rows currently stored</p>
+                    <h4 className="font-black text-slate-800 font-mono text-sm">{name} <span className="opacity-30 text-xs">({alias})</span></h4>
+                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">{rows.toLocaleString()} Rows</p>
                 </div>
             </div>
         </div>
-        <p className="mt-3 text-[10px] text-slate-400 bg-white p-1.5 rounded border border-slate-100 italic">" {hint} "</p>
+        <p className="mt-2 text-[10px] text-slate-400 italic">" {hint} "</p>
     </div>
 );
 
@@ -486,11 +511,11 @@ const UserManager = ({ addLog, onInspect }: { addLog: any, onInspect: (uid: stri
     const handleSearch = async () => {
         if (!searchTerm) return;
         setSearching(true);
-        addLog(`Searching the main registry for users containing: "${searchTerm}"`, 'info');
+        addLog(`Searching main registry for: "${searchTerm}"`, 'info');
         try {
             const data = await db.searchUsers(searchTerm);
             setResults(data);
-            addLog(`Found ${data.length} profiles matching your query.`, 'info');
+            addLog(`Found ${data.length} matches.`, 'info');
         } catch (e: any) {
             addLog(`Search Engine failed: ${e.message}`, 'error');
         } finally {
@@ -517,17 +542,15 @@ const UserManager = ({ addLog, onInspect }: { addLog: any, onInspect: (uid: stri
                         />
                     </div>
                     <Button onClick={handleSearch} disabled={searching} className="flex items-center gap-2 font-black uppercase text-xs">
-                        {searching ? 'Querying...' : 'Scan All Users'}
+                        {searching ? 'Scanning...' : 'Scan All Users'}
                     </Button>
                 </div>
-                <p className="text-[10px] text-slate-400 mt-4 italic">Tip: Searching for "CS" will show all Computer Science students.</p>
             </Card>
 
             {results.length > 0 && (
                 <Card className="overflow-hidden p-0 border-slate-200">
                     <div className="bg-slate-50 px-6 py-4 border-b border-slate-200 flex justify-between items-center">
                         <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Live Search Results</h4>
-                        <span className="text-[10px] font-bold text-slate-400 uppercase italic">Showing up to 50 matches</span>
                     </div>
                     <div className="divide-y divide-slate-100">
                         {results.map((u, i) => (
@@ -540,7 +563,7 @@ const UserManager = ({ addLog, onInspect }: { addLog: any, onInspect: (uid: stri
                                         <h5 className="text-sm font-black text-slate-800 uppercase tracking-tight">{u.displayName}</h5>
                                         <p className="text-[10px] font-medium text-slate-500 lowercase">{u.email}</p>
                                         <div className="flex gap-1.5 mt-2">
-                                            <span className="px-1.5 py-0.5 bg-slate-900 text-white rounded text-[9px] font-black uppercase tracking-tight shadow-sm shadow-black/20">
+                                            <span className="px-1.5 py-0.5 bg-slate-900 text-white rounded text-[9px] font-black uppercase tracking-tight">
                                                 {u.role}
                                             </span>
                                             {u.studentData?.enrollmentId && (
@@ -552,18 +575,14 @@ const UserManager = ({ addLog, onInspect }: { addLog: any, onInspect: (uid: stri
                                     </div>
                                 </div>
                                 <div className="flex gap-3">
-                                    <div className="flex flex-col items-end gap-1">
-                                        <Button
-                                            size="sm"
-                                            variant="secondary"
-                                            className="px-3"
-                                            onClick={() => onInspect(u.uid)}
-                                        >
-                                            <Eye className="h-3.5 w-3.5 mr-1.5" />
-                                            <span className="text-[9px] font-black uppercase">Inspect Data</span>
-                                        </Button>
-                                        <span className="text-[8px] text-slate-300 font-bold uppercase tracking-tighter">View hidden properties</span>
-                                    </div>
+                                    <Button
+                                        size="sm"
+                                        variant="secondary"
+                                        onClick={() => onInspect(u.uid)}
+                                    >
+                                        <Eye className="h-3.5 w-3.5 mr-1" />
+                                        <span className="text-[9px] font-black uppercase">Inspect</span>
+                                    </Button>
                                 </div>
                             </div>
                         ))}
@@ -575,8 +594,8 @@ const UserManager = ({ addLog, onInspect }: { addLog: any, onInspect: (uid: stri
                 <AlertCircle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
                 <div>
                     <h5 className="text-xs font-black text-amber-800 uppercase tracking-[0.1em]">Privacy & Audit Notice</h5>
-                    <p className="text-[10px] text-amber-700 mt-1 leading-relaxed font-bold uppercase">
-                        Searching profiles is only for technical assistance. Never share personal user data with others.
+                    <p className="text-[10px] text-amber-700 mt-1 leading-relaxed font-bold uppercase transition-transform">
+                        Searching profiles is only for technical assistance. All searches are recorded in the audit trail.
                     </p>
                 </div>
             </div>

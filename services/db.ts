@@ -83,6 +83,7 @@ interface IDataService {
   getRawProfile: (userId: string) => Promise<any>;
   ping: () => Promise<number>;
   getDeepStats: () => Promise<Record<string, number>>;
+  getStorageStats: () => Promise<{ consumed: string; total: string; percent: number }>;
 }
 
 // --- Supabase Implementation ---
@@ -856,6 +857,23 @@ class SupabaseService implements IDataService {
 
     return counts;
   }
+
+  async getStorageStats(): Promise<{ consumed: string; total: string; percent: number }> {
+    // Estimating based on row counts since direct DB size requires specific RPCs
+    // 500MB is common free tier limit for many managed DBs
+    const stats = await this.getDeepStats();
+    const totalRows = Object.values(stats).reduce((a, b) => a + b, 0);
+    const estimatedBytes = totalRows * 1024; // Roughly 1KB per row average
+    const consumedMB = (estimatedBytes / (1024 * 1024)).toFixed(2);
+    const limitMB = 500;
+    const percent = Math.min(99, (Number(consumedMB) / limitMB) * 100);
+
+    return {
+      consumed: `${consumedMB} MB`,
+      total: `${limitMB} MB`,
+      percent: parseFloat(percent.toFixed(1))
+    };
+  }
 }
 
 // --- MOCK Implementation (Unchanged) ---
@@ -1285,6 +1303,17 @@ class MockService implements IDataService {
       subjects: (this.load('ams_subjects', SEED_SUBJECTS)).length,
       assignments: (this.load('ams_assignments', SEED_ASSIGNMENTS)).length,
       coordinators: (this.load('ams_coordinators', [])).length,
+    };
+  }
+
+  async getStorageStats(): Promise<{ consumed: string; total: string; percent: number }> {
+    const stats = await this.getDeepStats();
+    const totalRows = Object.values(stats).reduce((a, b) => a + b, 0);
+    const consumedMB = (totalRows * 0.01).toFixed(2); // 10KB per row in mock
+    return {
+      consumed: `${consumedMB} MB`,
+      total: "512 MB",
+      percent: Number(consumedMB) / 5.12
     };
   }
 }
