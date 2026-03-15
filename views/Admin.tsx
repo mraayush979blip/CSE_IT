@@ -1151,7 +1151,9 @@ const FacultyManagement: React.FC = () => {
                     const subj = subjects.find(s => s.id === e.target.value);
                     setAssignForm({ ...assignForm, subjectId: e.target.value, batchId: (subj?.type !== 'lab') ? 'ALL' : '' });
                   }} className="mb-0 bg-white">{[<option key="def" value="">Select</option>, ...subjects.map(s => <option key={s.id} value={s.id}>{s.name} ({s.code}) - {s.type || 'theory'}</option>)]}</Select>
-                  <Select label="Batch" value={assignForm.batchId} onChange={e => setAssignForm({ ...assignForm, batchId: e.target.value })} disabled={!assignForm.branchId || subjects.find(s => s.id === assignForm.subjectId)?.type !== 'lab'} className="mb-0 bg-white">{[<option key="def" value="">All Batches (Theory Default)</option>, ...batches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)]}</Select>
+                  {subjects.find(s => s.id === assignForm.subjectId)?.type === 'lab' && (
+                    <Select label="Batch" value={assignForm.batchId} onChange={e => setAssignForm({ ...assignForm, batchId: e.target.value })} disabled={!assignForm.branchId} className="mb-0 bg-white">{[<option key="def" value="">Select Batch</option>, ...batches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)]}</Select>
+                  )}
                   <Button type="submit" className="">{isEditingAssignment ? 'Update' : 'Assign'}</Button>
                 </form>
               </div>
