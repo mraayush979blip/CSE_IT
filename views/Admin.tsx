@@ -846,7 +846,7 @@ const FacultyManagement: React.FC = () => {
   const [branches, setBranches] = useState<Branch[]>([]);
   const [batches, setBatches] = useState<Batch[]>([]);
 
-  const [newSub, setNewSub] = useState({ name: '', code: '' });
+  const [newSub, setNewSub] = useState({ name: '', code: '', type: 'theory' as 'theory' | 'lab' });
   const [newFac, setNewFac] = useState({ name: '', email: '', password: '', serialNo: '' });
 
   // Assignment Form State
@@ -867,7 +867,7 @@ const FacultyManagement: React.FC = () => {
   const [isEditingFaculty, setIsEditingFaculty] = useState(false);
   const [editFacForm, setEditFacForm] = useState({ uid: '', name: '', email: '', serialNo: '' });
   const [isEditingSubject, setIsEditingSubject] = useState(false);
-  const [editSubForm, setEditSubForm] = useState({ id: '', name: '', code: '' });
+  const [editSubForm, setEditSubForm] = useState({ id: '', name: '', code: '', type: 'theory' as 'theory' | 'lab' });
 
 
   // Maps for displaying names in table
@@ -925,8 +925,8 @@ const FacultyManagement: React.FC = () => {
     if (newSub.name) {
       if (!window.confirm("Are you sure you want to add this subject?")) return;
       try {
-        await db.addSubject(newSub.name, newSub.code);
-        setNewSub({ name: '', code: '' });
+        await db.addSubject(newSub.name, newSub.code, newSub.type);
+        setNewSub({ name: '', code: '', type: 'theory' });
         setSubjects(await db.getSubjects());
       } catch (err: any) {
         alert("Error adding subject: " + err.message);
@@ -993,7 +993,7 @@ const FacultyManagement: React.FC = () => {
     if (!window.confirm("Are you sure you want to update this subject?")) return;
     setIsLoadingData(true);
     try {
-      await db.updateSubject(editSubForm.id, editSubForm.name, editSubForm.code);
+      await db.updateSubject(editSubForm.id, editSubForm.name, editSubForm.code, editSubForm.type);
       setIsEditingSubject(false);
       await loadData();
       alert("Subject updated");
@@ -1006,7 +1006,7 @@ const FacultyManagement: React.FC = () => {
   };
 
   const startEditSubject = (s: Subject) => {
-    setEditSubForm({ id: s.id, name: s.name, code: s.code });
+    setEditSubForm({ id: s.id, name: s.name, code: s.code, type: s.type || 'theory' });
     setIsEditingSubject(true);
   };
 
@@ -1083,8 +1083,46 @@ const FacultyManagement: React.FC = () => {
         <>
           {activeSubTab === 'subjects' && (
             <Card>
-              <div className="flex gap-2 mb-4 bg-slate-50 p-4"><input placeholder="Name" className="border p-2 w-full text-slate-900 bg-white" value={newSub.name} onChange={e => setNewSub({ ...newSub, name: e.target.value })} /><input placeholder="Code" className="border p-2 w-32 text-slate-900 bg-white" value={newSub.code} onChange={e => setNewSub({ ...newSub, code: e.target.value })} /><Button onClick={handleAddSubject}>Add</Button></div>
-              <table className="w-full text-sm text-left"><thead className="bg-slate-50 border-b"><tr><th className="p-2 text-slate-900">Code</th><th className="p-2 text-slate-900">Name</th><th className="p-2 text-right text-slate-900">Action</th></tr></thead><tbody>{subjects.map(s => <tr key={s.id} className="border-b"><td className="p-2 text-slate-900">{s.code}</td><td className="p-2 text-slate-900">{s.name}</td><td className="p-2 text-right flex justify-end gap-2"><button onClick={() => startEditSubject(s)} className="text-blue-500"><Edit2 className="h-4 w-4" /></button><button onClick={() => handleDeleteSubject(s.id)} className="text-red-500"><Trash2 className="h-4 w-4" /></button></td></tr>)}</tbody></table>
+              <div className="flex gap-2 mb-4 bg-slate-50 p-4">
+                <input placeholder="Name" className="border p-2 w-full text-slate-900 bg-white" value={newSub.name} onChange={e => setNewSub({ ...newSub, name: e.target.value })} />
+                <input placeholder="Code" className="border p-2 w-32 text-slate-900 bg-white" value={newSub.code} onChange={e => setNewSub({ ...newSub, code: e.target.value })} />
+                <select 
+                  className="border p-2 w-32 text-slate-900 bg-white" 
+                  value={newSub.type} 
+                  onChange={e => setNewSub({ ...newSub, type: e.target.value as 'theory' | 'lab' })}
+                >
+                  <option value="theory">Theory</option>
+                  <option value="lab">Lab</option>
+                </select>
+                <Button onClick={handleAddSubject}>Add</Button>
+              </div>
+              <table className="w-full text-sm text-left">
+                <thead className="bg-slate-50 border-b">
+                  <tr>
+                    <th className="p-2 text-slate-900">Code</th>
+                    <th className="p-2 text-slate-900">Name</th>
+                    <th className="p-2 text-slate-900">Type</th>
+                    <th className="p-2 text-right text-slate-900">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {subjects.map(s => (
+                    <tr key={s.id} className="border-b">
+                      <td className="p-2 text-slate-900">{s.code}</td>
+                      <td className="p-2 text-slate-900">{s.name}</td>
+                      <td className="p-2 text-slate-900 uppercase text-[10px] font-bold">
+                        <span className={`px-2 py-1 rounded ${s.type === 'lab' ? 'bg-amber-100 text-amber-700' : 'bg-indigo-100 text-indigo-700'}`}>
+                          {s.type || 'theory'}
+                        </span>
+                      </td>
+                      <td className="p-2 text-right flex justify-end gap-2">
+                        <button onClick={() => startEditSubject(s)} className="text-blue-500"><Edit2 className="h-4 w-4" /></button>
+                        <button onClick={() => handleDeleteSubject(s.id)} className="text-red-500"><Trash2 className="h-4 w-4" /></button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </Card>
           )}
           {activeSubTab === 'faculty_list' && (
@@ -1109,8 +1147,11 @@ const FacultyManagement: React.FC = () => {
                 <form onSubmit={handleAssign} className="grid grid-cols-1 md:grid-cols-5 gap-2 items-end">
                   <Select label="Faculty" value={assignForm.facultyId} onChange={e => setAssignForm({ ...assignForm, facultyId: e.target.value })} className="mb-0 bg-white">{[<option key="def" value="">Select</option>, ...faculty.map(f => <option key={f.uid} value={f.uid}>{f.displayName}</option>)]}</Select>
                   <Select label="Class" value={assignForm.branchId} onChange={e => { setAssignForm({ ...assignForm, branchId: e.target.value, batchId: '' }); loadBatches(e.target.value); }} className="mb-0 bg-white">{[<option key="def" value="">Select</option>, ...branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)]}</Select>
-                  <Select label="Batch" value={assignForm.batchId} onChange={e => setAssignForm({ ...assignForm, batchId: e.target.value })} disabled={!assignForm.branchId} className="mb-0 bg-white">{[<option key="def" value="">All Batches (Default)</option>, ...batches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)]}</Select>
-                  <Select label="Subject" value={assignForm.subjectId} onChange={e => setAssignForm({ ...assignForm, subjectId: e.target.value })} className="mb-0 bg-white">{[<option key="def" value="">Select</option>, ...subjects.map(s => <option key={s.id} value={s.id}>{s.name} ({s.code})</option>)]}</Select>
+                  <Select label="Subject" value={assignForm.subjectId} onChange={e => {
+                    const subj = subjects.find(s => s.id === e.target.value);
+                    setAssignForm({ ...assignForm, subjectId: e.target.value, batchId: (subj?.type !== 'lab') ? 'ALL' : '' });
+                  }} className="mb-0 bg-white">{[<option key="def" value="">Select</option>, ...subjects.map(s => <option key={s.id} value={s.id}>{s.name} ({s.code}) - {s.type || 'theory'}</option>)]}</Select>
+                  <Select label="Batch" value={assignForm.batchId} onChange={e => setAssignForm({ ...assignForm, batchId: e.target.value })} disabled={!assignForm.branchId || subjects.find(s => s.id === assignForm.subjectId)?.type !== 'lab'} className="mb-0 bg-white">{[<option key="def" value="">All Batches (Theory Default)</option>, ...batches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)]}</Select>
                   <Button type="submit" className="">{isEditingAssignment ? 'Update' : 'Assign'}</Button>
                 </form>
               </div>
@@ -1251,6 +1292,10 @@ const FacultyManagement: React.FC = () => {
         <form onSubmit={handleEditSubject} className="space-y-4 p-4">
           <Input label="Subject Name" required value={editSubForm.name} onChange={e => setEditSubForm({ ...editSubForm, name: e.target.value })} className="text-slate-900 bg-white" />
           <Input label="Subject Code" required value={editSubForm.code} onChange={e => setEditSubForm({ ...editSubForm, code: e.target.value })} className="text-slate-900 bg-white" />
+          <Select label="Subject Type" value={editSubForm.type} onChange={e => setEditSubForm({ ...editSubForm, type: e.target.value as 'theory' | 'lab' })} className="text-slate-900 bg-white">
+            <option value="theory">Theory</option>
+            <option value="lab">Lab</option>
+          </Select>
           <div className="flex justify-end gap-2 pt-4">
             <Button variant="secondary" onClick={() => setIsEditingSubject(false)}>Cancel</Button>
             <Button type="submit" disabled={isLoadingData}>{isLoadingData ? 'Saving...' : 'Save Changes'}</Button>

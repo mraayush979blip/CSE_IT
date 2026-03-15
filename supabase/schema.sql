@@ -21,7 +21,8 @@ create table if not exists public.batches (
 create table if not exists public.subjects (
     id text primary key,
     name text not null,
-    code text not null
+    code text not null,
+    type text default 'theory'
 );
 
 -- Profiles Table (Links to Supabase Auth)

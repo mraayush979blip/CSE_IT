@@ -30,8 +30,8 @@ interface IDataService {
   getNotificationsCount: () => Promise<number>;
 
   getSubjects: () => Promise<Subject[]>;
-  addSubject: (name: string, code: string) => Promise<void>;
-  updateSubject: (id: string, name: string, code: string) => Promise<void>;
+  addSubject: (name: string, code: string, type: 'theory' | 'lab') => Promise<void>;
+  updateSubject: (id: string, name: string, code: string, type: 'theory' | 'lab') => Promise<void>;
   deleteSubject: (id: string) => Promise<void>;
 
   getFaculty: () => Promise<User[]>;
@@ -485,14 +485,14 @@ class SupabaseService implements IDataService {
       return data as Subject[];
     });
   }
-  async addSubject(name: string, code: string): Promise<void> {
+  async addSubject(name: string, code: string, type: 'theory' | 'lab'): Promise<void> {
     const id = `sub_${Date.now()}`;
-    const { error } = await supabase.from('subjects').insert([{ id, name, code }]);
+    const { error } = await supabase.from('subjects').insert([{ id, name, code, type }]);
     if (error) throw error;
     this._invalidate('meta_subjects');
   }
-  async updateSubject(id: string, name: string, code: string): Promise<void> {
-    const { error } = await supabase.from('subjects').update({ name, code }).eq('id', id);
+  async updateSubject(id: string, name: string, code: string, type: 'theory' | 'lab'): Promise<void> {
+    const { error } = await supabase.from('subjects').update({ name, code, type }).eq('id', id);
     if (error) throw error;
     this._invalidate('meta_subjects');
   }
@@ -1041,15 +1041,15 @@ class MockService implements IDataService {
   }
 
   async getSubjects() { return this.load('ams_subjects', SEED_SUBJECTS); }
-  async addSubject(name: string, code: string) {
+  async addSubject(name: string, code: string, type: 'theory' | 'lab') {
     const s = this.load('ams_subjects', SEED_SUBJECTS);
-    s.push({ id: `sub_${Date.now()}`, name, code });
+    s.push({ id: `sub_${Date.now()}`, name, code, type });
     this.save('ams_subjects', s);
   }
-  async updateSubject(id: string, name: string, code: string) {
+  async updateSubject(id: string, name: string, code: string, type: 'theory' | 'lab') {
     const s = this.load('ams_subjects', SEED_SUBJECTS);
     const idx = s.findIndex((x: any) => x.id === id);
-    if (idx >= 0) { s[idx] = { ...s[idx], name, code }; this.save('ams_subjects', s); }
+    if (idx >= 0) { s[idx] = { ...s[idx], name, code, type }; this.save('ams_subjects', s); }
   }
   async deleteSubject(id: string) {
     const s = this.load('ams_subjects', SEED_SUBJECTS);

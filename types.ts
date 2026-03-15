@@ -39,6 +39,7 @@ export interface Subject {
   id: string;
   name: string;
   code: string;
+  type?: 'theory' | 'lab';
 }
 
 // Links a faculty member to a specific class context
