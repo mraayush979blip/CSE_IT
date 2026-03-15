@@ -758,7 +758,7 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
    const [metaData, setMetaData] = useState<{
       branches: Record<string, string>;
       batches: Record<string, string>;
-      subjects: Record<string, { name: string, code: string }>;
+      subjects: Record<string, { name: string, code: string, type?: 'theory' | 'lab' }>;
       faculty: Record<string, string>;
       rawBatches: Batch[];
    }>({ branches: {}, batches: {}, subjects: {}, faculty: {}, rawBatches: [] });
@@ -890,8 +890,8 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
 
          const branchMap: Record<string, string> = {};
          allBranches.forEach(b => branchMap[b.id] = b.name);
-         const subjectMap: Record<string, { name: string, code: string }> = {};
-         allSubjects.forEach(s => subjectMap[s.id] = { name: s.name, code: s.code });
+         const subjectMap: Record<string, { name: string, code: string, type?: 'theory' | 'lab' }> = {};
+         allSubjects.forEach(s => subjectMap[s.id] = { name: s.name, code: s.code, type: s.type });
          const facultyMap: Record<string, string> = {};
          allFaculty.forEach(f => facultyMap[f.uid] = f.displayName);
 
@@ -1742,6 +1742,7 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                               </div>
                            </div>
 
+                           {metaData.subjects[selSubjectId]?.type === 'lab' && (
                            <div className="space-y-1 relative">
                               <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Batches</label>
                               <button
@@ -1777,6 +1778,7 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                               )}
                               {isBatchDropdownOpen && <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50" onClick={() => setIsBatchDropdownOpen(false)}></div>}
                            </div>
+                           )}
                         </div>
 
                         <div className="space-y-2">
