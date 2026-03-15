@@ -2798,16 +2798,10 @@ const CoordinatorReport: React.FC<{ branchId: string; branchName: string; studen
 
          const pct = studentTotalSessions === 0 ? 0 : Math.round((presentCount / studentTotalSessions) * 100);
 
-         let status = 'Excellent';
-         if (pct < 60) status = 'Critical';
-         else if (pct < 75) status = 'Shortage';
-         else if (pct < 90) status = 'Good';
-
          return [
             s.studentData?.rollNo || '',
             s.displayName,
             s.studentData?.enrollmentId || '',
-            status,
             ...subjectAttendance,
             extraCount.toString(),
             studentTotalSessions.toString(),
@@ -2827,8 +2821,6 @@ const CoordinatorReport: React.FC<{ branchId: string; branchName: string; studen
       });
 
       const detentionCount = studentStats.filter(s => s.pct < 75).length;
-      const maxAtt = studentStats.length > 0 ? Math.max(...studentStats.map(s => s.pct)) : 0;
-      const highestAttendNames = studentStats.filter(s => s.pct === maxAtt).map(s => s.name).join(", ");
       const classAvg = totalStudents === 0 ? 0 : Math.round(studentStats.reduce((acc, curr) => acc + curr.pct, 0) / totalStudents);
 
       const statsInfo = [
@@ -2836,12 +2828,11 @@ const CoordinatorReport: React.FC<{ branchId: string; branchName: string; studen
          ["Total Strength", totalStudents.toString()],
          ["Class Average", `${classAvg}%`],
          ["Detention Count (<75%)", detentionCount.toString()],
-         ["Highest Attendance", `${Math.round(maxAtt)}% (${highestAttendNames})`],
          ["", ""]
       ];
 
-      const mainHeader = ["Serial No", "Name", "Enrollment ID", "Status", ...subjectHeaders, "Extra Lectures", "Total Lectures", "Present Count", "Attendance %"];
-      const totalsRow = ["", "Total Lectures Held", "", "", ...uniqueSubjectIds.map(sid => subjectSessionCounts[sid].toString()), "", "VARIES", "VARIES", ""];
+      const mainHeader = ["Serial No", "Name", "Enrollment ID", ...subjectHeaders, "Extra Lectures", "Total Lectures", "Present Count", "Attendance %"];
+      const totalsRow = ["", "Total Lectures Held", "", ...uniqueSubjectIds.map(sid => subjectSessionCounts[sid].toString()), "", "VARIES", "VARIES", ""];
 
       const csvRows = [...headerInfo, ...statsInfo, mainHeader, totalsRow, ...dataRows];
 
@@ -2913,14 +2904,7 @@ const CoordinatorReport: React.FC<{ branchId: string; branchName: string; studen
                ws[addr].s.font.bold = true;
             }
 
-            // Status Column Colors (Col 3)
-            if (R > 14 && C === 3) {
-               const val = ws[addr].v;
-               if (val?.includes('Excellent')) ws[addr].s.fill = { fgColor: { rgb: "DCFCE7" } };
-               else if (val?.includes('Good')) ws[addr].s.fill = { fgColor: { rgb: "DBEAFE" } };
-               else if (val?.includes('Shortage')) ws[addr].s.fill = { fgColor: { rgb: "FEF3C7" } };
-               else if (val?.includes('Critical')) ws[addr].s.fill = { fgColor: { rgb: "FEE2E2" } };
-            }
+            // Status column has been removed
          }
       }
 

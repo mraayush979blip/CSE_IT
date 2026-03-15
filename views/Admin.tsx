@@ -1591,16 +1591,10 @@ const ReportManagement: React.FC = () => {
 
       const pct = totalSessions === 0 ? 0 : Math.round((presentCount / totalSessions) * 100);
 
-      let status = 'Excellent';
-      if (pct < 60) status = 'Critical';
-      else if (pct < 75) status = 'Shortage';
-      else if (pct < 90) status = 'Good';
-
       return [
         s.studentData?.rollNo || '',
         s.displayName,
         s.studentData?.enrollmentId || '',
-        status,
         ...subjectAttendance,
         extraCount.toString(),
         totalSessions.toString(),
@@ -1617,8 +1611,6 @@ const ReportManagement: React.FC = () => {
       return { name: s.displayName, pct };
     });
 
-    const maxAtt = studentStats.length > 0 ? Math.max(...studentStats.map(s => s.pct)) : 0;
-    const highestAttendNames = studentStats.filter(s => s.pct === maxAtt).map(s => s.name).join(", ");
     const classAvg = filteredForExport.length === 0 ? 0 : Math.round(studentStats.reduce((acc, curr) => acc + curr.pct, 0) / filteredForExport.length);
     const detentionCount = studentStats.filter(s => s.pct < 75).length;
 
@@ -1627,12 +1619,11 @@ const ReportManagement: React.FC = () => {
       ["Total Strength", filteredForExport.length.toString()],
       ["Class Average", `${classAvg}%`],
       ["Detention Count (<75%)", detentionCount.toString()],
-      ["Highest Attendance", `${Math.round(maxAtt)}% (${highestAttendNames})`],
       ["", ""]
     ];
 
-    const headerLabels = ["Serial No", "Name", "Enrollment", "Status", ...subjectHeaders, "Extra", "Total lectures", "Present Count", "Attendance %"];
-    const totalsLabelRow = ["", "Total lectures held", "", "", ...uniqueSubjectIds.map(sid => subjectSessionCounts[sid].toString()), "", "VARIES", "VARIES", ""];
+    const headerLabels = ["Serial No", "Name", "Enrollment", ...subjectHeaders, "Extra", "Total lectures", "Present Count", "Attendance %"];
+    const totalsLabelRow = ["", "Total lectures held", "", ...uniqueSubjectIds.map(sid => subjectSessionCounts[sid].toString()), "", "VARIES", "VARIES", ""];
     const excelRows = [...headerRows, ...statsInfo, headerLabels, totalsLabelRow, ...dataRows];
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.aoa_to_sheet(excelRows);
@@ -1696,14 +1687,7 @@ const ReportManagement: React.FC = () => {
           ws[addr].s.font.bold = true;
         }
 
-        // Status Column Colors (Col 3)
-        if (R > 13 && C === 3) {
-          const val = ws[addr].v;
-          if (val?.includes('Excellent')) ws[addr].s.fill = { fgColor: { rgb: "DCFCE7" } };
-          else if (val?.includes('Good')) ws[addr].s.fill = { fgColor: { rgb: "DBEAFE" } };
-          else if (val?.includes('Shortage')) ws[addr].s.fill = { fgColor: { rgb: "FEF3C7" } };
-          else if (val?.includes('Critical')) ws[addr].s.fill = { fgColor: { rgb: "FEE2E2" } };
-        }
+        // Status column has been removed
       }
     }
 
