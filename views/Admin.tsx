@@ -1536,8 +1536,10 @@ const ReportManagement: React.FC = () => {
       return true;
     });
     const uniqueSubjectIds = Array.from(new Set(regularRecs.map(r => r.subjectId))).sort((a, b) => {
-      const nameA = subjects.find(s => s.id === a)?.code || '';
-      const nameB = subjects.find(s => s.id === b)?.code || '';
+      const sA = subjects.find(s => s.id === a);
+      const sB = subjects.find(s => s.id === b);
+      const nameA = (sA?.code || '') + (sA?.type || 'theory');
+      const nameB = (sB?.code || '') + (sB?.type || 'theory');
       return nameA.localeCompare(nameB);
     });
 
@@ -1548,7 +1550,10 @@ const ReportManagement: React.FC = () => {
     });
 
     const totalRegularSessions = new Set(regularRecs.map(r => `${r.date}_${r.lectureSlot}_${r.subjectId}`)).size;
-    const subjectHeaders = uniqueSubjectIds.map(sid => subjects.find(s => s.id === sid)?.code || sid);
+    const subjectHeaders = uniqueSubjectIds.map(sid => {
+      const s = subjects.find(s => s.id === sid);
+      return s ? `${s.code} (${s.type === 'lab' ? 'Lab' : 'Theory'})` : sid;
+    });
 
     const headerRows = [
       ["ACROPOLIS INSTITUTE OF RESEARCH AND TECHNOLOGY"],

@@ -2753,12 +2753,17 @@ const CoordinatorReport: React.FC<{ branchId: string; branchName: string; studen
          return true;
       });
       const uniqueSubjectIds = Array.from(new Set(regularRecs.map(r => r.subjectId))).sort((a, b) => {
-         const nameA = metaData.subjects[a]?.code || metaData.subjects[a]?.name || '';
-         const nameB = metaData.subjects[b]?.code || metaData.subjects[b]?.name || '';
+         const sA = metaData.subjects[a];
+         const sB = metaData.subjects[b];
+         const nameA = (sA?.code || sA?.name || '') + (sA?.type || 'theory');
+         const nameB = (sB?.code || sB?.name || '') + (sB?.type || 'theory');
          return nameA.localeCompare(nameB);
       });
 
-      const subjectHeaders = uniqueSubjectIds.map(sid => metaData.subjects[sid]?.code || metaData.subjects[sid]?.name || sid);
+      const subjectHeaders = uniqueSubjectIds.map(sid => {
+         const s = metaData.subjects[sid];
+         return s ? `${s.code || s.name} (${s.type === 'lab' ? 'Lab' : 'Theory'})` : sid;
+      });
 
       // Calculate total sessions per subject
       const subjectSessionCounts: Record<string, number> = {};
