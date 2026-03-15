@@ -2651,6 +2651,7 @@ const CoordinatorReport: React.FC<{ branchId: string; branchName: string; studen
    const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
    const [loading, setLoading] = useState(false);
    const [exportRange, setExportRange] = useState<'TILL_TODAY' | 'CUSTOM'>('TILL_TODAY');
+   const [exportSubjectType, setExportSubjectType] = useState<'ALL' | 'THEORY' | 'LAB'>('ALL');
    const [exportStartDate, setExportStartDate] = useState('');
    const [exportEndDate, setExportEndDate] = useState(new Date().toISOString().split('T')[0]);
    const [showFullPreview, setShowFullPreview] = useState(false);
@@ -2679,16 +2680,28 @@ const CoordinatorReport: React.FC<{ branchId: string; branchName: string; studen
    }, [attendance, exportRange, exportStartDate, exportEndDate]);
 
    const previewStats = useMemo(() => {
-      const regularRecs = previewRecords.filter(r => r.subjectId !== 'sub_extra');
+      const regularRecs = previewRecords.filter(r => {
+         if (r.subjectId === 'sub_extra') return false;
+         const subj = metaData.subjects[r.subjectId];
+         if (exportSubjectType === 'THEORY' && subj?.type === 'lab') return false;
+         if (exportSubjectType === 'LAB' && subj?.type !== 'lab') return false;
+         return true;
+      });
       const regularSessions = new Set(regularRecs.map(r => `${r.date}_${r.lectureSlot}_${r.subjectId}`)).size;
       const totalRecords = previewRecords.length;
       return { sessions: regularSessions, totalRecords };
-   }, [previewRecords]);
+   }, [previewRecords, exportSubjectType, metaData.subjects]);
 
    const filteredStudents = useMemo(() => {
       if (filterMode === 'FULL') return students;
       return students.filter(s => {
-         const relevantRegular = previewRecords.filter(r => r.studentId === s.uid && r.subjectId !== 'sub_extra');
+         const relevantRegular = previewRecords.filter(r => {
+            if (r.studentId !== s.uid || r.subjectId === 'sub_extra') return false;
+            const subj = metaData.subjects[r.subjectId];
+            if (exportSubjectType === 'THEORY' && subj?.type === 'lab') return false;
+            if (exportSubjectType === 'LAB' && subj?.type !== 'lab') return false;
+            return true;
+         });
          const present = relevantRegular.filter(r => r.isPresent).length;
          const pct = previewStats.sessions === 0 ? 0 : (present / previewStats.sessions) * 100;
          if (filterCondition === 'LT') return pct < filterValue;
@@ -2697,28 +2710,48 @@ const CoordinatorReport: React.FC<{ branchId: string; branchName: string; studen
          if (filterCondition === 'GE') return pct >= filterValue;
          return true;
       });
-   }, [students, previewRecords, previewStats.sessions, filterMode, filterCondition, filterValue]);
+   }, [students, previewRecords, previewStats.sessions, filterMode, filterCondition, filterValue, exportSubjectType, metaData.subjects]);
 
    const averageAttendance = useMemo(() => {
       if (filteredStudents.length === 0) return '0%';
       const totalPct = filteredStudents.reduce((acc, s) => {
-         const present = previewRecords.filter(r => r.studentId === s.uid && r.subjectId !== 'sub_extra' && r.isPresent).length;
+         const relevantRegular = previewRecords.filter(r => {
+            if (r.studentId !== s.uid || r.subjectId === 'sub_extra') return false;
+            const subj = metaData.subjects[r.subjectId];
+            if (exportSubjectType === 'THEORY' && subj?.type === 'lab') return false;
+            if (exportSubjectType === 'LAB' && subj?.type !== 'lab') return false;
+            return true;
+         });
+         const present = relevantRegular.filter(r => r.isPresent).length;
          return acc + (previewStats.sessions === 0 ? 0 : (present / previewStats.sessions) * 100);
       }, 0);
       return Math.round(totalPct / filteredStudents.length) + '%';
-   }, [filteredStudents, previewRecords, previewStats.sessions]);
+   }, [filteredStudents, previewRecords, previewStats.sessions, exportSubjectType, metaData.subjects]);
 
    const lowAttendanceCount = useMemo(() => {
       return filteredStudents.filter(s => {
-         const present = previewRecords.filter(r => r.studentId === s.uid && r.subjectId !== 'sub_extra' && r.isPresent).length;
+         const relevantRegular = previewRecords.filter(r => {
+            if (r.studentId !== s.uid || r.subjectId === 'sub_extra') return false;
+            const subj = metaData.subjects[r.subjectId];
+            if (exportSubjectType === 'THEORY' && subj?.type === 'lab') return false;
+            if (exportSubjectType === 'LAB' && subj?.type !== 'lab') return false;
+            return true;
+         });
+         const present = relevantRegular.filter(r => r.isPresent).length;
          const pct = previewStats.sessions === 0 ? 0 : (present / previewStats.sessions) * 100;
          return pct < 75;
       }).length;
-   }, [filteredStudents, previewRecords, previewStats.sessions]);
+   }, [filteredStudents, previewRecords, previewStats.sessions, exportSubjectType, metaData.subjects]);
 
    const executeExport = () => {
       // 1. Identify relevant subjects (those with at least one record in this branch/period)
-      const regularRecs = previewRecords.filter(r => r.subjectId !== 'sub_extra');
+      const regularRecs = previewRecords.filter(r => {
+         if (r.subjectId === 'sub_extra') return false;
+         const subj = metaData.subjects[r.subjectId];
+         if (exportSubjectType === 'THEORY' && subj?.type === 'lab') return false;
+         if (exportSubjectType === 'LAB' && subj?.type !== 'lab') return false;
+         return true;
+      });
       const uniqueSubjectIds = Array.from(new Set(regularRecs.map(r => r.subjectId))).sort((a, b) => {
          const nameA = metaData.subjects[a]?.code || metaData.subjects[a]?.name || '';
          const nameB = metaData.subjects[b]?.code || metaData.subjects[b]?.name || '';
@@ -2748,7 +2781,7 @@ const CoordinatorReport: React.FC<{ branchId: string; branchName: string; studen
 
       const dataRows = filteredStudents.map(s => {
          const studentRecs = previewRecords.filter(r => r.studentId === s.uid);
-         const studentRegularRecs = studentRecs.filter(r => r.subjectId !== 'sub_extra');
+         const studentRegularRecs = regularRecs.filter(r => r.studentId === s.uid);
          const studentTotalSessions = new Set(studentRegularRecs.map(r => `${r.date}_${r.lectureSlot}_${r.subjectId}`)).size;
          const presentCount = studentRegularRecs.filter(r => r.isPresent).length;
          const extraCount = studentRecs.filter(r => r.subjectId === 'sub_extra' && r.isPresent).length;
@@ -2781,7 +2814,7 @@ const CoordinatorReport: React.FC<{ branchId: string; branchName: string; studen
       // --- STATS CALCULATION ---
       const totalStudents = filteredStudents.length;
       const studentStats = filteredStudents.map(s => {
-         const studentRegularRecs = previewRecords.filter(r => r.studentId === s.uid && r.subjectId !== 'sub_extra');
+         const studentRegularRecs = regularRecs.filter(r => r.studentId === s.uid);
          const present = studentRegularRecs.filter(r => r.isPresent).length;
          const total = studentRegularRecs.length;
          const pct = total === 0 ? 0 : (present / total) * 100;
@@ -2920,12 +2953,23 @@ const CoordinatorReport: React.FC<{ branchId: string; branchName: string; studen
                      <button onClick={() => setExportRange('TILL_TODAY')} className={`p-4 rounded-2xl border transition-all text-xs font-black uppercase tracking-widest ${exportRange === 'TILL_TODAY' ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-md translate-y-[-2px]' : 'border-slate-50 bg-slate-50 text-slate-500 hover:bg-slate-100'}`}>Session</button>
                      <button onClick={() => setExportRange('CUSTOM')} className={`p-4 rounded-2xl border transition-all text-xs font-black uppercase tracking-widest ${exportRange === 'CUSTOM' ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-md translate-y-[-2px]' : 'border-slate-50 bg-slate-50 text-slate-500 hover:bg-slate-100'}`}>Range</button>
                   </div>
-                  {exportRange === 'CUSTOM' && (
+                   {exportRange === 'CUSTOM' && (
                      <div className="grid grid-cols-2 gap-3 animate-in fade-in zoom-in duration-300">
                         <Input type="date" value={exportStartDate} onChange={e => setExportStartDate(e.target.value)} className="mb-0 border-none bg-slate-50 font-black text-indigo-900 rounded-xl" />
                         <Input type="date" value={exportEndDate} onChange={e => setExportEndDate(e.target.value)} className="mb-0 border-none bg-slate-50 font-black text-indigo-900 rounded-xl" />
                      </div>
                   )}
+               </div>
+
+               <div className="space-y-4 pt-4 border-t border-slate-50">
+                  <div className="space-y-3">
+                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Subject Type</label>
+                     <div className="grid grid-cols-3 gap-3">
+                        <button onClick={() => setExportSubjectType('ALL')} className={`p-4 rounded-2xl border transition-all text-xs font-black uppercase tracking-widest ${exportSubjectType === 'ALL' ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-md translate-y-[-2px]' : 'border-slate-50 bg-slate-50 text-slate-500 hover:bg-slate-100'}`}>All</button>
+                        <button onClick={() => setExportSubjectType('THEORY')} className={`p-4 rounded-2xl border transition-all text-xs font-black uppercase tracking-widest ${exportSubjectType === 'THEORY' ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-md translate-y-[-2px]' : 'border-slate-50 bg-slate-50 text-slate-500 hover:bg-slate-100'}`}>Theory</button>
+                        <button onClick={() => setExportSubjectType('LAB')} className={`p-4 rounded-2xl border transition-all text-xs font-black uppercase tracking-widest ${exportSubjectType === 'LAB' ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-md translate-y-[-2px]' : 'border-slate-50 bg-slate-50 text-slate-500 hover:bg-slate-100'}`}>Lab</button>
+                     </div>
+                  </div>
                </div>
 
                <div className="space-y-4 pt-4 border-t border-slate-50">

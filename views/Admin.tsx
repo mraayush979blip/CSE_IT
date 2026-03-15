@@ -1480,6 +1480,7 @@ const ReportManagement: React.FC = () => {
   const [subjects, setSubjects] = useState<Subject[]>([]);
 
   const [exportRange, setExportRange] = useState<'TILL_TODAY' | 'CUSTOM'>('TILL_TODAY');
+  const [exportSubjectType, setExportSubjectType] = useState<'ALL' | 'THEORY' | 'LAB'>('ALL');
   const [exportFormat, setExportFormat] = useState<'DETAILED' | 'COMPATIBLE'>('DETAILED');
   const [exportStartDate, setExportStartDate] = useState('');
   const [exportEndDate, setExportEndDate] = useState(new Date().toISOString().split('T')[0]);
@@ -1527,7 +1528,13 @@ const ReportManagement: React.FC = () => {
 
     const branchName = branches.find(b => b.id === selectedBranchId)?.name || 'Branch';
 
-    const regularRecs = recordsToExport.filter(r => r.subjectId !== 'sub_extra');
+    const regularRecs = recordsToExport.filter(r => {
+      if (r.subjectId === 'sub_extra') return false;
+      const subj = subjects.find(s => s.id === r.subjectId);
+      if (exportSubjectType === 'THEORY' && subj?.type === 'lab') return false;
+      if (exportSubjectType === 'LAB' && subj?.type !== 'lab') return false;
+      return true;
+    });
     const uniqueSubjectIds = Array.from(new Set(regularRecs.map(r => r.subjectId))).sort((a, b) => {
       const nameA = subjects.find(s => s.id === a)?.code || '';
       const nameB = subjects.find(s => s.id === b)?.code || '';
@@ -1555,7 +1562,7 @@ const ReportManagement: React.FC = () => {
     const allBranchStudents = [...students].sort((a, b) => (a.studentData?.rollNo || '').localeCompare(b.studentData?.rollNo || '', undefined, { numeric: true }));
 
     const filteredForExport = filterMode === 'FULL' ? allBranchStudents : allBranchStudents.filter(s => {
-      const studentRegularRecs = recordsToExport.filter(r => r.studentId === s.uid && r.subjectId !== 'sub_extra');
+      const studentRegularRecs = regularRecs.filter(r => r.studentId === s.uid);
       const present = studentRegularRecs.filter(r => r.isPresent).length;
       const totalSessions = studentRegularRecs.length;
       const pct = totalSessions === 0 ? 0 : (present / totalSessions) * 100;
@@ -1568,7 +1575,7 @@ const ReportManagement: React.FC = () => {
 
     const dataRows = filteredForExport.map(s => {
       const studentRecs = recordsToExport.filter(r => r.studentId === s.uid);
-      const studentRegularRecs = studentRecs.filter(r => r.subjectId !== 'sub_extra');
+      const studentRegularRecs = regularRecs.filter(r => r.studentId === s.uid);
       const presentCount = studentRegularRecs.filter(r => r.isPresent).length;
       const totalSessions = studentRegularRecs.length;
       const extraCount = studentRecs.filter(r => r.subjectId === 'sub_extra' && r.isPresent).length;
@@ -1598,7 +1605,7 @@ const ReportManagement: React.FC = () => {
     });
 
     const studentStats = filteredForExport.map(s => {
-      const studentRegularRecs = recordsToExport.filter(r => r.studentId === s.uid && r.subjectId !== 'sub_extra');
+      const studentRegularRecs = regularRecs.filter(r => r.studentId === s.uid);
       const present = studentRegularRecs.filter(r => r.isPresent).length;
       const total = studentRegularRecs.length;
       const pct = total === 0 ? 0 : (present / total) * 100;
@@ -1785,9 +1792,18 @@ const ReportManagement: React.FC = () => {
                       </div>
                     )}
                   </div>
+                  
+                  <div className="space-y-4 pt-6 border-t border-slate-100">
+                    <label className="text-xs font-black text-slate-400 uppercase tracking-widest">3. Select Subject Type</label>
+                    <div className="grid grid-cols-3 gap-3">
+                      <button onClick={() => setExportSubjectType('ALL')} className={`p-4 rounded-xl border-2 text-center transition-all ${exportSubjectType === 'ALL' ? 'border-indigo-600 bg-indigo-50 text-indigo-700 font-bold' : 'border-slate-100 bg-white text-slate-500'}`}>All</button>
+                      <button onClick={() => setExportSubjectType('THEORY')} className={`p-4 rounded-xl border-2 text-center transition-all ${exportSubjectType === 'THEORY' ? 'border-indigo-600 bg-indigo-50 text-indigo-700 font-bold' : 'border-slate-100 bg-white text-slate-500'}`}>Theory</button>
+                      <button onClick={() => setExportSubjectType('LAB')} className={`p-4 rounded-xl border-2 text-center transition-all ${exportSubjectType === 'LAB' ? 'border-indigo-600 bg-indigo-50 text-indigo-700 font-bold' : 'border-slate-100 bg-white text-slate-500'}`}>Lab</button>
+                    </div>
+                  </div>
 
                   <div className="space-y-4 pt-6 border-t border-slate-100">
-                    <label className="text-xs font-black text-slate-400 uppercase tracking-widest">3. Filter Scope</label>
+                    <label className="text-xs font-black text-slate-400 uppercase tracking-widest">4. Filter Scope</label>
                     <div className="grid grid-cols-2 gap-3">
                       <button onClick={() => setFilterMode('FULL')} className={`p-4 rounded-xl border-2 transition-all ${filterMode === 'FULL' ? 'bg-indigo-900 border-indigo-900 text-white font-bold shadow-lg' : 'bg-slate-50 border-slate-50 text-slate-500 hover:bg-slate-100'}`}>Full Class</button>
                       <button onClick={() => setFilterMode('FILTERED')} className={`p-4 rounded-xl border-2 transition-all ${filterMode === 'FILTERED' ? 'bg-indigo-900 border-indigo-900 text-white font-bold shadow-lg' : 'bg-slate-50 border-slate-50 text-slate-500 hover:bg-slate-100'}`}>Filtered</button>
