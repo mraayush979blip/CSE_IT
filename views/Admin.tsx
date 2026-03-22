@@ -1489,7 +1489,8 @@ const ReportManagement: React.FC = () => {
   const [attendanceThreshold, setAttendanceThreshold] = useState(75);
   const [attendanceOperator, setAttendanceOperator] = useState<'GE' | 'LE' | 'GT' | 'LT'>('GE');
   const [showFilters, setShowFilters] = useState(false);
-  const [showExportModal, setShowExportModal] = useState(false); // Added for the new code
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [metaBatches, setMetaBatches] = useState<Record<string, string>>({});
 
   useEffect(() => {
     db.getBranches().then(setBranches);
@@ -1501,12 +1502,17 @@ const ReportManagement: React.FC = () => {
     if (!branchId) return;
     setLoading(true);
     try {
-      const [allStu, allAtt] = await Promise.all([
+      const [allStu, allAtt, fetchedBatches] = await Promise.all([
         db.getStudentsByBranch(branchId),
-        db.getBranchAttendance(branchId)
+        db.getBranchAttendance(branchId),
+        db.getBatches(branchId)
       ]);
       setStudents(allStu);
       setAttendance(allAtt);
+      
+      const batchMap: Record<string, string> = {};
+      fetchedBatches.forEach(b => { batchMap[b.id] = b.name; });
+      setMetaBatches(batchMap);
     } finally {
       setLoading(false);
     }
@@ -1578,31 +1584,6 @@ const ReportManagement: React.FC = () => {
       return true;
     });
 
-    const dataRows = filteredForExport.map(s => {
-      const studentRecs = recordsToExport.filter(r => r.studentId === s.uid);
-      const studentRegularRecs = regularRecs.filter(r => r.studentId === s.uid);
-      const presentCount = studentRegularRecs.filter(r => r.isPresent).length;
-      const totalSessions = studentRegularRecs.length;
-      const extraCount = studentRecs.filter(r => r.subjectId === 'sub_extra' && r.isPresent).length;
-
-      const subjectAttendance = uniqueSubjectIds.map(sid => {
-        return studentRegularRecs.filter(r => r.subjectId === sid && r.isPresent).length.toString();
-      });
-
-      const pct = totalSessions === 0 ? 0 : Math.round((presentCount / totalSessions) * 100);
-
-      return [
-        s.studentData?.rollNo || '',
-        s.displayName,
-        s.studentData?.enrollmentId || '',
-        ...subjectAttendance,
-        extraCount.toString(),
-        totalSessions.toString(),
-        presentCount.toString(),
-        `${pct}%`
-      ];
-    });
-
     const studentStats = filteredForExport.map(s => {
       const studentRegularRecs = regularRecs.filter(r => r.studentId === s.uid);
       const present = studentRegularRecs.filter(r => r.isPresent).length;
@@ -1623,8 +1604,67 @@ const ReportManagement: React.FC = () => {
     ];
 
     const headerLabels = ["Serial No", "Name", "Enrollment", ...subjectHeaders, "Extra", "Total lectures", "Present Count", "Attendance %"];
-    const totalsLabelRow = ["", "Total lectures held", "", ...uniqueSubjectIds.map(sid => subjectSessionCounts[sid].toString()), "", "VARIES", "VARIES", ""];
-    const excelRows = [...headerRows, ...statsInfo, headerLabels, totalsLabelRow, ...dataRows];
+    let excelRows: any[][] = [...headerRows, ...statsInfo];
+
+    // Group students by Batch
+    const batchesMap = new Map<string, User[]>();
+    filteredForExport.forEach(s => {
+      const bId = s.studentData?.batchId || 'UNASSIGNED';
+      if (!batchesMap.has(bId)) batchesMap.set(bId, []);
+      batchesMap.get(bId)!.push(s);
+    });
+
+    Array.from(batchesMap.entries()).forEach(([batchId, batchStudents]) => {
+      const batchNameStr = metaBatches[batchId] || batchId;
+
+      // Find all records that apply to this batch specifically or to the whole class
+      const batchRegularRecs = regularRecs.filter(r => r.batchId === batchId || r.batchId === 'ALL');
+      
+      const batchSubjectSessionCounts: Record<string, number> = {};
+      uniqueSubjectIds.forEach(sid => {
+        const batchSubjectSessions = new Set(batchRegularRecs.filter(r => r.subjectId === sid).map(r => `${r.date}_${r.lectureSlot}`)).size;
+        batchSubjectSessionCounts[sid] = batchSubjectSessions;
+      });
+
+      // Add Batch Spacing and Headers
+      excelRows.push([]); 
+      excelRows.push([`>>> BATCH: ${batchNameStr} <<<`]);
+      excelRows.push(headerLabels);
+
+      const batchTotalLectures = Object.values(batchSubjectSessionCounts).reduce((acc, curr) => acc + curr, 0);
+      const batchTotalsLabelRow = ["", "Total lectures held", "", ...uniqueSubjectIds.map(sid => batchSubjectSessionCounts[sid].toString()), "", batchTotalLectures.toString(), "VARIES", ""];
+      excelRows.push(batchTotalsLabelRow);
+
+      const batchDataRows = batchStudents.map(s => {
+        const studentRecs = recordsToExport.filter(r => r.studentId === s.uid);
+        const studentRegularRecs = regularRecs.filter(r => r.studentId === s.uid);
+        const presentCount = studentRegularRecs.filter(r => r.isPresent).length;
+        const totalSessions = studentRegularRecs.length;
+        const extraCount = studentRecs.filter(r => r.subjectId === 'sub_extra' && r.isPresent).length;
+
+        const subjectAttendance = uniqueSubjectIds.map(sid => {
+          return studentRegularRecs.filter(r => r.subjectId === sid && r.isPresent).length.toString();
+        });
+
+        const pct = totalSessions === 0 ? 0 : Math.round((presentCount / totalSessions) * 100);
+
+        return [
+          s.studentData?.rollNo || '',
+          s.displayName,
+          s.studentData?.enrollmentId || '',
+          ...subjectAttendance,
+          extraCount.toString(),
+          totalSessions.toString(),
+          presentCount.toString(),
+          `${pct}%`
+        ];
+      });
+
+      excelRows = excelRows.concat(batchDataRows);
+      excelRows.push([]); // trailing spacer
+      excelRows.push([]);
+    });
+
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.aoa_to_sheet(excelRows);
     ws['!merges'] = [
@@ -1674,22 +1714,41 @@ const ReportManagement: React.FC = () => {
           ws[addr].s.alignment.horizontal = "center";
         }
 
-        // Table Header (Row 12)
-        if (R === 12) {
+        const rowVal0 = excelRows[R]?.[0]?.toString() || '';
+        const rowVal1 = excelRows[R]?.[1]?.toString() || '';
+
+        // Batch Title Row
+        if (rowVal0.startsWith('>>> BATCH')) {
+          ws[addr].s.fill = { fgColor: { rgb: "4F46E5" } };
+          ws[addr].s.font = { color: { rgb: "FFFFFF" }, bold: true, sz: 11 };
+          ws[addr].s.alignment.horizontal = "center";
+        }
+
+        // Table Header
+        if (rowVal0 === 'Serial No') {
           ws[addr].s.fill = { fgColor: { rgb: "334155" } };
           ws[addr].s.font = { color: { rgb: "FFFFFF" }, bold: true };
           ws[addr].s.alignment.horizontal = "center";
         }
 
-        // Totals Row (Row 13)
-        if (R === 13) {
+        // Totals Row
+        if (rowVal1 === 'Total lectures held') {
           ws[addr].s.fill = { fgColor: { rgb: "F1F5F9" } };
+          ws[addr].s.font = ws[addr].s.font || {};
           ws[addr].s.font.bold = true;
         }
 
         // Status column has been removed
       }
     }
+
+    // Merge batch title rows across the whole table
+    if (!ws['!merges']) ws['!merges'] = [];
+    excelRows.forEach((row, R) => {
+      if (row[0]?.toString().startsWith('>>> BATCH')) {
+        ws['!merges']!.push({ s: { r: R, c: 0 }, e: { r: R, c: headerLabels.length - 1 } });
+      }
+    });
 
     XLSX.utils.book_append_sheet(wb, ws, "Attendance Report");
     XLSX.writeFile(wb, `${branchName}_Admin_Summary.xlsx`);

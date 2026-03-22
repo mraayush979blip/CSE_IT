@@ -1329,54 +1329,26 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
       const sortedStudents = [...visibleStudents].sort((a, b) => (a.studentData?.rollNo || '').localeCompare(b.studentData?.rollNo || '', undefined, { numeric: true }));
 
       // --- 1. Headers ---
+      // --- 1. Headers ---
       const headerRows = [
          ["ACROPOLIS INSTITUTE OF RESEARCH AND TECHNOLOGY"],
          ["DEPT OF COMPUTER SCIENCE AND ENGINEERING"],
          [`Attendance Report: ${subjectName} (${subjectCode})`],
          [`Faculty: ${facultyName} | Class: ${branchName}`],
          [`Period: ${exportRange === 'TILL_TODAY' ? 'Full Session' : `${exportStartDate} to ${exportEndDate}`}`],
-         [`Report Grade: EXECUTIVE PREMIUM | Generated: ${new Date().toLocaleString()}`],
+         [`Generated: ${new Date().toLocaleString()}`],
          []
       ];
 
       const isDetailed = exportFormat === 'DETAILED';
 
-      // --- 2. Data Rows ---
-      const dataHeaders = ['Roll No', 'Name', 'Enrollment', 'Status', 'Total', 'Present', 'Percentage (%)'];
-      if (isDetailed) {
-         dataHeaders.push(...sortedSlots.map(s => `${s.date} (L${s.slot})`));
-      }
-
-      const dataRows = sortedStudents.map(s => {
-         const studentRecs = recordsToExport.filter(r => r.studentId === s.uid);
-         const presentCount = studentRecs.filter(r => r.isPresent).length;
-         const totalSessions = studentRecs.length;
-         const pct = totalSessions === 0 ? 0 : Math.round((presentCount / totalSessions) * 100);
-
-         let status = '🏆 Excellent';
-         if (pct < 60) status = '🚨 Critical';
-         else if (pct < 75) status = '⚠️ Shortage';
-         else if (pct < 90) status = '✅ Good';
-
-         const row = [s.studentData?.rollNo || '', s.displayName, s.studentData?.enrollmentId || '', status, totalSessions.toString(), presentCount.toString(), `${pct}%`];
-         if (isDetailed) {
-            sortedSlots.forEach(slotInfo => {
-               const rec = lookupMap.get(`${s.uid}_${slotInfo.date}_${slotInfo.slot}`);
-               row.push(rec ? (rec.isPresent ? 'P' : 'A') : '-');
-            });
-         }
-         return row;
-      });
-
-      // --- 3. Stats Calculation ---
+      // --- 2. Stats Calculation ---
       const stats = sortedStudents.map(s => {
          const present = recordsToExport.filter(r => r.studentId === s.uid && r.isPresent).length;
          const total = recordsToExport.filter(r => r.studentId === s.uid).length;
          const pct = total === 0 ? 0 : (present / total) * 100;
          return { name: s.displayName, pct };
       });
-      const maxAtt = stats.length > 0 ? Math.max(...stats.map(s => s.pct)) : 0;
-      const highestAttendNames = stats.filter(s => s.pct === maxAtt).map(s => s.name).join(", ");
       const classAvg = stats.length === 0 ? 0 : Math.round(stats.reduce((acc, curr) => acc + curr.pct, 0) / stats.length);
       const detentionCount = stats.filter(s => s.pct < 75).length;
 
@@ -1385,18 +1357,52 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
          ["Total Strength", sortedStudents.length.toString()],
          ["Class Average", `${classAvg}%`],
          ["Detention Count (<75%)", detentionCount.toString()],
-         ["Highest Attendance", `${Math.round(maxAtt)}% (${highestAttendNames})`],
-         ["", ""],
-         ["REPORT LEGEND", ""],
-         ["🏆 Excellent", "Above 90%"],
-         ["✅ Good", "75% to 90%"],
-         ["⚠️ Shortage", "Shortage (60% - 75%)"],
-         ["🚨 Critical", "Critical (< 60%)"],
-         []
+         ["", ""]
       ];
 
-      // --- 4. Assembly ---
-      const excelRows = [...headerRows, ...statsInfo, dataHeaders, ...dataRows];
+      // --- 3. Data Assembly ---
+      const dataHeaders = ['Roll No', 'Name', 'Enrollment', 'Total', 'Present', 'Percentage (%)'];
+      if (isDetailed) {
+         dataHeaders.push(...sortedSlots.map(s => `${s.date} (L${s.slot})`));
+      }
+
+      let excelRows: any[][] = [...headerRows, ...statsInfo];
+      
+      const batchesMap = new Map<string, User[]>();
+      sortedStudents.forEach(s => {
+         const bId = s.studentData?.batchId || 'UNASSIGNED';
+         if (!batchesMap.has(bId)) batchesMap.set(bId, []);
+         batchesMap.get(bId)!.push(s);
+      });
+
+      Array.from(batchesMap.entries()).forEach(([batchId, batchStudents]) => {
+         const batchNameStr = metaData.batches[batchId] || batchId;
+
+         excelRows.push([]);
+         excelRows.push([`>>> BATCH: ${batchNameStr} <<<`]);
+         excelRows.push(dataHeaders);
+
+         const batchDataRows = batchStudents.map(s => {
+            const studentRecs = recordsToExport.filter(r => r.studentId === s.uid);
+            const presentCount = studentRecs.filter(r => r.isPresent).length;
+            const totalSessions = studentRecs.length;
+            const pct = totalSessions === 0 ? 0 : Math.round((presentCount / totalSessions) * 100);
+
+            const row = [s.studentData?.rollNo || '', s.displayName, s.studentData?.enrollmentId || '', totalSessions.toString(), presentCount.toString(), `${pct}%`];
+            if (isDetailed) {
+               sortedSlots.forEach(slotInfo => {
+                  const rec = lookupMap.get(`${s.uid}_${slotInfo.date}_${slotInfo.slot}`);
+                  row.push(rec ? (rec.isPresent ? 'P' : 'A') : '-');
+               });
+            }
+            return row;
+         });
+
+         excelRows = excelRows.concat(batchDataRows);
+         excelRows.push([]);
+         excelRows.push([]);
+      });
+
       const wb = XLSX.utils.book_new();
       const ws = XLSX.utils.aoa_to_sheet(excelRows);
 
@@ -1423,10 +1429,7 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
       });
       ws['!cols'] = colWidths;
 
-      // Frozen Panes
-      ws['!views'] = [{ state: 'frozen', xSplit: 2, ySplit: 13 }];
-
-      // --- 5. Apply Colors & Styles ---
+      // --- 4. Apply Colors & Styles ---
       const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
       for (let R = range.s.r; R <= range.e.r; ++R) {
          for (let C = range.s.c; C <= range.e.c; ++C) {
@@ -1445,6 +1448,8 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                }
             };
 
+            const rowVal0 = excelRows[R]?.[0]?.toString() || '';
+
             // Header Branding (Rows 0-3)
             if (R >= 0 && R <= 3) {
                ws[addr].s.fill = { fgColor: { rgb: "002D62" } };
@@ -1453,36 +1458,44 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
             }
 
             // Stats Headers
-            if (R >= 8 && R <= 12 && C === 0) {
+            if (R >= 8 && R <= 11 && C === 0) {
                ws[addr].s.font.bold = true;
                ws[addr].s.fill = { fgColor: { rgb: "F8FAFC" } };
             }
 
-            // Table Header (Row 19)
-            if (R === 19) {
+            // Batch Title Row
+            if (rowVal0.startsWith('>>> BATCH')) {
+               ws[addr].s.fill = { fgColor: { rgb: "4F46E5" } };
+               ws[addr].s.font = { color: { rgb: "FFFFFF" }, bold: true, sz: 11 };
+               ws[addr].s.alignment.horizontal = "center";
+            }
+
+            // Table Header
+            if (rowVal0 === 'Roll No') {
                ws[addr].s.fill = { fgColor: { rgb: "1E293B" } };
                ws[addr].s.font = { color: { rgb: "FFFFFF" }, bold: true };
                ws[addr].s.alignment.horizontal = "center";
             }
 
-            // Status Column Colors (Col 3)
-            if (R > 20 && C === 3) {
-               const val = ws[addr].v;
-               if (val?.includes('Excellent')) ws[addr].s.fill = { fgColor: { rgb: "DCFCE7" } };
-               else if (val?.includes('Good')) ws[addr].s.fill = { fgColor: { rgb: "DBEAFE" } };
-               else if (val?.includes('Shortage')) ws[addr].s.fill = { fgColor: { rgb: "FEF3C7" } };
-               else if (val?.includes('Critical')) ws[addr].s.fill = { fgColor: { rgb: "FEE2E2" } };
-            }
-
-            // Attendance % Column Colors (Col 6)
-            if (R > 20 && C === 6) {
-               const val = parseInt(ws[addr].v);
-               if (val >= 90) ws[addr].s.font.color = { rgb: "059669" };
-               else if (val < 75) ws[addr].s.font.color = { rgb: "DC2626" };
-               ws[addr].s.font.bold = true;
+            // Attendance % Column Colors (Col 5)
+            if (rowVal0 && rowVal0 !== 'Roll No' && !rowVal0.startsWith('>>> BATCH') && R > 10 && C === 5) {
+               const valText = ws[addr].v?.toString() || '';
+               const val = parseInt(valText);
+               if (!isNaN(val)) {
+                  if (val >= 90) ws[addr].s.font.color = { rgb: "059669" };
+                  else if (val < 75) ws[addr].s.font.color = { rgb: "DC2626" };
+                  ws[addr].s.font.bold = true;
+               }
             }
          }
       }
+
+      // Merge batch title rows across the whole table
+      excelRows.forEach((row, R) => {
+         if (row[0]?.toString().startsWith('>>> BATCH')) {
+            ws['!merges']!.push({ s: { r: R, c: 0 }, e: { r: R, c: mergeEndCol } });
+         }
+      });
 
       XLSX.utils.book_append_sheet(wb, ws, "Attendance Report");
       XLSX.writeFile(wb, `${subjectCode}_${branchName}_Report.xlsx`);
@@ -2784,32 +2797,6 @@ const CoordinatorReport: React.FC<{ branchId: string; branchName: string; studen
          [] // Spacer
       ];
 
-      const dataRows = filteredStudents.map(s => {
-         const studentRecs = previewRecords.filter(r => r.studentId === s.uid);
-         const studentRegularRecs = regularRecs.filter(r => r.studentId === s.uid);
-         const studentTotalSessions = new Set(studentRegularRecs.map(r => `${r.date}_${r.lectureSlot}_${r.subjectId}`)).size;
-         const presentCount = studentRegularRecs.filter(r => r.isPresent).length;
-         const extraCount = studentRecs.filter(r => r.subjectId === 'sub_extra' && r.isPresent).length;
-
-         // Subject-wise attendance
-         const subjectAttendance = uniqueSubjectIds.map(sid => {
-            return studentRegularRecs.filter(r => r.subjectId === sid && r.isPresent).length.toString();
-         });
-
-         const pct = studentTotalSessions === 0 ? 0 : Math.round((presentCount / studentTotalSessions) * 100);
-
-         return [
-            s.studentData?.rollNo || '',
-            s.displayName,
-            s.studentData?.enrollmentId || '',
-            ...subjectAttendance,
-            extraCount.toString(),
-            studentTotalSessions.toString(),
-            presentCount.toString(),
-            `${pct}%`
-         ];
-      });
-
       // --- STATS CALCULATION ---
       const totalStudents = filteredStudents.length;
       const studentStats = filteredStudents.map(s => {
@@ -2832,9 +2819,66 @@ const CoordinatorReport: React.FC<{ branchId: string; branchName: string; studen
       ];
 
       const mainHeader = ["Serial No", "Name", "Enrollment ID", ...subjectHeaders, "Extra Lectures", "Total Lectures", "Present Count", "Attendance %"];
-      const totalsRow = ["", "Total Lectures Held", "", ...uniqueSubjectIds.map(sid => subjectSessionCounts[sid].toString()), "", "VARIES", "VARIES", ""];
+      let csvRows: any[][] = [...headerInfo, ...statsInfo];
 
-      const csvRows = [...headerInfo, ...statsInfo, mainHeader, totalsRow, ...dataRows];
+      // Group students by Batch
+      const batchesMap = new Map<string, User[]>();
+      filteredStudents.forEach(s => {
+         const bId = s.studentData?.batchId || 'UNASSIGNED';
+         if (!batchesMap.has(bId)) batchesMap.set(bId, []);
+         batchesMap.get(bId)!.push(s);
+      });
+
+      Array.from(batchesMap.entries()).forEach(([batchId, batchStudents]) => {
+         const batchNameStr = metaData.batches?.[batchId] || batchId;
+
+         // Find all records that apply to this batch specifically or to the whole class
+         const batchRegularRecs = regularRecs.filter(r => r.batchId === batchId || r.batchId === 'ALL');
+         
+         const batchSubjectSessionCounts: Record<string, number> = {};
+         uniqueSubjectIds.forEach(sid => {
+            const batchSubjectSessions = new Set(batchRegularRecs.filter(r => r.subjectId === sid).map(r => `${r.date}_${r.lectureSlot}`)).size;
+            batchSubjectSessionCounts[sid] = batchSubjectSessions;
+         });
+
+         // Add Batch Spacing and Headers
+         csvRows.push([]);
+         csvRows.push([`>>> BATCH: ${batchNameStr} <<<`]);
+         csvRows.push(mainHeader);
+
+         const batchTotalLectures = Object.values(batchSubjectSessionCounts).reduce((acc, curr) => acc + curr, 0);
+         const batchTotalsLabelRow = ["", "Total Lectures Held", "", ...uniqueSubjectIds.map(sid => batchSubjectSessionCounts[sid].toString()), "", batchTotalLectures.toString(), "VARIES", ""];
+         csvRows.push(batchTotalsLabelRow);
+
+         const batchDataRows = batchStudents.map(s => {
+            const studentRecs = previewRecords.filter(r => r.studentId === s.uid);
+            const studentRegularRecs = regularRecs.filter(r => r.studentId === s.uid);
+            const studentTotalSessions = studentRegularRecs.length; // use accurate logic
+            const presentCount = studentRegularRecs.filter(r => r.isPresent).length;
+            const extraCount = studentRecs.filter(r => r.subjectId === 'sub_extra' && r.isPresent).length;
+
+            const subjectAttendance = uniqueSubjectIds.map(sid => {
+               return studentRegularRecs.filter(r => r.subjectId === sid && r.isPresent).length.toString();
+            });
+
+            const pct = studentTotalSessions === 0 ? 0 : Math.round((presentCount / studentTotalSessions) * 100);
+
+            return [
+               s.studentData?.rollNo || '',
+               s.displayName,
+               s.studentData?.enrollmentId || '',
+               ...subjectAttendance,
+               extraCount.toString(),
+               studentTotalSessions.toString(),
+               presentCount.toString(),
+               `${pct}%`
+            ];
+         });
+
+         csvRows = csvRows.concat(batchDataRows);
+         csvRows.push([]); // trailing spacer
+         csvRows.push([]);
+      });
 
       // Create Workbook
       const wb = XLSX.utils.book_new();
@@ -2891,22 +2935,41 @@ const CoordinatorReport: React.FC<{ branchId: string; branchName: string; studen
                ws[addr].s.alignment.horizontal = "center";
             }
 
-            // Table Header (Row 13)
-            if (R === 13) {
+            const rowVal0 = csvRows[R]?.[0]?.toString() || '';
+            const rowVal1 = csvRows[R]?.[1]?.toString() || '';
+
+            // Batch Title Row
+            if (rowVal0.startsWith('>>> BATCH')) {
+               ws[addr].s.fill = { fgColor: { rgb: "4F46E5" } };
+               ws[addr].s.font = { color: { rgb: "FFFFFF" }, bold: true, sz: 11 };
+               ws[addr].s.alignment.horizontal = "center";
+            }
+
+            // Table Header
+            if (rowVal0 === 'Serial No') {
                ws[addr].s.fill = { fgColor: { rgb: "334155" } };
                ws[addr].s.font = { color: { rgb: "FFFFFF" }, bold: true };
                ws[addr].s.alignment.horizontal = "center";
             }
 
-            // Totals Row (Row 14)
-            if (R === 14) {
+            // Totals Row
+            if (rowVal1 === 'Total Lectures Held') {
                ws[addr].s.fill = { fgColor: { rgb: "F1F5F9" } };
+               ws[addr].s.font = ws[addr].s.font || {};
                ws[addr].s.font.bold = true;
             }
 
             // Status column has been removed
          }
       }
+
+      // Merge batch title rows across the whole table
+      if (!ws['!merges']) ws['!merges'] = [];
+      csvRows.forEach((row, R) => {
+         if (row[0]?.toString().startsWith('>>> BATCH')) {
+            ws['!merges']!.push({ s: { r: R, c: 0 }, e: { r: R, c: mainHeader.length - 1 } });
+         }
+      });
 
       XLSX.utils.book_append_sheet(wb, ws, "Attendance Report");
       XLSX.writeFile(wb, `${branchName}_Summary_Report.xlsx`);
@@ -3036,32 +3099,61 @@ const CoordinatorReport: React.FC<{ branchId: string; branchName: string; studen
                            <th className="p-4 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Progress</th>
                         </tr>
                      </thead>
-                     <tbody className="divide-y divide-slate-50">
-                        {filteredStudents.map(s => {
-                           const regularAtt = previewRecords.filter(r => r.studentId === s.uid && r.subjectId !== 'sub_extra' && r.isPresent).length;
-                           const extraAtt = previewRecords.filter(r => r.studentId === s.uid && r.subjectId === 'sub_extra' && r.isPresent).length;
-                           const pct = previewStats.sessions === 0 ? 0 : Math.round((regularAtt / previewStats.sessions) * 100);
+                        {(() => {
+                           const previewBatchesMap = new Map<string, User[]>();
+                           filteredStudents.forEach(s => {
+                              const bId = s.studentData?.batchId || 'UNASSIGNED';
+                              if (!previewBatchesMap.has(bId)) previewBatchesMap.set(bId, []);
+                              previewBatchesMap.get(bId)!.push(s);
+                           });
 
-                           return (
-                              <tr key={s.uid} className="hover:bg-slate-50/50 transition-colors">
-                                 <td className="p-4 font-mono text-[10px] text-slate-400">{s.studentData?.rollNo}</td>
-                                 <td className="p-4">
-                                    <div className="font-black text-slate-800 uppercase tracking-tight text-xs">{s.displayName}</div>
-                                    <div className="text-[9px] font-mono text-slate-400">{s.studentData?.enrollmentId}</div>
-                                 </td>
-                                 <td className="p-4 text-center font-black text-indigo-600 text-xs">{regularAtt}/{previewStats.sessions}</td>
-                                 <td className="p-4 text-center">
-                                    <span className="px-2 py-0.5 bg-amber-50 text-amber-600 rounded-lg text-[10px] font-black">+{extraAtt}</span>
-                                 </td>
-                                 <td className="p-4 text-right">
-                                    <div className={`inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black tracking-widest ${pct < 75 ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}`}>
-                                       {pct}%
-                                    </div>
-                                 </td>
-                              </tr>
-                           );
-                        })}
-                     </tbody>
+                           return Array.from(previewBatchesMap.entries()).map(([batchId, batchStudents]) => {
+                              const batchNameStr = metaData.batches?.[batchId] || batchId;
+                              return (
+                                 <tbody key={batchId} className="divide-y divide-slate-50">
+                                    <tr className="bg-indigo-50/50">
+                                       <td colSpan={5} className="p-3 text-[10px] font-black tracking-widest text-indigo-800 uppercase text-center focus:bg-indigo-100 shadow-sm">
+                                          {`>>> BATCH: ${batchNameStr} <<<`}
+                                       </td>
+                                    </tr>
+                                    {batchStudents.map(s => {
+                                       // Re-calculate the actual regular records for this specific student matching the export criteria
+                                       const studentRegularRecs = previewRecords.filter(r => {
+                                          if (r.studentId !== s.uid || r.subjectId === 'sub_extra') return false;
+                                          const subj = metaData.subjects[r.subjectId];
+                                          if (exportSubjectType === 'THEORY' && subj?.type === 'lab') return false;
+                                          if (exportSubjectType === 'LAB' && subj?.type !== 'lab') return false;
+                                          return true;
+                                       });
+                                       
+                                       const studentTotalSessions = studentRegularRecs.length;
+                                       const regularAtt = studentRegularRecs.filter(r => r.isPresent).length;
+                                       const extraAtt = previewRecords.filter(r => r.studentId === s.uid && r.subjectId === 'sub_extra' && r.isPresent).length;
+                                       const pct = studentTotalSessions === 0 ? 0 : Math.round((regularAtt / studentTotalSessions) * 100);
+
+                                       return (
+                                          <tr key={s.uid} className="hover:bg-slate-50/50 transition-colors">
+                                             <td className="p-4 font-mono text-[10px] text-slate-400">{s.studentData?.rollNo}</td>
+                                             <td className="p-4">
+                                                <div className="font-black text-slate-800 uppercase tracking-tight text-xs">{s.displayName}</div>
+                                                <div className="text-[9px] font-mono text-slate-400">{s.studentData?.enrollmentId}</div>
+                                             </td>
+                                             <td className="p-4 text-center font-black text-indigo-600 text-xs">{regularAtt}/{studentTotalSessions}</td>
+                                             <td className="p-4 text-center">
+                                                <span className="px-2 py-0.5 bg-amber-50 text-amber-600 rounded-lg text-[10px] font-black">+{extraAtt}</span>
+                                             </td>
+                                             <td className="p-4 text-right">
+                                                <div className={`inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black tracking-widest ${pct < 75 ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                                                   {pct}%
+                                                </div>
+                                             </td>
+                                          </tr>
+                                       );
+                                    })}
+                                 </tbody>
+                              );
+                           });
+                        })()}
                   </table>
                </div>
             </div>
