@@ -1,5 +1,4 @@
-
-import { supabase, authClient } from './supabase';
+import { supabase, authClient, getYearMode } from './supabase';
 import { User, Branch, Batch, Subject, FacultyAssignment, CoordinatorAssignment, AttendanceRecord, UserRole, Notification, MidSemType, Mark, SystemSettings } from "../types";
 import { SEED_BRANCHES, SEED_BATCHES, SEED_SUBJECTS, SEED_USERS, SEED_ASSIGNMENTS } from "../constants";
 
@@ -101,9 +100,10 @@ class SupabaseService implements IDataService {
     }
 
     // 2. Session Storage Check (only for meta-data to keep it fast across refreshes)
+    const yearPrefix = getYearMode();
     const isMeta = key.startsWith('meta_');
     if (isMeta) {
-      const stored = sessionStorage.getItem(`acro_cache_${key}`);
+      const stored = sessionStorage.getItem(`acro_cache_${yearPrefix}_${key}`);
       if (stored) {
         try {
           const parsed = JSON.parse(stored);
@@ -112,7 +112,7 @@ class SupabaseService implements IDataService {
             return parsed.data;
           }
         } catch (e) {
-          sessionStorage.removeItem(`acro_cache_${key}`);
+          sessionStorage.removeItem(`acro_cache_${yearPrefix}_${key}`);
         }
       }
     }
@@ -124,7 +124,7 @@ class SupabaseService implements IDataService {
 
     if (isMeta) {
       try {
-        sessionStorage.setItem(`acro_cache_${key}`, JSON.stringify(entry));
+        sessionStorage.setItem(`acro_cache_${yearPrefix}_${key}`, JSON.stringify(entry));
       } catch (e) {
         // Session storage full or disabled
       }
@@ -133,18 +133,20 @@ class SupabaseService implements IDataService {
   }
 
   private _invalidate(pattern: string) {
+    const yearPrefix = getYearMode();
     const keys = Object.keys(this._cache);
     for (const k of keys) {
       if (k === pattern || (pattern.endsWith('*') && k.startsWith(pattern.slice(0, -1)))) {
         delete this._cache[k];
-        sessionStorage.removeItem(`acro_cache_${k}`);
+        sessionStorage.removeItem(`acro_cache_${yearPrefix}_${k}`);
       }
     }
     // Also scan SS directly for the pattern
+    const prefix = `acro_cache_${yearPrefix}_`;
     for (let i = 0; i < sessionStorage.length; i++) {
       const k = sessionStorage.key(i);
-      if (k && k.startsWith('acro_cache_')) {
-        const actualKey = k.replace('acro_cache_', '');
+      if (k && k.startsWith(prefix)) {
+        const actualKey = k.replace(prefix, '');
         if (actualKey === pattern || (pattern.endsWith('*') && actualKey.startsWith(pattern.slice(0, -1)))) {
           sessionStorage.removeItem(k);
         }
@@ -227,13 +229,6 @@ class SupabaseService implements IDataService {
   async logout(): Promise<void> {
     // Clear internal memory cache
     this._cache = {};
-    // Clear sessionStorage metadata caches to prevent data leaking across sessions/projects
-    for (let i = sessionStorage.length - 1; i >= 0; i--) {
-      const k = sessionStorage.key(i);
-      if (k && k.startsWith('acro_cache_')) {
-        sessionStorage.removeItem(k);
-      }
-    }
     await supabase.auth.signOut();
   }
 

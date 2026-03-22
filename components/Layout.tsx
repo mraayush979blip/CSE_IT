@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { LogOut, User as UserIcon, Menu, X, ChevronDown, Settings, Bell, Check, ExternalLink, Trash2, Heart, Download, Smartphone, Activity, AlertCircle, Bug, Linkedin, Code2, Globe } from 'lucide-react';
 import { User, UserRole, Notification } from '../types';
 import { db } from '../services/db';
+import { getYearMode, setYearMode } from '../services/supabase';
 import { AcropolisLogo, Modal, Button, AboutDeveloperModal } from './UI';
 
 
@@ -112,6 +113,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpen
   const [isStandalone, setIsStandalone] = useState(false);
   const loginIntent = sessionStorage.getItem('login_intent');
   const displayRole = loginIntent === 'COORDINATOR' && user.role === UserRole.FACULTY ? 'COORDINATOR' : user.role;
+  const currentYearMode = getYearMode();
 
   useEffect(() => {
     const checkStandalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone;
@@ -379,7 +381,27 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpen
       </header>
 
       <main className="flex-grow container mx-auto px-4 py-8">
-        <div className="mb-6"><h2 className="text-2xl font-bold text-slate-800">{title}</h2></div>
+        <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <h2 className="text-2xl font-bold text-slate-800">{title}</h2>
+            <span className="bg-indigo-100/80 text-indigo-700 text-xs font-black uppercase tracking-wider px-2.5 py-1 rounded-md border border-indigo-200/50 shadow-sm">
+              {currentYearMode === '2nd' ? '2nd Year' : '3rd Year'}
+            </span>
+          </div>
+          
+          {(user.role === UserRole.ADMIN || user.role === UserRole.DEVELOPER) && (
+            <button
+              onClick={() => {
+                const newMode = currentYearMode === '2nd' ? '3rd' : '2nd';
+                setYearMode(newMode);
+              }}
+              className="flex items-center text-sm font-bold bg-white border border-slate-200 hover:border-indigo-300 text-slate-700 hover:text-indigo-700 px-4 py-2 rounded-xl shadow-sm hover:shadow-md transition-all active:scale-95"
+            >
+              <Globe className="h-4 w-4 mr-2" />
+              Switch to {currentYearMode === '2nd' ? '3rd Year' : '2nd Year'}
+            </button>
+          )}
+        </div>
         {children}
       </main>
 
