@@ -417,13 +417,32 @@ class SupabaseService implements IDataService {
     let failed = 0;
     const errors: string[] = [];
 
+    const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
+
     for (const s of students) {
-      try {
-        await this.createStudent(s);
-        success++;
-      } catch (e: any) {
-        failed++;
-        errors.push(`${s.displayName}: ${e.message}`);
+      let retries = 3;
+      let added = false;
+      while (retries > 0 && !added) {
+        try {
+          await this.createStudent(s);
+          success++;
+          added = true;
+          await delay(300); // Small delay to prevent rate limiting
+        } catch (e: any) {
+          if (e.status === 429 || e.message?.includes('rate limit') || e.message?.includes('Too Many Requests')) {
+            retries--;
+            if (retries > 0) {
+              await delay(2000); // Wait 2 seconds and retry
+            } else {
+              failed++;
+              errors.push(`${s.displayName}: Rate limit exceeded.`);
+            }
+          } else {
+            failed++;
+            errors.push(`${s.displayName}: ${e.message}`);
+            break; // Don't retry on other errors (like duplicate email)
+          }
+        }
       }
     }
     return { success, failed, errors };
@@ -473,13 +492,32 @@ class SupabaseService implements IDataService {
   async importFaculty(facultyList: {data: Partial<User>, password?: string}[]): Promise<{success: number, failed: number, errors: string[]}> {
     let success = 0, failed = 0;
     const errors: string[] = [];
+    const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
+
     for (const fac of facultyList) {
-      try {
-        await this.createFaculty(fac.data, fac.password);
-        success++;
-      } catch (e: any) {
-        failed++;
-        errors.push(`${fac.data.email}: ${e.message}`);
+      let retries = 3;
+      let added = false;
+      while (retries > 0 && !added) {
+        try {
+          await this.createFaculty(fac.data, fac.password);
+          success++;
+          added = true;
+          await delay(300);
+        } catch (e: any) {
+          if (e.status === 429 || e.message?.includes('rate limit') || e.message?.includes('Too Many Requests')) {
+            retries--;
+            if (retries > 0) {
+              await delay(2000);
+            } else {
+              failed++;
+              errors.push(`${fac.data.email}: Rate limit exceeded.`);
+            }
+          } else {
+            failed++;
+            errors.push(`${fac.data.email}: ${e.message}`);
+            break;
+          }
+        }
       }
     }
     return { success, failed, errors };
@@ -520,13 +558,32 @@ class SupabaseService implements IDataService {
   async importSubjects(subjects: {name: string, code: string, type: 'theory' | 'lab'}[]): Promise<{success: number, failed: number, errors: string[]}> {
     let success = 0, failed = 0;
     const errors: string[] = [];
+    const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
+
     for (const sub of subjects) {
-      try {
-        await this.addSubject(sub.name, sub.code, sub.type);
-        success++;
-      } catch (e: any) {
-        failed++;
-        errors.push(`${sub.name}: ${e.message}`);
+      let retries = 3;
+      let added = false;
+      while (retries > 0 && !added) {
+        try {
+          await this.addSubject(sub.name, sub.code, sub.type);
+          success++;
+          added = true;
+          await delay(200); // 200ms delay to prevent overwhelming the API
+        } catch (e: any) {
+          if (e.status === 429 || e.message?.includes('rate limit') || e.message?.includes('Too Many Requests')) {
+            retries--;
+            if (retries > 0) {
+              await delay(2000);
+            } else {
+              failed++;
+              errors.push(`${sub.name}: Rate limit exceeded.`);
+            }
+          } else {
+            failed++;
+            errors.push(`${sub.name}: ${e.message}`);
+            break;
+          }
+        }
       }
     }
     return { success, failed, errors };

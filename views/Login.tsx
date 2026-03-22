@@ -3,6 +3,7 @@ import { db } from '../services/db';
 import { User, SystemSettings } from '../types';
 import { Button, Card, Input, AcropolisLogo, Select, AboutDeveloperModal } from '../components/UI';
 import { Lock, Mail, Eye, EyeOff, Users } from 'lucide-react';
+import { getYearMode, setYearMode, YearMode } from '../services/supabase';
 
 interface LoginProps {
   onLogin: (user: User) => void;
@@ -16,12 +17,18 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const [loading, setLoading] = useState(false);
   const [isDevModalOpen, setIsDevModalOpen] = useState(false);
   const [settings, setSettings] = useState<SystemSettings>({ studentLoginEnabled: true });
-
   const [selectedRole, setSelectedRole] = useState<'FACULTY' | 'COORDINATOR' | 'STUDENT'>('FACULTY');
+  const [yearMode, setYearModeState] = useState<YearMode>(getYearMode());
 
   React.useEffect(() => {
     db.getSystemSettings().then(setSettings).catch(console.error);
   }, []);
+
+  const handleYearToggle = (mode: YearMode) => {
+    if (mode === yearMode) return;
+    setYearModeState(mode);
+    setYearMode(mode); // saves to localStorage and reloads page
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,14 +41,12 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
 
       const user = await db.login(email, password);
 
-      // 0. Automatic Admin/Developer Logic: If user is admin or developer, ignore selection and log in
       if (user.role === 'ADMIN' || user.role === 'DEVELOPER') {
         sessionStorage.removeItem('login_intent');
         onLogin(user);
         return;
       }
 
-      // Verification logic for specific selections
       if (selectedRole === 'STUDENT' && user.role !== 'STUDENT') {
         throw new Error("This account is not a Student account.");
       }
@@ -57,7 +62,6 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
         if (!coord) {
           throw new Error("You are not assigned as a Class Coordinator.");
         }
-        // We'll store a flag in sessionStorage to redirect to coordinator view
         sessionStorage.setItem('login_intent', 'COORDINATOR');
       } else {
         sessionStorage.removeItem('login_intent');
@@ -81,6 +85,24 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
           </div>
           <h1 className="text-2xl font-bold text-slate-900">Acropolis AMS</h1>
           <p className="text-slate-600 mt-2">Sign in to your account</p>
+        </div>
+
+        {/* Year Toggle */}
+        <div className="flex items-center justify-center gap-1 mb-6 bg-slate-100 rounded-xl p-1">
+          <button
+            type="button"
+            onClick={() => handleYearToggle('2nd')}
+            className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all duration-200 ${yearMode === '2nd' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-500 hover:text-slate-700'}`}
+          >
+            2nd Year
+          </button>
+          <button
+            type="button"
+            onClick={() => handleYearToggle('3rd')}
+            className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all duration-200 ${yearMode === '3rd' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-500 hover:text-slate-700'}`}
+          >
+            3rd Year
+          </button>
         </div>
 
         {error && (
@@ -138,7 +160,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
           </div>
 
           <Button type="submit" className="w-full py-2.5 mt-2" disabled={loading}>
-            {loading ? 'Signing in...' : 'Sign In'}
+            {loading ? 'Signing in...' : `Sign In — ${yearMode} Year`}
           </Button>
         </form>
 
