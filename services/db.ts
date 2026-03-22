@@ -225,6 +225,15 @@ class SupabaseService implements IDataService {
   }
 
   async logout(): Promise<void> {
+    // Clear internal memory cache
+    this._cache = {};
+    // Clear sessionStorage metadata caches to prevent data leaking across sessions/projects
+    for (let i = sessionStorage.length - 1; i >= 0; i--) {
+      const k = sessionStorage.key(i);
+      if (k && k.startsWith('acro_cache_')) {
+        sessionStorage.removeItem(k);
+      }
+    }
     await supabase.auth.signOut();
   }
 
