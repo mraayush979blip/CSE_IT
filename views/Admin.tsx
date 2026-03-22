@@ -848,6 +848,57 @@ const FacultyManagement: React.FC = () => {
 
   const [newSub, setNewSub] = useState({ name: '', code: '', type: 'theory' as 'theory' | 'lab' });
   const [newFac, setNewFac] = useState({ name: '', email: '', password: '', serialNo: '' });
+  const [isImportingSubjects, setIsImportingSubjects] = useState(false);
+  const [isImportingFaculty, setIsImportingFaculty] = useState(false);
+
+  const handleImportSubjectsCSV = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]; if (!file) return;
+    setIsImportingSubjects(true);
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      const text = ev.target?.result as string;
+      const lines = text.split('\n').filter(l => l.trim() && !l.toLowerCase().startsWith('name'));
+      const parsed = lines.map(line => {
+        const parts = line.split(',').map(s => s.trim().replace(/^"|"$/g, ''));
+        const name = parts[0] || '';
+        const code = parts[1] || '';
+        const type = (parts[2]?.toLowerCase() === 'lab' ? 'lab' : 'theory') as 'theory' | 'lab';
+        return { name, code, type };
+      }).filter(s => s.name && s.code);
+      if (parsed.length === 0) { alert('No valid subject rows found. CSV format: Name, Code, Type (theory/lab)'); setIsImportingSubjects(false); return; }
+      const result = await db.importSubjects(parsed);
+      alert(`Import Done:\n✅ Success: ${result.success}\n❌ Failed: ${result.failed}${result.errors.length > 0 ? '\n\nErrors:\n' + result.errors.slice(0, 5).join('\n') : ''}`);
+      loadData();
+      setIsImportingSubjects(false);
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
+  const handleImportFacultyCSV = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]; if (!file) return;
+    setIsImportingFaculty(true);
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      const text = ev.target?.result as string;
+      const lines = text.split('\n').filter(l => l.trim() && !l.toLowerCase().startsWith('name') && !l.toLowerCase().startsWith('s.no'));
+      const parsed = lines.map(line => {
+        const parts = line.split(',').map(s => s.trim().replace(/^"|"$/g, ''));
+        const serialNo = parts[0] || '';
+        const name = parts[1] || '';
+        const email = parts[2] || '';
+        const password = parts[3] || 'password123';
+        return { data: { displayName: name, email, facultyData: { serialNo } }, password };
+      }).filter(f => f.data.displayName && f.data.email);
+      if (parsed.length === 0) { alert('No valid faculty rows found. CSV format: S.No, Name, Email, Password'); setIsImportingFaculty(false); return; }
+      const result = await db.importFaculty(parsed);
+      alert(`Import Done:\n✅ Success: ${result.success}\n❌ Failed: ${result.failed}${result.errors.length > 0 ? '\n\nErrors:\n' + result.errors.slice(0, 5).join('\n') : ''}`);
+      loadData();
+      setIsImportingFaculty(false);
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
 
   // Assignment Form State
   const [assignForm, setAssignForm] = useState({ facultyId: '', subjectId: '', branchId: '', batchId: '' });
@@ -1083,8 +1134,8 @@ const FacultyManagement: React.FC = () => {
         <>
           {activeSubTab === 'subjects' && (
             <Card>
-              <div className="flex gap-2 mb-4 bg-slate-50 p-4">
-                <input placeholder="Name" className="border p-2 w-full text-slate-900 bg-white" value={newSub.name} onChange={e => setNewSub({ ...newSub, name: e.target.value })} />
+              <div className="flex gap-2 mb-4 bg-slate-50 p-4 flex-wrap">
+                <input placeholder="Name" className="border p-2 flex-1 min-w-0 text-slate-900 bg-white" value={newSub.name} onChange={e => setNewSub({ ...newSub, name: e.target.value })} />
                 <input placeholder="Code" className="border p-2 w-32 text-slate-900 bg-white" value={newSub.code} onChange={e => setNewSub({ ...newSub, code: e.target.value })} />
                 <select 
                   className="border p-2 w-32 text-slate-900 bg-white" 
@@ -1095,6 +1146,11 @@ const FacultyManagement: React.FC = () => {
                   <option value="lab">Lab</option>
                 </select>
                 <Button onClick={handleAddSubject}>Add</Button>
+                <label className={`cursor-pointer flex items-center gap-1 px-3 py-2 rounded border border-dashed border-indigo-400 text-indigo-600 text-xs font-bold hover:bg-indigo-50 transition-all ${isImportingSubjects ? 'opacity-50 pointer-events-none' : ''}`}>
+                  {isImportingSubjects ? '⏳ Importing...' : '📥 Import CSV'}
+                  <input type="file" accept=".csv" className="hidden" onChange={handleImportSubjectsCSV} disabled={isImportingSubjects} />
+                </label>
+                <a href="data:text/csv;charset=utf-8,Name%2CCode%2CType%0AData%20Structures%2CCS301%2Ctheory%0AOS%20Lab%2CCS302%2Clab" download="subjects_template.csv" className="flex items-center gap-1 px-3 py-2 rounded border border-dashed border-slate-300 text-slate-500 text-xs font-bold hover:bg-slate-100 transition-all">📄 Template</a>
               </div>
               <table className="w-full text-sm text-left">
                 <thead className="bg-slate-50 border-b">
@@ -1132,7 +1188,14 @@ const FacultyManagement: React.FC = () => {
                 <Input label="Name" required value={newFac.name} onChange={e => setNewFac({ ...newFac, name: e.target.value })} className="mb-0 text-slate-900 bg-white" />
                 <Input label="Email" required value={newFac.email} onChange={e => setNewFac({ ...newFac, email: e.target.value })} className="mb-0 text-slate-900 bg-white" />
                 <Input label="Password" required value={newFac.password} onChange={e => setNewFac({ ...newFac, password: e.target.value })} className="mb-0 text-slate-900 bg-white" />
-                <div className="flex items-end"><Button type="submit" className="w-full">Add</Button></div>
+                <div className="flex items-end gap-2">
+                  <Button type="submit" className="flex-1">Add</Button>
+                  <label className={`cursor-pointer flex items-center gap-1 px-3 py-2 rounded border border-dashed border-indigo-400 text-indigo-600 text-xs font-bold hover:bg-indigo-50 transition-all whitespace-nowrap ${isImportingFaculty ? 'opacity-50 pointer-events-none' : ''}`}>
+                    {isImportingFaculty ? '⏳...' : '📥 CSV'}
+                    <input type="file" accept=".csv" className="hidden" onChange={handleImportFacultyCSV} disabled={isImportingFaculty} />
+                  </label>
+                  <a href="data:text/csv;charset=utf-8,S.No%2CName%2CEmail%2CPassword%0A1%2CDr.%20John%2Cjohn%40college.in%2Cpassword123" download="faculty_template.csv" className="flex items-center gap-1 px-3 py-2 rounded border border-dashed border-slate-300 text-slate-500 text-xs font-bold hover:bg-slate-100 transition-all">📄</a>
+                </div>
               </form>
               <table className="w-full text-sm text-left"><thead className="bg-slate-50 border-b"><tr><th className="p-2 text-slate-900 w-16">S.No</th><th className="p-2 text-slate-900">Name</th><th className="p-2 text-slate-900">Email</th><th className="p-2 text-slate-900">Last Login</th><th className="p-2 text-right text-slate-900">Actions</th></tr></thead><tbody>{faculty.sort((a, b) => (a.facultyData?.serialNo || '').localeCompare(b.facultyData?.serialNo || '', undefined, { numeric: true })).map(f => <tr key={f.uid} className="border-b"><td className="p-2 text-slate-600 font-mono text-xs">{f.facultyData?.serialNo || '-'}</td><td className="p-2 text-slate-900 font-semibold">{f.displayName}</td><td className="p-2 text-slate-900">{f.email}</td><td className="p-2 text-slate-500 text-[10px] uppercase font-bold">{f.lastLogin ? new Date(f.lastLogin).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) : 'Never'}</td><td className="p-2 text-right flex justify-end gap-2"><button onClick={() => startEditFaculty(f)} className="text-blue-500" title="Edit Faculty"><Edit2 className="h-4 w-4" /></button><button onClick={() => initiateResetPassword(f)} title="Reset Password"><Key className="h-4 w-4" /></button><button onClick={() => handleDeleteFaculty(f.uid)} className="text-red-500"><Trash2 className="h-4 w-4" /></button></td></tr>)}</tbody></table>
             </Card>

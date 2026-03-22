@@ -31,11 +31,13 @@ interface IDataService {
 
   getSubjects: () => Promise<Subject[]>;
   addSubject: (name: string, code: string, type: 'theory' | 'lab') => Promise<void>;
+  importSubjects: (subjects: {name: string, code: string, type: 'theory' | 'lab'}[]) => Promise<{success: number, failed: number, errors: string[]}>;
   updateSubject: (id: string, name: string, code: string, type: 'theory' | 'lab') => Promise<void>;
   deleteSubject: (id: string) => Promise<void>;
 
   getFaculty: () => Promise<User[]>;
   createFaculty: (data: Partial<User>, password?: string) => Promise<void>;
+  importFaculty: (facultyList: {data: Partial<User>, password?: string}[]) => Promise<{success: number, failed: number, errors: string[]}>;
   updateFaculty: (uid: string, data: Partial<User>) => Promise<void>;
   resetFacultyPassword: (uid: string, newPass: string) => Promise<void>;
   getAssignments: (facultyId?: string) => Promise<FacultyAssignment[]>;
@@ -468,6 +470,21 @@ class SupabaseService implements IDataService {
     this._invalidate('meta_faculty');
   }
 
+  async importFaculty(facultyList: {data: Partial<User>, password?: string}[]): Promise<{success: number, failed: number, errors: string[]}> {
+    let success = 0, failed = 0;
+    const errors: string[] = [];
+    for (const fac of facultyList) {
+      try {
+        await this.createFaculty(fac.data, fac.password);
+        success++;
+      } catch (e: any) {
+        failed++;
+        errors.push(`${fac.data.email}: ${e.message}`);
+      }
+    }
+    return { success, failed, errors };
+  }
+
   async updateFaculty(uid: string, data: Partial<User>): Promise<void> {
     const { error } = await supabase.from('profiles').update({
       display_name: data.displayName,
@@ -500,6 +517,21 @@ class SupabaseService implements IDataService {
     if (error) throw error;
     this._invalidate('meta_subjects');
   }
+  async importSubjects(subjects: {name: string, code: string, type: 'theory' | 'lab'}[]): Promise<{success: number, failed: number, errors: string[]}> {
+    let success = 0, failed = 0;
+    const errors: string[] = [];
+    for (const sub of subjects) {
+      try {
+        await this.addSubject(sub.name, sub.code, sub.type);
+        success++;
+      } catch (e: any) {
+        failed++;
+        errors.push(`${sub.name}: ${e.message}`);
+      }
+    }
+    return { success, failed, errors };
+  }
+
   async updateSubject(id: string, name: string, code: string, type: 'theory' | 'lab'): Promise<void> {
     const { error } = await supabase.from('subjects').update({ name, code, type }).eq('id', id);
     if (error) throw error;
@@ -1090,6 +1122,15 @@ class MockService implements IDataService {
     s.push({ id: `sub_${Date.now()}`, name, code, type });
     this.save('ams_subjects', s);
   }
+
+  async importSubjects(subjects: {name: string, code: string, type: 'theory' | 'lab'}[]): Promise<{success: number, failed: number, errors: string[]}> {
+    let success = 0, failed = 0; const errors: string[] = [];
+    for (const sub of subjects) {
+      try { await this.addSubject(sub.name, sub.code, sub.type); success++; }
+      catch (e: any) { failed++; errors.push(`${sub.name}: ${e.message}`); }
+    }
+    return { success, failed, errors };
+  }
   async updateSubject(id: string, name: string, code: string, type: 'theory' | 'lab') {
     const s = this.load('ams_subjects', SEED_SUBJECTS);
     const idx = s.findIndex((x: any) => x.id === id);
@@ -1105,6 +1146,15 @@ class MockService implements IDataService {
     const users = this.load('ams_users', SEED_USERS);
     users.push({ ...data, uid: `fac_${Date.now()}`, role: UserRole.FACULTY, password: password || 'password123', facultyData: { ...data.facultyData } });
     this.save('ams_users', users);
+  }
+
+  async importFaculty(facultyList: {data: Partial<User>, password?: string}[]): Promise<{success: number, failed: number, errors: string[]}> {
+    let success = 0, failed = 0; const errors: string[] = [];
+    for (const fac of facultyList) {
+      try { await this.createFaculty(fac.data, fac.password); success++; }
+      catch (e: any) { failed++; errors.push(`${fac.data.email}: ${e.message}`); }
+    }
+    return { success, failed, errors };
   }
 
   async updateFaculty(uid: string, data: Partial<User>) {
