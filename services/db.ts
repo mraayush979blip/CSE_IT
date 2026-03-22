@@ -361,9 +361,18 @@ class SupabaseService implements IDataService {
   }
 
   async getAllStudents(): Promise<User[]> {
-    const { data, error } = await supabase.from('profiles').select('*').eq('role', UserRole.STUDENT);
-    if (error) throw error;
-    return data.map(p => this.mapProfile(p))
+    let allData: any[] = [];
+    let page = 0;
+    const pageSize = 1000;
+    while (true) {
+      const { data, error } = await supabase.from('profiles').select('*').eq('role', UserRole.STUDENT)
+        .range(page * pageSize, (page + 1) * pageSize - 1);
+      if (error) throw error;
+      allData = allData.concat(data);
+      if (!data || data.length < pageSize) break;
+      page++;
+    }
+    return allData.map(p => this.mapProfile(p))
       .sort((a, b) => (a.studentData?.rollNo || '').localeCompare(b.studentData?.rollNo || '', undefined, { numeric: true }));
   }
 
@@ -565,13 +574,21 @@ class SupabaseService implements IDataService {
 
   // --- Attendance ---
   async getAttendance(branchId: string, batchId: string, subjectId: string, date?: string): Promise<AttendanceRecord[]> {
-    let q = supabase.from('attendance').select('*').eq('branch_id', branchId).eq('subject_id', subjectId);
-    if (batchId !== 'ALL') q = q.eq('batch_id', batchId);
-    if (date) q = q.eq('date', date);
-
-    const { data, error } = await q;
-    if (error) throw error;
-    return data.map(r => ({
+    let allData: any[] = [];
+    let page = 0;
+    const pageSize = 1000;
+    while (true) {
+      let q = supabase.from('attendance').select('*').eq('branch_id', branchId).eq('subject_id', subjectId);
+      if (batchId !== 'ALL') q = q.eq('batch_id', batchId);
+      if (date) q = q.eq('date', date);
+      q = q.range(page * pageSize, (page + 1) * pageSize - 1);
+      const { data, error } = await q;
+      if (error) throw error;
+      allData = allData.concat(data);
+      if (!data || data.length < pageSize) break;
+      page++;
+    }
+    return allData.map(r => ({
       id: r.id,
       date: r.date,
       studentId: r.student_id,
@@ -587,11 +604,20 @@ class SupabaseService implements IDataService {
   }
 
   async getBranchAttendance(branchId: string, date?: string): Promise<AttendanceRecord[]> {
-    let q = supabase.from('attendance').select('*').eq('branch_id', branchId);
-    if (date) q = q.eq('date', date);
-    const { data, error } = await q;
-    if (error) throw error;
-    return data.map(r => ({
+    let allData: any[] = [];
+    let page = 0;
+    const pageSize = 1000;
+    while (true) {
+      let q = supabase.from('attendance').select('*').eq('branch_id', branchId);
+      if (date) q = q.eq('date', date);
+      q = q.range(page * pageSize, (page + 1) * pageSize - 1);
+      const { data, error } = await q;
+      if (error) throw error;
+      allData = allData.concat(data);
+      if (!data || data.length < pageSize) break;
+      page++;
+    }
+    return allData.map(r => ({
       id: r.id,
       date: r.date,
       studentId: r.student_id,
@@ -607,9 +633,18 @@ class SupabaseService implements IDataService {
   }
 
   async getDateAttendance(date: string): Promise<AttendanceRecord[]> {
-    const { data, error } = await supabase.from('attendance').select('*').eq('date', date);
-    if (error) throw error;
-    return data.map(r => ({
+    let allData: any[] = [];
+    let page = 0;
+    const pageSize = 1000;
+    while (true) {
+      const { data, error } = await supabase.from('attendance').select('*').eq('date', date)
+        .range(page * pageSize, (page + 1) * pageSize - 1);
+      if (error) throw error;
+      allData = allData.concat(data);
+      if (!data || data.length < pageSize) break;
+      page++;
+    }
+    return allData.map(r => ({
       id: r.id,
       date: r.date,
       studentId: r.student_id,
@@ -625,9 +660,18 @@ class SupabaseService implements IDataService {
   }
 
   async getStudentAttendance(studentId: string): Promise<AttendanceRecord[]> {
-    const { data, error } = await supabase.from('attendance').select('*').eq('student_id', studentId);
-    if (error) throw error;
-    return data.map(r => ({
+    let allData: any[] = [];
+    let page = 0;
+    const pageSize = 1000;
+    while (true) {
+      const { data, error } = await supabase.from('attendance').select('*').eq('student_id', studentId)
+        .range(page * pageSize, (page + 1) * pageSize - 1);
+      if (error) throw error;
+      allData = allData.concat(data);
+      if (!data || data.length < pageSize) break;
+      page++;
+    }
+    return allData.map(r => ({
       id: r.id,
       date: r.date,
       studentId: r.student_id,

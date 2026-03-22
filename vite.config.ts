@@ -10,6 +10,13 @@ export default defineConfig(({ mode }) => {
     server: {
       port: 3000,
       host: '0.0.0.0',
+      proxy: {
+        '/api/supabase': {
+          target: 'https://rgowcovsultizysqwrff.supabase.co',
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/api\/supabase/, '')
+        }
+      }
     },
     plugins: [
       react(),
