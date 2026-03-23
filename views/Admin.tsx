@@ -424,6 +424,7 @@ const StudentManagement: React.FC = () => {
 
   const [newItemName, setNewItemName] = useState('');
   const [loading, setLoading] = useState(false);
+  const [importProgress, setImportProgress] = useState<{current: number, total: number} | null>(null);
 
   // Edit Student State
   const [isEditingStudent, setIsEditingStudent] = useState(false);
@@ -569,7 +570,10 @@ const StudentManagement: React.FC = () => {
 
       if (newStudents.length > 0) {
         try {
-          const result = await db.importStudents(newStudents);
+          setImportProgress({ current: 0, total: newStudents.length });
+          const result = await db.importStudents(newStudents, (current, total) => {
+            setImportProgress({ current, total });
+          });
           let message = `Import Complete:\n- Success: ${result.success}\n- Failed: ${result.failed}`;
           if (result.errors.length > 0) {
             message += `\n\nErrors:\n${result.errors.slice(0, 5).join('\n')}`;
@@ -579,6 +583,8 @@ const StudentManagement: React.FC = () => {
           setStudents(await db.getStudents(branchId, batchId));
         } catch (err: any) {
           alert("Import process failed: " + err.message);
+        } finally {
+          setImportProgress(null);
         }
       } else {
         alert("No valid student data found in CSV. Expected columns: Enrollment, Serial No, Name, Mobile");
@@ -811,6 +817,20 @@ const StudentManagement: React.FC = () => {
               <FileUploader onFileSelect={handleCSVUpload} label="Import CSV" />
               <Button onClick={handleAddStudent} disabled={loading}>{loading ? 'Adding...' : 'Add Student'}</Button>
             </div>
+            {importProgress && (
+              <div className="mt-4 p-3 bg-indigo-50 border border-indigo-100 rounded-lg">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-xs font-bold text-indigo-700 uppercase tracking-widest">Importing Students...</span>
+                  <span className="text-xs font-black text-indigo-700">{Math.round((importProgress.current / importProgress.total) * 100)}%</span>
+                </div>
+                <div className="w-full bg-indigo-200 rounded-full h-2.5 overflow-hidden">
+                  <div className="bg-indigo-600 h-2.5 rounded-full transition-all duration-300" style={{ width: `${(importProgress.current / importProgress.total) * 100}%` }}></div>
+                </div>
+                <div className="text-right mt-1 text-[10px] text-indigo-500 font-bold">
+                  {importProgress.current} / {importProgress.total} Proceeded
+                </div>
+              </div>
+            )}
           </div>
           <table className="w-full text-left text-sm">
             <thead className="bg-slate-50 border-b"><tr><th className="p-2 text-slate-900">Enrollment</th><th className="p-2 text-slate-900">Serial No</th><th className="p-2 text-slate-900">Name</th><th className="p-2 text-slate-900">Mobile No</th><th className="p-2 text-right text-slate-900">Actions</th></tr></thead>

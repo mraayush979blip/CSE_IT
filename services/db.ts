@@ -23,7 +23,7 @@ interface IDataService {
   getStudentsByBranch: (branchId: string) => Promise<User[]>;
   createStudent: (data: Partial<User>) => Promise<void>;
   updateStudent: (uid: string, data: Partial<User>) => Promise<void>;
-  importStudents: (students: Partial<User>[]) => Promise<{ success: number; failed: number; errors: string[] }>;
+  importStudents: (students: Partial<User>[], onProgress?: (current: number, total: number) => void) => Promise<{ success: number; failed: number; errors: string[] }>;
   deleteUser: (uid: string) => Promise<void>;
   getAttendanceCount: () => Promise<number>;
   getNotificationsCount: () => Promise<number>;
@@ -416,27 +416,29 @@ class SupabaseService implements IDataService {
     this._invalidate('students_*');
   }
 
-  async importStudents(students: Partial<User>[]): Promise<{ success: number; failed: number; errors: string[] }> {
+  async importStudents(students: Partial<User>[], onProgress?: (current: number, total: number) => void): Promise<{ success: number; failed: number; errors: string[] }> {
     let success = 0;
     let failed = 0;
     const errors: string[] = [];
 
     const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
 
+    let count = 0;
     for (const s of students) {
-      let retries = 3;
+      count++;
+      let retries = 5;
       let added = false;
       while (retries > 0 && !added) {
         try {
           await this.createStudent(s);
           success++;
           added = true;
-          await delay(300); // Small delay to prevent rate limiting
+          await delay(500); // Small delay to prevent rate limiting
         } catch (e: any) {
           if (e.status === 429 || e.message?.includes('rate limit') || e.message?.includes('Too Many Requests')) {
             retries--;
             if (retries > 0) {
-              await delay(2000); // Wait 2 seconds and retry
+              await delay(3000); // Wait 3 seconds and retry
             } else {
               failed++;
               errors.push(`${s.displayName}: Rate limit exceeded.`);
@@ -447,6 +449,9 @@ class SupabaseService implements IDataService {
             break; // Don't retry on other errors (like duplicate email)
           }
         }
+      }
+      if (onProgress) {
+        onProgress(count, students.length);
       }
     }
     return { success, failed, errors };
