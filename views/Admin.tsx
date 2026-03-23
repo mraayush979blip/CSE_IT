@@ -806,7 +806,11 @@ const StudentManagement: React.FC = () => {
               <Input label="Enrollment" required value={newStudent.enroll} onChange={e => setNewStudent({ ...newStudent, enroll: e.target.value })} className="mb-0 text-slate-900 bg-white" />
               <Input label="Serial No" value={newStudent.rollNo} onChange={e => setNewStudent({ ...newStudent, rollNo: e.target.value })} className="mb-0 text-slate-900 bg-white" />
             </form>
-            <div className="flex justify-end gap-2"><FileUploader onFileSelect={handleCSVUpload} label="Import CSV" /><Button onClick={handleAddStudent} disabled={loading}>{loading ? 'Adding...' : 'Add Student'}</Button></div>
+            <div className="flex justify-end gap-2">
+              <a href="data:text/csv;charset=utf-8,Enrollment,Serial No,Name,Mobile%0A0827CS221234,1,John Doe,9876543210" download="students_template.csv" className="flex items-center gap-1 px-3 py-2 rounded border border-dashed border-slate-300 text-slate-500 text-xs font-bold hover:bg-slate-100 transition-all">📄 Template</a>
+              <FileUploader onFileSelect={handleCSVUpload} label="Import CSV" />
+              <Button onClick={handleAddStudent} disabled={loading}>{loading ? 'Adding...' : 'Add Student'}</Button>
+            </div>
           </div>
           <table className="w-full text-left text-sm">
             <thead className="bg-slate-50 border-b"><tr><th className="p-2 text-slate-900">Enrollment</th><th className="p-2 text-slate-900">Serial No</th><th className="p-2 text-slate-900">Name</th><th className="p-2 text-slate-900">Mobile No</th><th className="p-2 text-right text-slate-900">Actions</th></tr></thead>
