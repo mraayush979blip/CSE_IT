@@ -135,7 +135,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
             <Mail className="absolute left-3 top-3 h-5 w-5 text-slate-400" />
             <Input
               type="text"
-              placeholder={selectedRole === 'STUDENT' ? 'Enrollment Number (or Email)' : 'Email Address'}
+              placeholder={selectedRole === 'STUDENT' ? 'Enrollment Number' : 'Email Address'}
               className="pl-10"
               required
               autoComplete="username"
