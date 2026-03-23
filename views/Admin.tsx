@@ -1166,7 +1166,12 @@ const FacultyManagement: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {subjects.map(s => (
+                  {[...subjects].sort((a, b) => {
+                    const typeA = a.type === 'lab' ? 'lab' : 'theory';
+                    const typeB = b.type === 'lab' ? 'lab' : 'theory';
+                    if (typeA !== typeB) return typeA === 'theory' ? -1 : 1;
+                    return (a.code || '').localeCompare(b.code || '');
+                  }).map(s => (
                     <tr key={s.id} className="border-b">
                       <td className="p-2 text-slate-900">{s.code}</td>
                       <td className="p-2 text-slate-900">{s.name}</td>
