@@ -412,7 +412,52 @@ class SupabaseService implements IDataService {
     }]);
 
     if (profError) throw profError;
+
+    // Sync attendance for late-added student
+    if (data.studentData?.branchId && data.studentData?.batchId) {
+      await this.syncLateStudentAttendance(authData.user.id, data.studentData.branchId, data.studentData.batchId);
+    }
+
     this._invalidate('students_*');
+  }
+
+  private async syncLateStudentAttendance(studentId: string, branchId: string, batchId: string): Promise<void> {
+    try {
+      const { data, error } = await supabase.from('attendance')
+        .select('date, subject_id, lecture_slot, marked_by, timestamp')
+        .eq('branch_id', branchId)
+        .eq('batch_id', batchId);
+      
+      if (error || !data || data.length === 0) return;
+
+      const uniqueSessions = new Map<string, any>();
+      data.forEach(r => {
+        const key = `${r.date}_${r.subject_id}_${r.lecture_slot}`;
+        if (!uniqueSessions.has(key)) {
+          uniqueSessions.set(key, r);
+        }
+      });
+
+      const newRecords = Array.from(uniqueSessions.values()).map((r, i) => ({
+        id: `att_${studentId.substring(0, 5)}_${Date.now()}_${i}`,
+        date: r.date,
+        student_id: studentId,
+        subject_id: r.subject_id,
+        branch_id: branchId,
+        batch_id: batchId,
+        is_present: false,
+        marked_by: r.marked_by,
+        timestamp: r.timestamp,
+        lecture_slot: r.lecture_slot,
+        reason: 'Added late to batch'
+      }));
+
+      for (let i = 0; i < newRecords.length; i += 500) {
+        await supabase.from('attendance').insert(newRecords.slice(i, i + 500));
+      }
+    } catch (err) {
+      console.error("Failed to sync late student attendance:", err);
+    }
   }
 
   async importStudents(students: Partial<User>[], onProgress?: (current: number, total: number) => void): Promise<{ success: number; failed: number; errors: string[] }> {
@@ -457,9 +502,17 @@ class SupabaseService implements IDataService {
   }
 
   async deleteUser(uid: string): Promise<void> {
-    await supabase.from('assignments').delete().eq('faculty_id', uid);
-    const { error } = await supabase.from('profiles').delete().eq('id', uid);
-    if (error) throw error;
+    // Try to delete entirely from auth.users (which cascades to profiles, attendance, etc) via RPC
+    const { error: rpcError } = await supabase.rpc('admin_delete_user', { target_user_id: uid });
+    
+    // If the RPC isn't deployed yet or fails, fallback to standard profile deletion
+    if (rpcError) {
+      console.warn("admin_delete_user RPC failed, falling back to profile deletion", rpcError);
+      await supabase.from('assignments').delete().eq('faculty_id', uid);
+      const { error } = await supabase.from('profiles').delete().eq('id', uid);
+      if (error) throw error;
+    }
+    
     this._invalidate('students_*');
     this._invalidate('meta_faculty');
   }
