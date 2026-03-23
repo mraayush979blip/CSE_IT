@@ -39,7 +39,12 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
         throw new Error("Student login is currently disabled by administrator.");
       }
 
-      const user = await db.login(email, password);
+      let loginUser = email.trim().toLowerCase();
+      if (selectedRole === 'STUDENT' && !loginUser.includes('@')) {
+        loginUser = `${loginUser}@acropolis.in`;
+      }
+
+      const user = await db.login(loginUser, password);
 
       if (user.role === 'ADMIN' || user.role === 'DEVELOPER') {
         sessionStorage.removeItem('login_intent');
@@ -130,7 +135,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
             <Mail className="absolute left-3 top-3 h-5 w-5 text-slate-400" />
             <Input
               type="text"
-              placeholder="User ID"
+              placeholder={selectedRole === 'STUDENT' ? 'Enrollment Number (or Email)' : 'Email Address'}
               className="pl-10"
               required
               autoComplete="username"

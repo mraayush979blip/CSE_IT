@@ -179,8 +179,7 @@ class SupabaseService implements IDataService {
     // Standardize input: lowercase and trim to ensure case-insensitivity
     const normalizedInput = email.trim().toLowerCase();
 
-    // If input doesn't look like email, assume it's Enrollment ID
-    const loginIdentifier = normalizedInput.includes('@') ? normalizedInput : `${normalizedInput}@acropolis.in`;
+    const loginIdentifier = normalizedInput;
 
     const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
       email: loginIdentifier,
