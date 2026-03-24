@@ -1739,11 +1739,19 @@ const ReportManagement: React.FC = () => {
 
     const allBranchStudents = [...students].sort((a, b) => (a.studentData?.rollNo || '').localeCompare(b.studentData?.rollNo || '', undefined, { numeric: true }));
 
+    // --- 2. Stats Calculation (Optimized O(N+M)) ---
+    const studentStatsMap = new Map<string, { present: number, total: number }>();
+    regularRecs.forEach(r => {
+      const current = studentStatsMap.get(r.studentId) || { present: 0, total: 0 };
+      studentStatsMap.set(r.studentId, {
+        present: current.present + (r.isPresent ? 1 : 0),
+        total: current.total + 1
+      });
+    });
+
     const filteredForExport = filterMode === 'FULL' ? allBranchStudents : allBranchStudents.filter(s => {
-      const studentRegularRecs = regularRecs.filter(r => r.studentId === s.uid);
-      const present = studentRegularRecs.filter(r => r.isPresent).length;
-      const totalSessions = studentRegularRecs.length;
-      const pct = totalSessions === 0 ? 0 : (present / totalSessions) * 100;
+      const stats = studentStatsMap.get(s.uid) || { present: 0, total: 0 };
+      const pct = stats.total === 0 ? 0 : (stats.present / stats.total) * 100;
       if (attendanceOperator === 'GE') return pct >= attendanceThreshold;
       if (attendanceOperator === 'LE') return pct <= attendanceThreshold;
       if (attendanceOperator === 'GT') return pct > attendanceThreshold;
@@ -1752,11 +1760,8 @@ const ReportManagement: React.FC = () => {
     });
 
     const studentStats = filteredForExport.map(s => {
-      const studentRegularRecs = regularRecs.filter(r => r.studentId === s.uid);
-      const present = studentRegularRecs.filter(r => r.isPresent).length;
-      const total = studentRegularRecs.length;
-      const pct = total === 0 ? 0 : (present / total) * 100;
-      return { name: s.displayName, pct };
+      const stats = studentStatsMap.get(s.uid) || { present: 0, total: 0 };
+      return { name: s.displayName, pct: stats.total === 0 ? 0 : (stats.present / stats.total) * 100 };
     });
 
     const classAvg = filteredForExport.length === 0 ? 0 : Math.round(studentStats.reduce((acc, curr) => acc + curr.pct, 0) / filteredForExport.length);

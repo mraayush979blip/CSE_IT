@@ -1,16 +1,19 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { db } from './services/db';
 import { User, UserRole } from './types';
 import { Login } from './views/Login';
 import { Layout } from './components/Layout';
-import { AdminDashboard } from './views/Admin';
-import { FacultyDashboard } from './views/Faculty';
-import { StudentDashboard } from './views/Student';
-import { DeveloperDashboard } from './views/Developer';
-import { NotificationsPage } from './views/Notifications';
-import { BugReport } from './views/BugReport';
+
+// Lazy load heavy views for performance (Code Splitting)
+const AdminDashboard = lazy(() => import('./views/Admin').then(m => ({ default: m.AdminDashboard })));
+const FacultyDashboard = lazy(() => import('./views/Faculty').then(m => ({ default: m.FacultyDashboard })));
+const StudentDashboard = lazy(() => import('./views/Student').then(m => ({ default: m.StudentDashboard })));
+const DeveloperDashboard = lazy(() => import('./views/Developer').then(m => ({ default: m.DeveloperDashboard })));
+const NotificationsPage = lazy(() => import('./views/Notifications').then(m => ({ default: m.NotificationsPage })));
+const BugReport = lazy(() => import('./views/BugReport').then(m => ({ default: m.BugReport })));
+
 import { Modal, Input, Button, AcropolisLogo } from './components/UI';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { Analytics } from '@vercel/analytics/react';
@@ -138,7 +141,18 @@ const App: React.FC = () => {
       onOpenSettings={() => setIsSettingsOpen(true)}
       title={title}
     >
-      {children}
+      <Suspense fallback={
+        <div className="p-12 flex flex-col items-center justify-center min-h-[50vh]">
+          <div className="animate-pulse mb-6 opacity-20">
+             <AcropolisLogo className="h-16 w-16" />
+          </div>
+          <div className="h-1 w-24 bg-slate-50 rounded-full overflow-hidden">
+             <div className="h-full bg-indigo-600/30 animate-progress w-full"></div>
+          </div>
+        </div>
+      }>
+        {children}
+      </Suspense>
     </Layout>
   );
 

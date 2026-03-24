@@ -1342,12 +1342,19 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
 
       const isDetailed = exportFormat === 'DETAILED';
 
-      // --- 2. Stats Calculation ---
+      // --- 2. Stats Calculation (Optimized O(N+M) instead of O(N*M)) ---
+      const studentStatsMap = new Map<string, { present: number, total: number }>();
+      recordsToExport.forEach(r => {
+         const current = studentStatsMap.get(r.studentId) || { present: 0, total: 0 };
+         studentStatsMap.set(r.studentId, {
+            present: current.present + (r.isPresent ? 1 : 0),
+            total: current.total + 1
+         });
+      });
+
       const stats = sortedStudents.map(s => {
-         const present = recordsToExport.filter(r => r.studentId === s.uid && r.isPresent).length;
-         const total = recordsToExport.filter(r => r.studentId === s.uid).length;
-         const pct = total === 0 ? 0 : (present / total) * 100;
-         return { name: s.displayName, pct };
+         const aggregated = studentStatsMap.get(s.uid) || { present: 0, total: 0 };
+         return { name: s.displayName, pct: aggregated.total === 0 ? 0 : (aggregated.present / aggregated.total) * 100 };
       });
       const classAvg = stats.length === 0 ? 0 : Math.round(stats.reduce((acc, curr) => acc + curr.pct, 0) / stats.length);
       const detentionCount = stats.filter(s => s.pct < 75).length;
@@ -1383,9 +1390,9 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
          excelRows.push(dataHeaders);
 
          const batchDataRows = batchStudents.map(s => {
-            const studentRecs = recordsToExport.filter(r => r.studentId === s.uid);
-            const presentCount = studentRecs.filter(r => r.isPresent).length;
-            const totalSessions = studentRecs.length;
+            const stats = studentStatsMap.get(s.uid) || { present: 0, total: 0 };
+            const presentCount = stats.present;
+            const totalSessions = stats.total;
             const pct = totalSessions === 0 ? 0 : Math.round((presentCount / totalSessions) * 100);
 
             const row = [s.studentData?.rollNo || '', s.displayName, s.studentData?.enrollmentId || '', totalSessions.toString(), presentCount.toString(), `${pct}%`];

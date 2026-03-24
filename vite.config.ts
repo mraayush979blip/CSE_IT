@@ -12,7 +12,7 @@ export default defineConfig(({ mode }) => {
       host: '0.0.0.0',
       proxy: {
         '/api/supabase': {
-          target: 'https://rgowcovsultizysqwrff.supabase.co',
+          target: env.VITE_SUPABASE_URL || 'https://rgowcovsultizysqwrff.supabase.co',
           changeOrigin: true,
           rewrite: (path) => path.replace(/^\/api\/supabase/, '')
         }
