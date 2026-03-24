@@ -1866,9 +1866,17 @@ const ReportManagement: React.FC = () => {
     return attendance.filter(r => {
       const inStart = !start || r.date >= start;
       const inEnd = !end || r.date <= end;
-      return inStart && inEnd;
+      if (!inStart || !inEnd) return false;
+      // Apply subject type filter
+      if (r.subjectId === 'sub_extra') return false;
+      if (exportSubjectType !== 'ALL') {
+        const subj = subjects.find(s => s.id === r.subjectId);
+        if (exportSubjectType === 'THEORY' && subj?.type === 'lab') return false;
+        if (exportSubjectType === 'LAB' && subj?.type !== 'lab') return false;
+      }
+      return true;
     });
-  }, [attendance, exportRange, exportStartDate, exportEndDate]);
+  }, [attendance, exportRange, exportStartDate, exportEndDate, exportSubjectType, subjects]);
 
   const previewStats = useMemo(() => {
     const sessions = new Set(previewRecords.map(r => `${r.date}_${r.lectureSlot}_${r.subjectId}`)).size;
@@ -2017,36 +2025,73 @@ const ReportManagement: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 bg-white">
-                    {students.filter(s => {
-                      if (filterMode === 'FULL') return true;
-                      const mine = previewRecords.filter(r => r.studentId === s.uid);
-                      const total = mine.length;
-                      const present = mine.filter(r => r.isPresent).length;
-                      const pct = total === 0 ? 0 : Math.round((present / total) * 100);
-                      if (attendanceOperator === 'GE') return pct >= attendanceThreshold;
-                      if (attendanceOperator === 'LE') return pct <= attendanceThreshold;
-                      if (attendanceOperator === 'GT') return pct > attendanceThreshold;
-                      if (attendanceOperator === 'LT') return pct < attendanceThreshold;
-                      return true;
-                    }).map(s => {
-                      const mine = previewRecords.filter(r => r.studentId === s.uid);
-                      const total = mine.length;
-                      const present = mine.filter(r => r.isPresent).length;
-                      const pct = total === 0 ? 0 : Math.round((present / total) * 100);
-                      return (
-                        <tr key={s.uid} className="hover:bg-indigo-50/30 transition-colors">
-                          <td className="p-4 font-bold text-slate-900">{s.displayName}</td>
-                          <td className="p-4 font-mono text-[10px] text-slate-500 uppercase">{s.studentData?.enrollmentId}</td>
-                          <td className="p-4 text-center text-sm font-bold text-slate-600">{total}</td>
-                          <td className="p-4 text-center text-sm font-bold text-slate-600">{present}</td>
-                          <td className="p-4 text-right">
-                            <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-black ${pct < 75 ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>
-                              {pct}%
-                            </span>
-                          </td>
-                        </tr>
-                      );
-                    })}
+                    {(() => {
+                      // 1. Filter students by attendance threshold if needed
+                      const filteredStudents = students
+                        .filter(s => {
+                          if (filterMode === 'FULL') return true;
+                          const mine = previewRecords.filter(r => r.studentId === s.uid);
+                          const total = mine.length;
+                          const present = mine.filter(r => r.isPresent).length;
+                          const pct = total === 0 ? 0 : Math.round((present / total) * 100);
+                          if (attendanceOperator === 'GE') return pct >= attendanceThreshold;
+                          if (attendanceOperator === 'LE') return pct <= attendanceThreshold;
+                          if (attendanceOperator === 'GT') return pct > attendanceThreshold;
+                          if (attendanceOperator === 'LT') return pct < attendanceThreshold;
+                          return true;
+                        })
+                        .sort((a, b) => (a.studentData?.rollNo || '').localeCompare(b.studentData?.rollNo || '', undefined, { numeric: true }));
+
+                      // 2. Group by batch (preserving insertion order)
+                      const batchGroupMap = new Map<string, typeof filteredStudents>();
+                      filteredStudents.forEach(s => {
+                        const bId = s.studentData?.batchId || 'UNASSIGNED';
+                        if (!batchGroupMap.has(bId)) batchGroupMap.set(bId, []);
+                        batchGroupMap.get(bId)!.push(s);
+                      });
+
+                      // 3. Render batch banner + student rows
+                      const rows: React.ReactNode[] = [];
+                      batchGroupMap.forEach((batchStudents, batchId) => {
+                        const batchName = metaBatches[batchId] || batchId;
+                        // Banner row
+                        rows.push(
+                          <tr key={`banner_${batchId}`}>
+                            <td colSpan={5} className="px-4 py-2.5 bg-indigo-600">
+                              <div className="flex items-center gap-2">
+                                <div className="h-1.5 w-1.5 rounded-full bg-indigo-200" />
+                                <span className="text-[10px] font-black text-white uppercase tracking-[0.2em]">
+                                  Batch: {batchName}
+                                </span>
+                                <div className="flex-1 h-px bg-indigo-400/40 ml-1" />
+                                <span className="text-[10px] font-bold text-indigo-200">{batchStudents.length} students</span>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                        // Student rows
+                        batchStudents.forEach(s => {
+                          const mine = previewRecords.filter(r => r.studentId === s.uid);
+                          const total = mine.length;
+                          const present = mine.filter(r => r.isPresent).length;
+                          const pct = total === 0 ? 0 : Math.round((present / total) * 100);
+                          rows.push(
+                            <tr key={s.uid} className="hover:bg-indigo-50/30 transition-colors">
+                              <td className="p-4 font-bold text-slate-900">{s.displayName}</td>
+                              <td className="p-4 font-mono text-[10px] text-slate-500 uppercase">{s.studentData?.enrollmentId}</td>
+                              <td className="p-4 text-center text-sm font-bold text-slate-600">{total}</td>
+                              <td className="p-4 text-center text-sm font-bold text-slate-600">{present}</td>
+                              <td className="p-4 text-right">
+                                <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-black ${pct < 75 ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>
+                                  {pct}%
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        });
+                      });
+                      return rows;
+                    })()}
                   </tbody>
                 </table>
               </div>
