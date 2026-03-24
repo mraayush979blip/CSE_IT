@@ -2076,80 +2076,102 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                   </div>
 
                   <div className="md:hidden space-y-3 pb-20">
-                     {visibleStudents.filter(s => {
-                        if (historyFilterDate) return true;
-                        const myRecs = allClassRecords.filter(r => r.studentId === s.uid);
-                        const filteredRecs = myRecs.filter(r => {
-                           const inStart = !historyStartDate || r.date >= historyStartDate;
-                           const inEnd = !historyTillDate || r.date <= historyTillDate;
-                           return inStart && inEnd;
+                     {(() => {
+                        // Filter students
+                        const filtered = visibleStudents.filter(s => {
+                           if (historyFilterDate) return true;
+                           const myRecs = allClassRecords.filter(r => r.studentId === s.uid);
+                           const filteredRecs = myRecs.filter(r => {
+                              const inStart = !historyStartDate || r.date >= historyStartDate;
+                              const inEnd = !historyTillDate || r.date <= historyTillDate;
+                              return inStart && inEnd;
+                           });
+                           if (attendanceFilter === 'CUSTOM') {
+                              const total = filteredRecs.length;
+                              const present = filteredRecs.filter(r => r.isPresent).length;
+                              const pct = total === 0 ? 0 : Math.round((present / total) * 100);
+                              if (attendanceOperator === 'GE') return pct >= attendanceThreshold;
+                              if (attendanceOperator === 'LE') return pct <= attendanceThreshold;
+                              if (attendanceOperator === 'GT') return pct > attendanceThreshold;
+                              if (attendanceOperator === 'LT') return pct < attendanceThreshold;
+                           }
+                           return true;
                         });
-                        if (attendanceFilter === 'CUSTOM') {
-                           const total = filteredRecs.length;
-                           const present = filteredRecs.filter(r => r.isPresent).length;
-                           const pct = total === 0 ? 0 : Math.round((present / total) * 100);
-                           if (attendanceOperator === 'GE') return pct >= attendanceThreshold;
-                           if (attendanceOperator === 'LE') return pct <= attendanceThreshold;
-                           if (attendanceOperator === 'GT') return pct > attendanceThreshold;
-                           if (attendanceOperator === 'LT') return pct < attendanceThreshold;
-                        }
-                        return true;
-                     }).map(s => {
-                        const myRecs = allClassRecords.filter(r => r.studentId === s.uid);
-                        const filteredRecs = myRecs.filter(r => {
-                           const inStart = !historyStartDate || r.date >= historyStartDate;
-                           const inEnd = !historyTillDate || r.date <= historyTillDate;
-                           return inStart && inEnd;
+                        // Group by batch
+                        const batchGroupMap = new Map<string, typeof filtered>();
+                        filtered.forEach(s => {
+                           const bId = s.studentData?.batchId || 'UNASSIGNED';
+                           if (!batchGroupMap.has(bId)) batchGroupMap.set(bId, []);
+                           batchGroupMap.get(bId)!.push(s);
                         });
-
-                        if (historyFilterDate) {
-                           const dateRecs = myRecs.filter(r => r.date === historyFilterDate);
-                           return (
-                              <div key={s.uid} className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between">
-                                 <div className="flex-1 min-w-0 mr-4">
-                                    <div className="flex items-center gap-2 mb-1">
-                                       <span className="text-[10px] font-black text-slate-400 uppercase tracking-tighter opacity-70">#{s.studentData?.rollNo}</span>
-                                       <div className="h-1 w-1 bg-slate-200 rounded-full"></div>
-                                       <span className="text-[10px] font-bold text-slate-400 font-mono tracking-tighter opacity-60 truncate">{s.studentData?.enrollmentId}</span>
-                                    </div>
-                                    <h4 className="font-bold text-slate-800 text-sm tracking-tight leading-none">{s.displayName}</h4>
-                                 </div>
-                                 <div className="flex gap-1.5 flex-wrap justify-end max-w-[120px]">
-                                    {dateRecs.length > 0 ? dateRecs.map(r => (
-                                       <div key={r.id} className={`px-2 py-1 rounded-lg text-[9px] font-black border ${r.isPresent ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-600 border-rose-100'}`}>
-                                          L{r.lectureSlot || 1}: {r.isPresent ? 'P' : 'A'}
-                                       </div>
-                                    )) : <span className="text-[10px] text-slate-300 italic font-bold">No Data</span>}
-                                 </div>
+                        const nodes: React.ReactNode[] = [];
+                        batchGroupMap.forEach((batchStudents, batchId) => {
+                           const batchName = metaData.batches[batchId] || batchId;
+                           nodes.push(
+                              <div key={`mb_banner_${batchId}`} className="flex items-center gap-2 px-3 py-2 bg-indigo-600 rounded-2xl">
+                                 <div className="h-1.5 w-1.5 rounded-full bg-indigo-200" />
+                                 <span className="text-[10px] font-black text-white uppercase tracking-[0.2em] flex-1">{batchName}</span>
+                                 <span className="text-[10px] font-bold text-indigo-200">{batchStudents.length} students</span>
                               </div>
                            );
-                        } else {
-                           const total = filteredRecs.length;
-                           const present = filteredRecs.filter(r => r.isPresent).length;
-                           const pct = total === 0 ? 0 : Math.round((present / total) * 100);
-                           return (
-                              <div key={s.uid} onClick={() => setViewHistoryStudent(s)} className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between active:scale-[0.98] transition-all group">
-                                 <div className="flex-1 min-w-0 mr-4">
-                                    <div className="flex items-center gap-2 mb-1">
-                                       <span className="text-[10px] font-black text-slate-400 uppercase tracking-tighter opacity-70">#{s.studentData?.rollNo}</span>
-                                       <div className="h-1 w-1 bg-slate-200 rounded-full"></div>
-                                       <span className="text-[10px] font-bold text-slate-400 font-mono tracking-tighter opacity-60 truncate">{s.studentData?.enrollmentId}</span>
-                                    </div>
-                                    <h4 className="font-bold text-slate-800 text-sm tracking-tight leading-none mb-1.5 group-hover:text-indigo-600 transition-colors uppercase">{s.displayName}</h4>
-                                    <div className="flex items-center gap-4">
-                                       <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                          <div className={`h-full rounded-full transition-all duration-1000 ${pct < 75 ? 'bg-rose-500' : 'bg-emerald-500'}`} style={{ width: `${pct}%` }}></div>
+                           batchStudents.forEach(s => {
+                              const myRecs = allClassRecords.filter(r => r.studentId === s.uid);
+                              const filteredRecs = myRecs.filter(r => {
+                                 const inStart = !historyStartDate || r.date >= historyStartDate;
+                                 const inEnd = !historyTillDate || r.date <= historyTillDate;
+                                 return inStart && inEnd;
+                              });
+                              if (historyFilterDate) {
+                                 const dateRecs = myRecs.filter(r => r.date === historyFilterDate);
+                                 nodes.push(
+                                    <div key={s.uid} className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between">
+                                       <div className="flex-1 min-w-0 mr-4">
+                                          <div className="flex items-center gap-2 mb-1">
+                                             <span className="text-[10px] font-black text-slate-400 uppercase tracking-tighter opacity-70">#{s.studentData?.rollNo}</span>
+                                             <div className="h-1 w-1 bg-slate-200 rounded-full"></div>
+                                             <span className="text-[10px] font-bold text-slate-400 font-mono tracking-tighter opacity-60 truncate">{s.studentData?.enrollmentId}</span>
+                                          </div>
+                                          <h4 className="font-bold text-slate-800 text-sm tracking-tight leading-none">{s.displayName}</h4>
                                        </div>
-                                       <span className={`text-[10px] font-black leading-none ${pct < 75 ? 'text-rose-600' : 'text-emerald-600'}`}>{pct}%</span>
+                                       <div className="flex gap-1.5 flex-wrap justify-end max-w-[120px]">
+                                          {dateRecs.length > 0 ? dateRecs.map(r => (
+                                             <div key={r.id} className={`px-2 py-1 rounded-lg text-[9px] font-black border ${r.isPresent ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-600 border-rose-100'}`}>
+                                                L{r.lectureSlot || 1}: {r.isPresent ? 'P' : 'A'}
+                                             </div>
+                                          )) : <span className="text-[10px] text-slate-300 italic font-bold">No Data</span>}
+                                       </div>
                                     </div>
-                                 </div>
-                                 <div className="h-10 w-10 flex items-center justify-center bg-slate-50 text-slate-300 rounded-xl group-hover:bg-indigo-50 group-hover:text-indigo-400 transition-all">
-                                    <ChevronDown className="h-4 w-4 transform -rotate-90" />
-                                 </div>
-                              </div>
-                           );
-                        }
-                     })}
+                                 );
+                              } else {
+                                 const total = filteredRecs.length;
+                                 const present = filteredRecs.filter(r => r.isPresent).length;
+                                 const pct = total === 0 ? 0 : Math.round((present / total) * 100);
+                                 nodes.push(
+                                    <div key={s.uid} onClick={() => setViewHistoryStudent(s)} className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between active:scale-[0.98] transition-all group">
+                                       <div className="flex-1 min-w-0 mr-4">
+                                          <div className="flex items-center gap-2 mb-1">
+                                             <span className="text-[10px] font-black text-slate-400 uppercase tracking-tighter opacity-70">#{s.studentData?.rollNo}</span>
+                                             <div className="h-1 w-1 bg-slate-200 rounded-full"></div>
+                                             <span className="text-[10px] font-bold text-slate-400 font-mono tracking-tighter opacity-60 truncate">{s.studentData?.enrollmentId}</span>
+                                          </div>
+                                          <h4 className="font-bold text-slate-800 text-sm tracking-tight leading-none mb-1.5 group-hover:text-indigo-600 transition-colors uppercase">{s.displayName}</h4>
+                                          <div className="flex items-center gap-4">
+                                             <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                                <div className={`h-full rounded-full transition-all duration-1000 ${pct < 75 ? 'bg-rose-500' : 'bg-emerald-500'}`} style={{ width: `${pct}%` }}></div>
+                                             </div>
+                                             <span className={`text-[10px] font-black leading-none ${pct < 75 ? 'text-rose-600' : 'text-emerald-600'}`}>{pct}%</span>
+                                          </div>
+                                       </div>
+                                       <div className="h-10 w-10 flex items-center justify-center bg-slate-50 text-slate-300 rounded-xl group-hover:bg-indigo-50 group-hover:text-indigo-400 transition-all">
+                                          <ChevronDown className="h-4 w-4 transform -rotate-90" />
+                                       </div>
+                                    </div>
+                                 );
+                              }
+                           });
+                        });
+                        return nodes;
+                     })()}
                      {visibleStudents.length === 0 && <div className="py-20 text-center font-black text-slate-300 uppercase tracking-widest text-[10px]">No Records Found</div>}
                   </div>
 
@@ -2175,7 +2197,8 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                            </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50">
-                           {visibleStudents.filter(s => {
+                        {(() => {
+                           const filtered = visibleStudents.filter(s => {
                               if (historyFilterDate) return true;
                               const myRecs = allClassRecords.filter(r => r.studentId === s.uid);
                               const filteredRecs = myRecs.filter(r => {
@@ -2193,54 +2216,78 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                                  if (attendanceOperator === 'LT') return pct < attendanceThreshold;
                               }
                               return true;
-                           }).map(s => {
-                              const myRecs = allClassRecords.filter(r => r.studentId === s.uid);
-                              const filteredRecs = myRecs.filter(r => {
-                                 const inStart = !historyStartDate || r.date >= historyStartDate;
-                                 const inEnd = !historyTillDate || r.date <= historyTillDate;
-                                 return inStart && inEnd;
+                           });
+                           const batchGroupMap = new Map<string, typeof filtered>();
+                           filtered.forEach(s => {
+                              const bId = s.studentData?.batchId || 'UNASSIGNED';
+                              if (!batchGroupMap.has(bId)) batchGroupMap.set(bId, []);
+                              batchGroupMap.get(bId)!.push(s);
+                           });
+                           const rows: React.ReactNode[] = [];
+                           const colSpan = historyFilterDate ? 4 : 6;
+                           batchGroupMap.forEach((batchStudents, batchId) => {
+                              const batchName = metaData.batches[batchId] || batchId;
+                              rows.push(
+                                 <tr key={`dt_banner_${batchId}`}>
+                                    <td colSpan={colSpan} className="px-3 py-2 bg-indigo-600">
+                                       <div className="flex items-center gap-2">
+                                          <div className="h-1.5 w-1.5 rounded-full bg-indigo-200" />
+                                          <span className="text-[10px] font-black text-white uppercase tracking-[0.2em] flex-1">Batch: {batchName}</span>
+                                          <span className="text-[10px] font-bold text-indigo-200">{batchStudents.length} students</span>
+                                       </div>
+                                    </td>
+                                 </tr>
+                              );
+                              batchStudents.forEach(s => {
+                                 const myRecs = allClassRecords.filter(r => r.studentId === s.uid);
+                                 const filteredRecs = myRecs.filter(r => {
+                                    const inStart = !historyStartDate || r.date >= historyStartDate;
+                                    const inEnd = !historyTillDate || r.date <= historyTillDate;
+                                    return inStart && inEnd;
+                                 });
+                                 if (historyFilterDate) {
+                                    const dateRecs = myRecs.filter(r => r.date === historyFilterDate);
+                                    rows.push(
+                                       <tr key={s.uid} className="hover:bg-indigo-50/30 transition-colors">
+                                          <td className="p-3 font-mono text-slate-400 text-xs tracking-tighter">{s.studentData?.rollNo}</td>
+                                          <td className="p-3 font-bold text-slate-700 text-sm tracking-tight uppercase">{s.displayName}</td>
+                                          <td className="p-3 text-center text-slate-400 font-black text-[10px]">{metaData.batches[s.studentData?.batchId || ''] || s.studentData?.batchId}</td>
+                                          <td className="p-3 text-center">
+                                             {dateRecs.length > 0 ? (
+                                                <div className="flex gap-2 justify-center flex-wrap">
+                                                   {dateRecs.map(r => (
+                                                      <span key={r.id} className={`inline-flex items-center px-2 py-1 rounded-lg text-[10px] font-black border tracking-wider ${r.isPresent ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-600 border-rose-100'}`}>
+                                                         L{r.lectureSlot || 1}: {r.isPresent ? 'P' : 'A'}
+                                                      </span>
+                                                   ))}
+                                                </div>
+                                             ) : <span className="text-slate-200 italic font-black text-[10px] tracking-widest uppercase">No Data</span>}
+                                          </td>
+                                       </tr>
+                                    );
+                                 } else {
+                                    const total = filteredRecs.length;
+                                    const present = filteredRecs.filter(r => r.isPresent).length;
+                                    const pct = total === 0 ? 0 : Math.round((present / total) * 100);
+                                    rows.push(
+                                       <tr key={s.uid} onClick={() => setViewHistoryStudent(s)} className="hover:bg-indigo-50/50 cursor-pointer transition-colors group">
+                                          <td className="p-3 font-mono text-slate-400 text-xs tracking-tighter">{s.studentData?.rollNo}</td>
+                                          <td className="p-3 font-bold text-slate-700 text-sm tracking-tight uppercase group-hover:text-indigo-600 transition-colors">{s.displayName}</td>
+                                          <td className="p-3 text-center text-slate-400 font-bold text-xs">{total}</td>
+                                          <td className="p-3 text-center text-emerald-600 font-bold text-xs">{present}</td>
+                                          <td className="p-3 text-center">
+                                             <span className={`px-2 py-0.5 rounded-lg text-[10px] font-black tracking-wider ${pct < 75 ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}`}>{pct}%</span>
+                                          </td>
+                                          <td className="p-3 text-right text-slate-300 group-hover:text-indigo-400 transition-colors">
+                                             <ChevronDown className="h-4 w-4 inline transform -rotate-90" />
+                                          </td>
+                                       </tr>
+                                    );
+                                 }
                               });
-
-                              if (historyFilterDate) {
-                                 const dateRecs = myRecs.filter(r => r.date === historyFilterDate);
-                                 return (
-                                    <tr key={s.uid} className="hover:bg-indigo-50/30 transition-colors">
-                                       <td className="p-3 font-mono text-slate-400 text-xs tracking-tighter">{s.studentData?.rollNo}</td>
-                                       <td className="p-3 font-bold text-slate-700 text-sm tracking-tight uppercase">{s.displayName}</td>
-                                       <td className="p-3 text-center text-slate-400 font-black text-[10px]">{metaData.batches[s.studentData?.batchId || ''] || s.studentData?.batchId}</td>
-                                       <td className="p-3 text-center">
-                                          {dateRecs.length > 0 ? (
-                                             <div className="flex gap-2 justify-center flex-wrap">
-                                                {dateRecs.map(r => (
-                                                   <span key={r.id} className={`inline-flex items-center px-2 py-1 rounded-lg text-[10px] font-black border tracking-wider ${r.isPresent ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-600 border-rose-100'}`}>
-                                                      L{r.lectureSlot || 1}: {r.isPresent ? 'P' : 'A'}
-                                                   </span>
-                                                ))}
-                                             </div>
-                                          ) : <span className="text-slate-200 italic font-black text-[10px] tracking-widest uppercase">No Data</span>}
-                                       </td>
-                                    </tr>
-                                 )
-                              } else {
-                                 const total = filteredRecs.length;
-                                 const present = filteredRecs.filter(r => r.isPresent).length;
-                                 const pct = total === 0 ? 0 : Math.round((present / total) * 100);
-                                 return (
-                                    <tr key={s.uid} onClick={() => setViewHistoryStudent(s)} className="hover:bg-indigo-50/50 cursor-pointer transition-colors group">
-                                       <td className="p-3 font-mono text-slate-400 text-xs tracking-tighter">{s.studentData?.rollNo}</td>
-                                       <td className="p-3 font-bold text-slate-700 text-sm tracking-tight uppercase group-hover:text-indigo-600 transition-colors">{s.displayName}</td>
-                                       <td className="p-3 text-center text-slate-400 font-bold text-xs">{total}</td>
-                                       <td className="p-3 text-center text-emerald-600 font-bold text-xs">{present}</td>
-                                       <td className="p-3 text-center">
-                                          <span className={`px-2 py-0.5 rounded-lg text-[10px] font-black tracking-wider ${pct < 75 ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}`}>{pct}%</span>
-                                       </td>
-                                       <td className="p-3 text-right text-slate-300 group-hover:text-indigo-400 transition-colors">
-                                          <ChevronDown className="h-4 w-4 inline transform -rotate-90" />
-                                       </td>
-                                    </tr>
-                                 );
-                              }
-                           })}
+                           });
+                           return rows;
+                        })()}
                         </tbody>
                      </table>
                   </div>

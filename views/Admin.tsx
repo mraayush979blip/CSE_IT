@@ -100,51 +100,72 @@ export const AdminDashboard: React.FC = () => {
     }
   };
 
+  const tabs = [
+    { id: 'students', label: 'Students', icon: Users },
+    { id: 'faculty',  label: 'Faculty',  icon: BookOpen },
+    { id: 'monitor',  label: 'Monitor',  icon: Calendar },
+    { id: 'reports',  label: 'Reports',  icon: Layers },
+    { id: 'system',   label: 'Settings', icon: Settings },
+  ];
+
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-end border-b border-slate-300 pb-1">
-        <div className="flex space-x-2">
-          <button
-            onClick={() => activeTab !== 'students' && navigate('/admin/students')}
-            className={`px-4 py-2 font-medium text-sm transition-colors ${activeTab === 'students' ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-slate-500 hover:text-slate-800'}`}
-          >
-            Manage Students
-          </button>
-          <button
-            onClick={() => activeTab !== 'faculty' && navigate('/admin/faculty')}
-            className={`px-4 py-2 font-medium text-sm transition-colors ${activeTab === 'faculty' ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-slate-500 hover:text-slate-800'}`}
-          >
-            Manage Faculty & Classes
-          </button>
-          <button
-            onClick={() => activeTab !== 'monitor' && navigate('/admin/monitor')}
-            className={`px-4 py-2 font-medium text-sm transition-colors ${activeTab === 'monitor' ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-slate-500 hover:text-slate-800'}`}
-          >
-            Today's Attendance
-          </button>
-          <button
-            onClick={() => activeTab !== 'reports' && navigate('/admin/reports')}
-            className={`px-4 py-2 font-medium text-sm transition-colors ${activeTab === 'reports' ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-slate-500 hover:text-slate-800'}`}
-          >
-            Report
-          </button>
-          <button
-            onClick={() => activeTab !== 'system' && navigate('/admin/system')}
-            className={`px-4 py-2 font-medium text-sm transition-colors ${activeTab === 'system' ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-slate-500 hover:text-slate-800'}`}
-          >
-            System Settings
-          </button>
+    <div className="space-y-4 pb-24 md:pb-6">
+      {/* Desktop tab bar */}
+      <div className="hidden md:flex justify-between items-end border-b border-slate-300 pb-1">
+        <div className="flex space-x-1">
+          {tabs.map(t => (
+            <button
+              key={t.id}
+              onClick={() => activeTab !== t.id && navigate(`/admin/${t.id}`)}
+              className={`px-4 py-2 font-medium text-sm transition-colors whitespace-nowrap ${activeTab === t.id ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-slate-500 hover:text-slate-800'}`}
+            >
+              {t.id === 'students' ? 'Manage Students' : t.id === 'faculty' ? 'Manage Faculty & Classes' : t.id === 'monitor' ? "Today's Attendance" : t.label}
+            </button>
+          ))}
         </div>
         <button onClick={handleSeed} disabled={seeding} className="mb-2 text-xs flex items-center px-3 py-1.5 bg-slate-200 text-slate-700 hover:bg-slate-300 rounded transition-colors">
           <Database className="h-3 w-3 mr-1.5" />
-          {seeding ? 'Seeding...' : 'Initialize Database'}
+          {seeding ? 'Seeding...' : 'Init DB'}
         </button>
       </div>
 
+      {/* Mobile header */}
+      <div className="md:hidden flex items-center justify-between px-1 pt-1">
+        <h2 className="text-sm font-black text-slate-800 uppercase tracking-widest">
+          {tabs.find(t => t.id === activeTab)?.label}
+        </h2>
+        <button onClick={handleSeed} disabled={seeding} className="text-[10px] flex items-center px-2 py-1 bg-slate-200 text-slate-700 rounded-lg transition-colors">
+          <Database className="h-3 w-3 mr-1" />
+          {seeding ? '...' : 'Init'}
+        </button>
+      </div>
+
+      {/* Content */}
       {activeTab === 'students' ? <StudentManagement /> :
         activeTab === 'faculty' ? <FacultyManagement /> :
           activeTab === 'monitor' ? <AttendanceMonitor /> :
             activeTab === 'system' ? <SystemManagement /> : <ReportManagement />}
+
+      {/* Mobile bottom nav */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 shadow-2xl z-40">
+        <div className="grid grid-cols-5">
+          {tabs.map(t => {
+            const Icon = t.icon;
+            const isActive = activeTab === t.id;
+            return (
+              <button
+                key={t.id}
+                onClick={() => navigate(`/admin/${t.id}`)}
+                className={`flex flex-col items-center justify-center py-2.5 gap-1 transition-all ${isActive ? 'text-indigo-600' : 'text-slate-400'}`}
+              >
+                <Icon className={`h-5 w-5 ${isActive ? 'text-indigo-600' : 'text-slate-400'}`} />
+                <span className={`text-[9px] font-black uppercase tracking-tight leading-none ${isActive ? 'text-indigo-600' : 'text-slate-400'}`}>{t.label}</span>
+                {isActive && <div className="absolute top-0 h-0.5 w-8 bg-indigo-600 rounded-full" />}
+              </button>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 };
@@ -832,7 +853,25 @@ const StudentManagement: React.FC = () => {
               </div>
             )}
           </div>
-          <table className="w-full text-left text-sm">
+          {/* Mobile card list */}
+          <div className="md:hidden divide-y divide-slate-100">
+            {students.sort((a, b) => (a.studentData?.rollNo || '').localeCompare(b.studentData?.rollNo || '', undefined, { numeric: true })).map(s => (
+              <div key={s.uid} className="flex items-center justify-between py-3 px-1 gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="font-bold text-slate-900 text-sm truncate">{s.displayName}</div>
+                  <div className="text-[10px] font-mono text-slate-500 uppercase">{s.studentData?.enrollmentId} {s.studentData?.rollNo ? `· ${s.studentData.rollNo}` : ''}</div>
+                  <div className="text-[10px] text-slate-400 font-mono">{s.studentData?.mobileNo}</div>
+                </div>
+                <div className="flex items-center gap-3 flex-shrink-0">
+                  <button onClick={() => handleSelectStudent(s)} className="text-indigo-500 p-1" title="View"><Eye className="h-4 w-4" /></button>
+                  <button onClick={() => startEditStudent(s)} className="text-blue-500 p-1" title="Edit"><Edit2 className="h-4 w-4" /></button>
+                  <button onClick={() => handleDelete(s.uid)} className="text-red-500 p-1" title="Delete"><Trash2 className="h-4 w-4" /></button>
+                </div>
+              </div>
+            ))}
+          </div>
+          {/* Desktop table */}
+          <table className="hidden md:table w-full text-left text-sm">
             <thead className="bg-slate-50 border-b"><tr><th className="p-2 text-slate-900">Enrollment</th><th className="p-2 text-slate-900">Serial No</th><th className="p-2 text-slate-900">Name</th><th className="p-2 text-slate-900">Mobile No</th><th className="p-2 text-right text-slate-900">Actions</th></tr></thead>
             <tbody>{students.sort((a, b) => (a.studentData?.rollNo || '').localeCompare(b.studentData?.rollNo || '', undefined, { numeric: true })).map(s => (<tr key={s.uid} className="border-b group"><td className="p-2 font-mono text-slate-900">{s.studentData?.enrollmentId}</td><td className="p-2 font-mono text-slate-900">{s.studentData?.rollNo}</td><td className="p-2 text-slate-900">{s.displayName}</td><td className="p-2 text-slate-900 font-mono">{s.studentData?.mobileNo}</td><td className="p-2 text-right"><button onClick={() => handleSelectStudent(s)} className="text-indigo-500 mr-2 opacity-0 group-hover:opacity-100" title="View Details"><Eye className="h-4 w-4" /></button><button onClick={() => startEditStudent(s)} className="text-blue-500 mr-2 opacity-0 group-hover:opacity-100" title="Edit Student"><Edit2 className="h-4 w-4" /></button><button onClick={() => handleDelete(s.uid)} className="text-red-500 opacity-0 group-hover:opacity-100" title="Delete Student"><Trash2 className="h-4 w-4" /></button></td></tr>))}</tbody>
           </table>
@@ -1226,7 +1265,25 @@ const FacultyManagement: React.FC = () => {
                   <a href="data:text/csv;charset=utf-8,S.No%2CName%2CEmail%2CPassword%0A1%2CDr.%20John%2Cjohn%40college.in%2Cpassword123" download="faculty_template.csv" className="flex items-center gap-1 px-3 py-2 rounded border border-dashed border-slate-300 text-slate-500 text-xs font-bold hover:bg-slate-100 transition-all">📄</a>
                 </div>
               </form>
-              <table className="w-full text-sm text-left"><thead className="bg-slate-50 border-b"><tr><th className="p-2 text-slate-900 w-16">S.No</th><th className="p-2 text-slate-900">Name</th><th className="p-2 text-slate-900">Email</th><th className="p-2 text-slate-900">Last Login</th><th className="p-2 text-right text-slate-900">Actions</th></tr></thead><tbody>{faculty.sort((a, b) => (a.facultyData?.serialNo || '').localeCompare(b.facultyData?.serialNo || '', undefined, { numeric: true })).map(f => <tr key={f.uid} className="border-b"><td className="p-2 text-slate-600 font-mono text-xs">{f.facultyData?.serialNo || '-'}</td><td className="p-2 text-slate-900 font-semibold">{f.displayName}</td><td className="p-2 text-slate-900">{f.email}</td><td className="p-2 text-slate-500 text-[10px] uppercase font-bold">{f.lastLogin ? new Date(f.lastLogin).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) : 'Never'}</td><td className="p-2 text-right flex justify-end gap-2"><button onClick={() => startEditFaculty(f)} className="text-blue-500" title="Edit Faculty"><Edit2 className="h-4 w-4" /></button><button onClick={() => initiateResetPassword(f)} title="Reset Password"><Key className="h-4 w-4" /></button><button onClick={() => handleDeleteFaculty(f.uid)} className="text-red-500"><Trash2 className="h-4 w-4" /></button></td></tr>)}</tbody></table>
+              {/* Mobile faculty cards */}
+              <div className="md:hidden divide-y divide-slate-100">
+                {faculty.sort((a, b) => (a.facultyData?.serialNo || '').localeCompare(b.facultyData?.serialNo || '', undefined, { numeric: true })).map(f => (
+                  <div key={f.uid} className="flex items-center justify-between py-3 px-1 gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="font-bold text-slate-900 text-sm">{f.displayName} <span className="font-mono text-[10px] text-slate-400">#{f.facultyData?.serialNo || '-'}</span></div>
+                      <div className="text-[10px] text-slate-500 truncate">{f.email}</div>
+                      <div className="text-[10px] text-slate-400">{f.lastLogin ? new Date(f.lastLogin).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) : 'Never logged in'}</div>
+                    </div>
+                    <div className="flex items-center gap-3 flex-shrink-0">
+                      <button onClick={() => startEditFaculty(f)} className="text-blue-500 p-1"><Edit2 className="h-4 w-4" /></button>
+                      <button onClick={() => initiateResetPassword(f)} className="text-slate-500 p-1"><Key className="h-4 w-4" /></button>
+                      <button onClick={() => handleDeleteFaculty(f.uid)} className="text-red-500 p-1"><Trash2 className="h-4 w-4" /></button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {/* Desktop faculty table */}
+              <table className="hidden md:table w-full text-sm text-left"><thead className="bg-slate-50 border-b"><tr><th className="p-2 text-slate-900 w-16">S.No</th><th className="p-2 text-slate-900">Name</th><th className="p-2 text-slate-900">Email</th><th className="p-2 text-slate-900">Last Login</th><th className="p-2 text-right text-slate-900">Actions</th></tr></thead><tbody>{faculty.sort((a, b) => (a.facultyData?.serialNo || '').localeCompare(b.facultyData?.serialNo || '', undefined, { numeric: true })).map(f => <tr key={f.uid} className="border-b"><td className="p-2 text-slate-600 font-mono text-xs">{f.facultyData?.serialNo || '-'}</td><td className="p-2 text-slate-900 font-semibold">{f.displayName}</td><td className="p-2 text-slate-900">{f.email}</td><td className="p-2 text-slate-500 text-[10px] uppercase font-bold">{f.lastLogin ? new Date(f.lastLogin).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) : 'Never'}</td><td className="p-2 text-right flex justify-end gap-2"><button onClick={() => startEditFaculty(f)} className="text-blue-500" title="Edit Faculty"><Edit2 className="h-4 w-4" /></button><button onClick={() => initiateResetPassword(f)} title="Reset Password"><Key className="h-4 w-4" /></button><button onClick={() => handleDeleteFaculty(f.uid)} className="text-red-500"><Trash2 className="h-4 w-4" /></button></td></tr>)}</tbody></table>
             </Card>
           )}
           {activeSubTab === 'allocations' && (
@@ -1265,19 +1322,35 @@ const FacultyManagement: React.FC = () => {
                 </div>
               </div>
 
-              <table className="w-full text-sm text-left"><thead className="bg-slate-50 border-b"><tr><th className="p-2 text-slate-900">Faculty</th><th className="p-2 text-slate-900">Subject</th><th className="p-2 text-slate-900">Context</th><th className="p-2 text-right text-slate-900">Action</th></tr></thead>
+              {/* Mobile assignment cards */}
+              <div className="md:hidden divide-y divide-slate-100">
+                {assignments.filter(a => !allocFilterBranchId || a.branchId === allocFilterBranchId).map(a => {
+                  const fac = faculty.find(f => f.uid === a.facultyId);
+                  const sub = subjects.find(s => s.id === a.subjectId);
+                  const br = branches.find(b => b.id === a.branchId)?.name;
+                  return (
+                    <div key={a.id} className="flex items-center justify-between py-3 px-1 gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="font-bold text-slate-900 text-sm truncate">{fac?.displayName}</div>
+                        <div className="text-[10px] text-slate-600">{sub ? `${sub.name} (${sub.code})` : 'Unknown'}</div>
+                        <div className="text-[10px] text-slate-400">{br} · {formatContext(a.batchId)}</div>
+                      </div>
+                      <div className="flex items-center gap-3 flex-shrink-0">
+                        <button onClick={() => handleEditAssignment(a)} className="text-blue-500 p-1"><Edit2 className="h-4 w-4" /></button>
+                        <button onClick={() => handleDeleteAssignment(a.id)} className="text-red-500 p-1"><Trash2 className="h-4 w-4" /></button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              {/* Desktop assignment table */}
+              <table className="hidden md:table w-full text-sm text-left"><thead className="bg-slate-50 border-b"><tr><th className="p-2 text-slate-900">Faculty</th><th className="p-2 text-slate-900">Subject</th><th className="p-2 text-slate-900">Context</th><th className="p-2 text-right text-slate-900">Action</th></tr></thead>
                 <tbody>{assignments.filter(a => !allocFilterBranchId || a.branchId === allocFilterBranchId).map(a => {
                   const fac = faculty.find(f => f.uid === a.facultyId);
                   const sub = subjects.find(s => s.id === a.subjectId);
                   const subDisplayName = sub ? `${sub.name} (${sub.code})` : 'Unknown Subject';
                   const br = branches.find(b => b.id === a.branchId)?.name;
-                  return (<tr key={a.id} className="border-b"><td className="p-2 text-slate-900">{fac?.displayName}</td><td className="p-2 text-slate-900">{subDisplayName}</td><td className="p-2 text-xs text-slate-600">
-                    <div className="font-bold">{br}</div>
-                    <div>{formatContext(a.batchId)}</div>
-                  </td><td className="p-2 text-right flex justify-end gap-2">
-                      <button onClick={() => handleEditAssignment(a)} className="text-blue-500 hover:text-blue-700"><Edit2 className="h-4 w-4" /></button>
-                      <button onClick={() => handleDeleteAssignment(a.id)} className="text-red-500 hover:text-red-700"><Trash2 className="h-4 w-4" /></button>
-                    </td></tr>)
+                  return (<tr key={a.id} className="border-b"><td className="p-2 text-slate-900">{fac?.displayName}</td><td className="p-2 text-slate-900">{subDisplayName}</td><td className="p-2 text-xs text-slate-600"><div className="font-bold">{br}</div><div>{formatContext(a.batchId)}</div></td><td className="p-2 text-right flex justify-end gap-2"><button onClick={() => handleEditAssignment(a)} className="text-blue-500 hover:text-blue-700"><Edit2 className="h-4 w-4" /></button><button onClick={() => handleDeleteAssignment(a.id)} className="text-red-500 hover:text-red-700"><Trash2 className="h-4 w-4" /></button></td></tr>)
                 })}</tbody></table>
             </Card>
           )}
