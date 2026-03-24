@@ -1613,9 +1613,11 @@ const ReportManagement: React.FC = () => {
   const executeExport = () => {
     if (!selectedBranchId) return;
 
+    const exportStart = exportRange === 'CUSTOM' ? exportStartDate : '';
+    const exportEnd = exportRange === 'CUSTOM' ? exportEndDate : '';
     const recordsToExport = attendance.filter(r => {
-      const inStart = !exportStartDate || r.date >= exportStartDate;
-      const inEnd = !exportEndDate || r.date <= exportEndDate;
+      const inStart = !exportStart || r.date >= exportStart;
+      const inEnd = !exportEnd || r.date <= exportEnd;
       return inStart && inEnd;
     });
 
@@ -1860,7 +1862,7 @@ const ReportManagement: React.FC = () => {
 
   const previewRecords = useMemo(() => {
     const start = exportRange === 'CUSTOM' ? exportStartDate : '';
-    const end = exportEndDate;
+    const end = exportRange === 'CUSTOM' ? exportEndDate : '';
     return attendance.filter(r => {
       const inStart = !start || r.date >= start;
       const inEnd = !end || r.date <= end;

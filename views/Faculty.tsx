@@ -1289,7 +1289,7 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
    const executeExport = () => {
       let recordsToExport = allClassRecords;
       const start = exportRange === 'CUSTOM' ? exportStartDate : '';
-      const end = exportEndDate;
+      const end = exportRange === 'CUSTOM' ? exportEndDate : '';
 
       recordsToExport = allClassRecords.filter(r => {
          const inStart = !start || r.date >= start;
@@ -2684,7 +2684,7 @@ const CoordinatorReport: React.FC<{ branchId: string; branchName: string; studen
 
    const previewRecords = useMemo(() => {
       const start = exportRange === 'CUSTOM' ? exportStartDate : '';
-      const end = exportEndDate;
+      const end = exportRange === 'CUSTOM' ? exportEndDate : '';
       return attendance.filter(r => {
          const inStart = !start || r.date >= start;
          const inEnd = !end || r.date <= end;
