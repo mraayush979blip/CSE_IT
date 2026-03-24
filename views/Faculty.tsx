@@ -1992,16 +1992,17 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                               )}
                               <button
                                  onClick={() => setShowFilters(!showFilters)}
-                                 className={`h-9 w-9 flex items-center justify-center rounded-xl transition-all ${showFilters ? 'bg-indigo-600 text-white' : 'bg-slate-50 text-slate-500'}`}
+                                 className={`h-9 px-3 flex items-center gap-1.5 rounded-xl transition-all ${showFilters ? 'bg-indigo-600 text-white' : 'bg-slate-50 text-slate-500'}`}
                               >
                                  <Filter className="h-4 w-4" />
+                                 <span className="text-[10px] font-black tracking-widest uppercase">Filters</span>
                               </button>
                            </div>
                         </div>
 
                         <div className="flex items-center gap-3">
                            <div className="flex-1 relative">
-                              <label className="absolute left-3 top-2 text-[8px] font-black text-slate-400 uppercase tracking-[0.2em]">Inspect Date</label>
+                              <label className="absolute left-3 top-2 text-[8px] font-black text-slate-400 uppercase tracking-[0.2em]">Check specific date</label>
                               <input
                                  type="date"
                                  value={historyFilterDate}
@@ -2016,7 +2017,7 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                               disabled={allClassRecords.length === 0}
                            >
                               <FileDown className="h-5 w-5" />
-                              <span className="text-[10px] font-black tracking-widest uppercase hidden xs:block">Export</span>
+                              <span className="text-[10px] font-black tracking-widest uppercase">Export CSV</span>
                            </button>
                         </div>
 
